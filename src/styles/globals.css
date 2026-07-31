@@ -10,32 +10,32 @@
 
 @layer base {
   :root {
-    /* 暖中性:ChatGPT/codex 体系的浅底,略带暖意而非冷蓝 */
-    --background: 36 33% 97%;
-    --foreground: 30 10% 12%;
+    /* CodeX 截图取向:亮白底、冷中性灰、极淡阴影 */
+    --background: 0 0% 99%;
+    --foreground: 240 6% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 30 10% 12%;
+    --card-foreground: 240 6% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 30 10% 12%;
-    --primary: 30 10% 16%;
-    --primary-foreground: 40 30% 98%;
-    --secondary: 36 14% 93%;
-    --secondary-foreground: 30 10% 16%;
-    --muted: 36 14% 94%;
-    --muted-foreground: 30 5% 42%;
-    /* 强调色克制:低饱和青绿,只在关键状态点缀 */
-    --accent: 168 48% 38%;
-    --accent-foreground: 40 30% 98%;
-    --destructive: 0 60% 50%;
-    --destructive-foreground: 40 30% 98%;
-    --border: 36 12% 88%;
-    --input: 36 12% 90%;
-    --ring: 168 48% 38%;
-    --radius: 0.5rem;
-    --signal: 168 48% 42%;
-    --shadow-1: 0 1px 2px hsl(30 20% 12% / 0.05), 0 1px 3px hsl(30 20% 12% / 0.04);
-    --shadow-2: 0 1px 3px hsl(30 20% 12% / 0.06), 0 4px 12px hsl(30 20% 12% / 0.05);
-    --shadow-float: 0 8px 28px hsl(30 20% 12% / 0.1);
+    --popover-foreground: 240 6% 12%;
+    --primary: 240 4% 16%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 5% 96%;
+    --secondary-foreground: 240 4% 16%;
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 46%;
+    /* 强调色:灰蓝(截图主按钮),非青绿 */
+    --accent: 216 78% 52%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 52%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 5% 88%;
+    --input: 240 5% 90%;
+    --ring: 216 78% 52%;
+    --radius: 0.625rem;
+    --signal: 216 78% 52%;
+    --shadow-1: 0 1px 2px hsl(240 6% 12% / 0.04), 0 1px 2px hsl(240 6% 12% / 0.03);
+    --shadow-2: 0 1px 3px hsl(240 6% 12% / 0.06), 0 4px 12px hsl(240 6% 12% / 0.04);
+    --shadow-float: 0 8px 28px hsl(240 6% 12% / 0.1);
   }
 
   .dark {
@@ -52,14 +52,14 @@
     --secondary-foreground: 40 14% 90%;
     --muted: 30 6% 14%;
     --muted-foreground: 38 6% 56%;
-    --accent: 168 44% 48%;
+    --accent: 216 72% 58%;
     --accent-foreground: 30 8% 9%;
     --destructive: 0 50% 46%;
     --destructive-foreground: 40 14% 96%;
     --border: 30 6% 17%;
     --input: 30 6% 19%;
-    --ring: 168 44% 48%;
-    --signal: 168 50% 52%;
+    --ring: 216 72% 58%;
+    --signal: 216 78% 60%;
     --shadow-1: 0 1px 2px hsl(30 30% 2% / 0.35), 0 1px 3px hsl(30 30% 2% / 0.25);
     --shadow-2: 0 1px 3px hsl(30 30% 2% / 0.4), 0 4px 14px hsl(30 30% 2% / 0.3);
     --shadow-float: 0 10px 36px hsl(30 30% 2% / 0.45);

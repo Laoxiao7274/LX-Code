@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { MessageSquare } from "lucide-react";
+import { Logo } from "@/components/ui/logo";
+import { FileCode, Bug, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -46,12 +47,30 @@ export function ChatPrototype() {
       <ScrollArea className="flex-1 rounded-xl border border-border/50 bg-card/30">
         <div className="space-y-4 p-4">
           {messages.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center gap-2 py-16 text-muted-foreground">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                <MessageSquare className="h-5 w-5" />
+            <div className="flex h-full flex-col items-center justify-center gap-6 py-20 text-center">
+              <Logo size={56} className="text-accent/80" />
+              <div className="space-y-1.5">
+                <h2 className="text-2xl font-semibold tracking-tight">开始构建</h2>
+                <p className="text-sm text-muted-foreground font-mono">lxcode_workspace</p>
               </div>
-              <div className="text-sm">暂无消息</div>
-              <div className="text-xs opacity-70">在右栏点击「发送消息」或在下方输入</div>
+              <div className="grid w-full max-w-xl grid-cols-1 gap-2.5 px-4 sm:grid-cols-3">
+                {[
+                  { icon: FileCode, title: "生成功能", desc: "描述需求,自动生成代码" },
+                  { icon: Bug, title: "修复问题", desc: "粘贴报错,定位并修复" },
+                  { icon: Sparkles, title: "重构优化", desc: "选区代码,提出改进" },
+                ].map((s) => (
+                  <button
+                    key={s.title}
+                    type="button"
+                    onClick={() => setInput(s.title + ":")}
+                    className="surface group rounded-xl p-3.5 text-left transition-all hover:-translate-y-0.5 hover:shadow-md"
+                  >
+                    <s.icon className="mb-2 h-5 w-5 text-accent" />
+                    <div className="text-[13px] font-medium">{s.title}</div>
+                    <div className="mt-0.5 text-[11px] text-muted-foreground">{s.desc}</div>
+                  </button>
+                ))}
+              </div>
             </div>
           ) : (
             messages.map((m) => (

@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Logo } from "@/components/ui/logo";
 import { useChatStore } from "@/pages/prototypes/chat-store";
 import { cn } from "@/lib/utils";
 
@@ -9,9 +10,7 @@ import { cn } from "@/lib/utils";
 export function Titlebar() {
   return (
     <div className="flex h-10 items-center gap-2.5 border-b border-border/60 bg-muted/30 px-3.5 select-none">
-      <div className="flex h-6 w-6 items-center justify-center rounded-md bg-foreground text-[11px] font-bold text-background">
-        LX
-      </div>
+      <Logo size={20} />
       <span className="text-[13px] font-semibold tracking-tight">LXCode</span>
       <Separator orientation="vertical" className="mx-1 h-4" />
       <span className="text-xs text-muted-foreground">本地编码助手</span>
