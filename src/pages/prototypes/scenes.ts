@@ -93,10 +93,35 @@ export const SCENES: SceneDef[] = [
       useChatStore.setState({
         messages: [
           { id: "p1", role: "user", text: "帮我创建 src/test.ts 文件" },
-          { id: "p2", role: "assistant", text: "我需要创建文件 src/test.ts,请确认权限。" },
+          {
+            id: "p2",
+            role: "assistant",
+            streaming: false,
+            parts: [
+              {
+                type: "thinking",
+                id: "pt1",
+                text: "用户要创建 src/test.ts。需要调用 write 工具,但这是文件写入操作,应先请求权限。",
+                streaming: false,
+              },
+              {
+                type: "tool",
+                id: "pt2",
+                name: "write",
+                arg: "src/test.ts",
+                status: "running",
+              },
+              {
+                type: "text",
+                id: "pt3",
+                text: "需要创建文件 src/test.ts,等待你确认权限。",
+                streaming: false,
+              },
+            ],
+          },
         ],
         input: "",
-        isGenerating: false,
+        isGenerating: true,
       });
     },
     events: [
@@ -105,8 +130,24 @@ export const SCENES: SceneDef[] = [
         label: "允许执行",
         description: "放行此次工具调用",
         handler: () => {
-          useChatStore.getState().setInput("好的,继续");
-          return "已允许,工具执行中";
+          const msgs = useChatStore.getState().messages;
+          useChatStore.setState({
+            isGenerating: false,
+            messages: msgs.map((m) =>
+              m.id === "p2"
+                ? {
+                    ...m,
+                    streaming: false,
+                    parts: m.parts?.map((p) =>
+                      p.type === "tool" && p.id === "pt2"
+                        ? { ...p, status: "ok" as const, timing: "1.2s", output: ["已创建 src/test.ts (0 B)"] }
+                        : p,
+                    ),
+                  }
+                : m,
+            ),
+          });
+          return "已允许,write 执行完成";
         },
       },
       {
