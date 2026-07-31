@@ -27,9 +27,13 @@ export function SessionSidebar() {
 
   return (
     <div className="flex h-full flex-col bg-muted/25">
-      {/* 顶部:新建会话 */}
-      <div className="p-2.5">
-        <Button className="w-full justify-start gap-2" onClick={create}>
+      {/* 顶部:新建会话 —— 克制药丸形,贴合 CodeX 克制美学 */}
+      <div className="px-2.5 pt-2.5">
+        <Button
+          variant="outline"
+          className="h-8 w-full justify-start gap-2 rounded-full px-3 text-[13px] font-normal"
+          onClick={create}
+        >
           <Plus className="h-4 w-4" />
           新建会话
         </Button>
