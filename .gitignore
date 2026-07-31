@@ -32,6 +32,7 @@ Thumbs.db
 *.log
 npm-debug.log*
 pnpm-debug.log*
+.vite-dev.log
 
 # 参考项目(不进 git)
 reference/
