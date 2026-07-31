@@ -1,4 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
+import { gsap } from "gsap";
+import { useGSAP } from "@gsap/react";
 import { useChatStore } from "./chat-store";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
@@ -8,6 +10,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Logo } from "@/components/ui/logo";
 import { FileCode, Bug, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+gsap.registerPlugin(useGSAP);
 
 /**
  * 对话页原型 —— 全部用调试场组件拼装。
@@ -25,12 +29,43 @@ export function ChatPrototype() {
 
   // 新消息时自动滚到底
   const bottomRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [messages]);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(
+    () => {
+      // 空状态入场:Logo + 标题 + 建议卡时间轴(仅空状态时触发)
+      if (messages.length === 0) {
+        const tl = gsap.timeline();
+        tl.from(".es-logo", { scale: 0.6, opacity: 0, duration: 0.5, ease: "back.out(1.6)" })
+          .from(".es-title", { y: 16, opacity: 0, duration: 0.4, ease: "power2.out" }, "-=0.2")
+          .from(".es-sub", { y: 12, opacity: 0, duration: 0.4, ease: "power2.out" }, "-=0.3")
+          .from(
+            ".es-card",
+            { y: 24, opacity: 0, scale: 0.95, duration: 0.5, ease: "power3.out", stagger: 0.1 },
+            "-=0.2",
+          );
+      }
+    },
+    { scope: rootRef, dependencies: [messages.length === 0] },
+  );
+
+  // 新消息入场动画 + 滚到底
+  useGSAP(
+    () => {
+      if (messages.length > 0) {
+        gsap.fromTo(
+          ".bubble:last-child",
+          { y: 16, opacity: 0, scale: 0.96 },
+          { y: 0, opacity: 1, scale: 1, duration: 0.5, ease: "back.out(1.4)" },
+        );
+      }
+      bottomRef.current?.scrollIntoView({ block: "end" });
+    },
+    { scope: rootRef, dependencies: [messages.length] },
+  );
 
   return (
-    <div className="flex h-full flex-col">
+    <div ref={rootRef} className="flex h-full flex-col">
       {/* 顶部状态条 */}
       <div className="flex items-center gap-2 px-1 pb-3 text-xs text-muted-foreground">
         {isGenerating ? (
@@ -48,10 +83,10 @@ export function ChatPrototype() {
         <div className="space-y-4 p-4">
           {messages.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-6 py-20 text-center">
-              <Logo size={56} className="text-accent/80" />
+              <Logo size={56} className="es-logo text-accent/80" />
               <div className="space-y-1.5">
-                <h2 className="text-2xl font-semibold tracking-tight">开始构建</h2>
-                <p className="text-sm text-muted-foreground font-mono">lxcode_workspace</p>
+                <h2 className="es-title text-2xl font-semibold tracking-tight">开始构建</h2>
+                <p className="es-sub text-sm text-muted-foreground font-mono">lxcode_workspace</p>
               </div>
               <div className="grid w-full max-w-xl grid-cols-1 gap-2.5 px-4 sm:grid-cols-3">
                 {[
@@ -63,7 +98,7 @@ export function ChatPrototype() {
                     key={s.title}
                     type="button"
                     onClick={() => setInput(s.title + ":")}
-                    className="surface group rounded-xl p-3.5 text-left transition-all hover:-translate-y-0.5 hover:shadow-md"
+                    className="es-card surface group rounded-xl p-3.5 text-left transition-all hover:-translate-y-0.5 hover:shadow-md"
                   >
                     <s.icon className="mb-2 h-5 w-5 text-accent" />
                     <div className="text-[13px] font-medium">{s.title}</div>
@@ -77,7 +112,7 @@ export function ChatPrototype() {
               <div
                 key={m.id}
                 className={cn(
-                  "flex items-start gap-2.5",
+                  "bubble flex items-start gap-2.5",
                   m.role === "user" ? "flex-row-reverse" : "flex-row",
                 )}
               >
@@ -86,7 +121,7 @@ export function ChatPrototype() {
                     className={cn(
                       "text-[11px] font-medium",
                       m.role === "user"
-                        ? "bg-accent text-accent-foreground"
+                        ? "bg-primary text-primary-foreground"
                         : "bg-muted text-muted-foreground",
                     )}
                   >

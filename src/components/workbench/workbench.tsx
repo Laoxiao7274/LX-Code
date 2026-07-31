@@ -3,6 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Logo } from "@/components/ui/logo";
 import { PrototypesTab } from "@/components/workbench/prototypes-tab";
 import { ComponentsTab } from "@/components/workbench/components-tab";
+import { AnimationsTab } from "@/components/workbench/animations-tab";
 
 /**
  * 工作台:顶部品牌头 + 两个 Tab(页面原型 / 组件调试场)。
@@ -27,6 +28,7 @@ export function Workbench() {
           <TabsList>
             <TabsTrigger value="prototypes">页面原型</TabsTrigger>
             <TabsTrigger value="components">组件调试场</TabsTrigger>
+            <TabsTrigger value="animations">动画演示</TabsTrigger>
           </TabsList>
         </div>
 
@@ -35,6 +37,9 @@ export function Workbench() {
         </TabsContent>
         <TabsContent value="components" className="mt-0 flex-1 overflow-hidden">
           <ComponentsTab />
+        </TabsContent>
+        <TabsContent value="animations" className="mt-0 flex-1 overflow-hidden">
+          <AnimationsTab />
         </TabsContent>
       </Tabs>
     </div>
