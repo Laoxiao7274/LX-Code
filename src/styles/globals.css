@@ -4,48 +4,59 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
+    --background: 220 14% 96%;
+    --foreground: 220 20% 10%;
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --card-foreground: 220 20% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
+    --popover-foreground: 220 20% 10%;
+    --primary: 220 20% 14%;
+    --primary-foreground: 200 30% 98%;
+    --secondary: 220 14% 92%;
+    --secondary-foreground: 220 20% 14%;
+    --muted: 220 14% 94%;
+    --muted-foreground: 220 8% 42%;
+    --accent: 160 84% 38%;
+    --accent-foreground: 200 30% 98%;
+    --destructive: 0 72% 52%;
+    --destructive-foreground: 200 30% 98%;
+    --border: 220 14% 88%;
+    --input: 220 14% 90%;
+    --ring: 160 84% 38%;
     --radius: 0.5rem;
+    /* 青绿强调色:用于就绪/生成/AI 信号 */
+    --signal: 160 84% 45%;
+    /* 阴影层级 */
+    --shadow-1: 0 1px 2px hsl(220 20% 10% / 0.06), 0 1px 3px hsl(220 20% 10% / 0.04);
+    --shadow-2: 0 2px 4px hsl(220 20% 10% / 0.06), 0 4px 12px hsl(220 20% 10% / 0.05);
+    --shadow-float: 0 8px 32px hsl(220 20% 10% / 0.12);
   }
 
   .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
+    /* 深蓝调背景:显示器/IDE 质感,比纯黑灰更高级 */
+    --background: 220 14% 8%;
+    --foreground: 210 20% 92%;
+    --card: 220 13% 11%;
+    --card-foreground: 210 20% 92%;
+    --popover: 220 13% 11%;
+    --popover-foreground: 210 20% 92%;
+    --primary: 210 20% 92%;
+    --primary-foreground: 220 14% 11%;
+    --secondary: 220 12% 16%;
+    --secondary-foreground: 210 20% 92%;
+    --muted: 220 12% 14%;
+    --muted-foreground: 215 12% 58%;
+    --accent: 160 84% 45%;
+    --accent-foreground: 220 14% 8%;
+    --destructive: 0 62% 42%;
+    --destructive-foreground: 210 20% 96%;
+    --border: 220 12% 18%;
+    --input: 220 12% 20%;
+    --ring: 160 84% 50%;
+    --signal: 160 84% 52%;
+    --shadow-1: 0 1px 2px hsl(220 40% 2% / 0.4), 0 1px 3px hsl(220 40% 2% / 0.3);
+    --shadow-2: 0 2px 4px hsl(220 40% 2% / 0.4), 0 4px 16px hsl(220 40% 2% / 0.35);
+    --shadow-float: 0 12px 40px hsl(220 40% 2% / 0.5);
   }
 }
 
@@ -60,6 +71,75 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings: "rlig" 1, "calt" 1, "tnum" 1;
+  }
+  /* 滚动条全局美化(配合 ScrollArea) */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+    background-clip: padding-box;
+  }
+}
+
+@layer utilities {
+  /* 卡片浮起:阴影 + 圆角节奏 */
+  .surface {
+    @apply rounded-lg bg-card text-card-foreground;
+    box-shadow: var(--shadow-2);
+  }
+  .surface-flat {
+    @apply rounded-md bg-muted/40;
+  }
+  /* 强调色文字/边框 */
+  .text-signal {
+    color: hsl(var(--signal));
+  }
+  .border-signal {
+    border-color: hsl(var(--signal) / 0.4);
+  }
+  /* 签名元素:就绪/生成中的呼吸光点 */
+  .signal-dot {
+    position: relative;
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: hsl(var(--signal));
+  }
+  .signal-dot::after {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: 999px;
+    background: hsl(var(--signal) / 0.4);
+    animation: signal-pulse 2s ease-out infinite;
+  }
+  @keyframes signal-pulse {
+    0% {
+      transform: scale(0.6);
+      opacity: 0.8;
+    }
+    70% {
+      transform: scale(1.8);
+      opacity: 0;
+    }
+    100% {
+      transform: scale(1.8);
+      opacity: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .signal-dot::after {
+      animation: none;
+    }
   }
 }

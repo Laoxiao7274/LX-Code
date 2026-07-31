@@ -14,7 +14,7 @@ import { ChatMain } from "./chat-main";
  */
 export function AppShell() {
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-md border border-border bg-background">
+    <div className="surface flex h-full flex-col overflow-hidden rounded-xl">
       <Titlebar />
       <ResizablePanelGroup orientation="horizontal" className="flex-1">
         <ResizablePanel defaultSize="24" minSize="16" maxSize="32">
