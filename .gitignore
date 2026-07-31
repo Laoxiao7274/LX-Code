@@ -6,6 +6,7 @@ node_modules/
 dist/
 dist-ssr/
 *.local
+*.tsbuildinfo
 
 # Tauri (Phase 3)
 src-tauri/target/
