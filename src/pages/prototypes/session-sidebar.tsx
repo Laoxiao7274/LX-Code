@@ -2,8 +2,8 @@ import { useSessionStore } from "@/pages/prototypes/session-store";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { Plus, MessageSquare, Settings } from "lucide-react";
 
 /** 相对时间格式化。 */
 function relTime(ts: number): string {
@@ -27,10 +27,10 @@ export function SessionSidebar() {
 
   return (
     <div className="flex h-full flex-col bg-muted/25">
-      {/* 顶部:新建会话(强调色) */}
+      {/* 顶部:新建会话 */}
       <div className="p-2.5">
-        <Button className="w-full justify-start gap-2 shadow-sm" onClick={create}>
-          <span className="text-base leading-none">+</span>
+        <Button className="w-full justify-start gap-2" onClick={create}>
+          <Plus className="h-4 w-4" />
           新建会话
         </Button>
       </div>
@@ -61,16 +61,9 @@ export function SessionSidebar() {
                     aria-hidden
                   />
                 ) : null}
-                <Avatar className="h-7 w-7 shrink-0">
-                  <AvatarFallback
-                    className={cn(
-                      "text-[11px]",
-                      active ? "bg-accent/15 text-accent" : "bg-muted text-muted-foreground",
-                    )}
-                  >
-                    📝
-                  </AvatarFallback>
-                </Avatar>
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted">
+                  <MessageSquare className={cn("h-3.5 w-3.5", active ? "text-accent" : "text-muted-foreground")} />
+                </div>
                 <div className="min-w-0 flex-1">
                   <div
                     className={cn(
@@ -95,9 +88,9 @@ export function SessionSidebar() {
       {/* 底部:设置入口 */}
       <div className="p-1.5">
         <Button variant="ghost" className="w-full justify-start gap-2.5 text-muted-foreground">
-          <Avatar className="h-5 w-5">
-            <AvatarFallback className="bg-transparent text-[11px]">⚙</AvatarFallback>
-          </Avatar>
+          <div className="flex h-5 w-5 items-center justify-center">
+            <Settings className="h-4 w-4" />
+          </div>
           设置
         </Button>
       </div>

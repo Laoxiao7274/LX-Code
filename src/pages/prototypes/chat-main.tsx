@@ -23,7 +23,7 @@ export function ChatMain() {
         </Badge>
         <div className="flex-1" />
         <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs">
-          <span className="signal-dot scale-75" aria-hidden />
+          <span className="signal-dot scale-[0.8]" aria-hidden />
           claude-sonnet-4
         </Button>
       </div>

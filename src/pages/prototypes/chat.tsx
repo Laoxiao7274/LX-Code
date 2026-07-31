@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -46,8 +47,8 @@ export function ChatPrototype() {
         <div className="space-y-4 p-4">
           {messages.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-2 py-16 text-muted-foreground">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-xl">
-                ✦
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                <MessageSquare className="h-5 w-5" />
               </div>
               <div className="text-sm">暂无消息</div>
               <div className="text-xs opacity-70">在右栏点击「发送消息」或在下方输入</div>
@@ -77,8 +78,8 @@ export function ChatPrototype() {
                   className={cn(
                     "max-w-[72%] rounded-2xl px-3.5 py-2 text-[13px] leading-relaxed",
                     m.role === "user"
-                      ? "rounded-tr-sm bg-accent text-accent-foreground shadow-sm"
-                      : "rounded-tl-sm border border-border/50 bg-card shadow-sm",
+                      ? "rounded-tr-sm bg-primary text-primary-foreground"
+                      : "rounded-tl-sm border border-border/50 bg-card",
                   )}
                 >
                   {m.text}

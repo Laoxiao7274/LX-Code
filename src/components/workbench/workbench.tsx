@@ -13,8 +13,8 @@ export function Workbench() {
   return (
     <div className="flex h-screen flex-col bg-background text-foreground">
       {/* 品牌头 */}
-      <header className="flex h-11 items-center gap-2.5 border-b border-border/60 bg-gradient-to-b from-muted/40 to-transparent px-4">
-        <div className="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-accent to-accent/70 text-[11px] font-bold text-accent-foreground shadow-sm">
+      <header className="flex h-11 items-center gap-2.5 border-b border-border/60 bg-muted/30 px-4">
+        <div className="flex h-6 w-6 items-center justify-center rounded-md bg-foreground text-[11px] font-bold text-background">
           LX
         </div>
         <span className="text-[13px] font-semibold tracking-tight">LXCode</span>

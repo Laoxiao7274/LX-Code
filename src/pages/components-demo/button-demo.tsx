@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { Check } from "lucide-react";
 
 /** Button 组件调试:展示所有 variant 与 size 组合。 */
 export function ButtonDemo() {
@@ -30,7 +31,7 @@ export function ButtonDemo() {
         <div className="flex flex-wrap items-center gap-2">
           {sizes.map((s) => (
             <Button key={s} size={s}>
-              {s === "icon" ? "●" : s}
+              {s === "icon" ? <Check className="h-4 w-4" /> : s}
             </Button>
           ))}
         </div>
