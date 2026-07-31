@@ -5,6 +5,8 @@ export interface WorkbenchEvent {
   id: string;
   label: string;
   description?: string;
+  /** 真正触发的事件处理:点击时执行,返回值显示在底部反馈条。 */
+  handler?: () => string | void;
 }
 
 interface EventsSidebarProps {
@@ -14,19 +16,24 @@ interface EventsSidebarProps {
 }
 
 /**
- * 右侧事件/状态侧栏:列出原型可触发的事件。
- * 点击 → 高亮 + 弹出 toast 样式的反馈条(模拟事件触发效果)。
+ * 右侧事件/状态侧栏:点击真正执行 handler,并在底部反馈条显示结果。
+ * handler 返回的字符串会显示在"已触发"反馈条;无返回值则只显示事件名。
  */
 export function EventsSidebar({ title, events, hint }: EventsSidebarProps) {
-  const [fired, setFired] = useState<string | null>(null);
+  const [fired, setFired] = useState<{ id: string; label: string; result?: string } | null>(null);
+
+  const trigger = (ev: WorkbenchEvent) => {
+    const result = ev.handler?.();
+    setFired({ id: ev.id, label: ev.label, result: result ?? undefined });
+  };
 
   return (
     <aside className="flex h-full flex-col border-l border-border bg-muted/30">
-      <div className="px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <div className="px-3 py-2 text-xs font-medium tracking-wide text-muted-foreground">
         {title}
       </div>
       <div className="px-3 pb-1 text-xs text-muted-foreground">
-        {hint ?? "点击触发,效果显示在底部"}
+        {hint ?? "点击触发,效果实时反映在预览区"}
       </div>
       <div className="flex-1 overflow-y-auto px-1.5 pb-2">
         {events.length === 0 ? (
@@ -37,10 +44,10 @@ export function EventsSidebar({ title, events, hint }: EventsSidebarProps) {
               <li key={ev.id}>
                 <button
                   type="button"
-                  onClick={() => setFired(ev.id)}
+                  onClick={() => trigger(ev)}
                   className={cn(
                     "w-full rounded-md px-2.5 py-1.5 text-left text-sm transition-colors",
-                    fired === ev.id
+                    fired?.id === ev.id
                       ? "bg-primary text-primary-foreground"
                       : "text-foreground/80 hover:bg-accent/60 hover:text-foreground",
                   )}
@@ -58,9 +65,10 @@ export function EventsSidebar({ title, events, hint }: EventsSidebarProps) {
       {fired ? (
         <div className="border-t border-border bg-background px-3 py-2 text-xs">
           <span className="text-muted-foreground">已触发:</span>{" "}
-          <span className="font-medium text-foreground">
-            {events.find((e) => e.id === fired)?.label}
-          </span>
+          <span className="font-medium text-foreground">{fired.label}</span>
+          {fired.result ? (
+            <div className="mt-1 text-muted-foreground">→ {fired.result}</div>
+          ) : null}
         </div>
       ) : null}
     </aside>

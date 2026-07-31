@@ -16,7 +16,7 @@ interface NavSidebarProps {
 export function NavSidebar({ title, items, activeId, onSelect }: NavSidebarProps) {
   return (
     <aside className="flex h-full flex-col border-r border-border bg-muted/30">
-      <div className="px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <div className="px-3 py-2 text-xs font-medium tracking-wide text-muted-foreground">
         {title}
       </div>
       <div className="flex-1 overflow-y-auto px-1.5 pb-2">
