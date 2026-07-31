@@ -1,20 +1,28 @@
 import { useSessionStore } from "@/pages/prototypes/session-store";
+import { useModeStore } from "@/pages/prototypes/mode-store";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ChatPrototype } from "./chat";
+import { ModeSwitcher } from "./mode-switcher";
+import { AgentView } from "./agent-view";
+import { CodingView } from "./coding-view";
+import { DesignView } from "./design-view";
 
 /**
- * 对话主区:顶栏(当前会话标题 + 模型胶囊) + 消息流 + 输入区。
+ * 对话主区:顶栏(模式切换 + 会话标题 + 模型) + 当前模式视图。
+ * 三种模式共享会话状态,只切中间主区呈现。
  */
 export function ChatMain() {
   const sessions = useSessionStore((s) => s.sessions);
   const activeId = useSessionStore((s) => s.activeId);
+  const mode = useModeStore((s) => s.mode);
   const active = sessions.find((x) => x.id === activeId);
 
   return (
     <div className="flex h-full flex-col bg-background">
-      {/* 顶栏:会话标题 + 模型选择器 */}
-      <div className="flex h-11 items-center gap-2 border-b border-border/60 px-4">
+      {/* 顶栏:模式切换 + 会话标题 + 模型胶囊 */}
+      <div className="flex h-11 items-center gap-2.5 border-b border-border/60 px-3">
+        <ModeSwitcher />
+        <span className="mx-1 h-4 w-px bg-border/60" />
         <span className="text-[13px] font-medium tracking-tight">
           {active?.title ?? "未选择会话"}
         </span>
@@ -28,9 +36,11 @@ export function ChatMain() {
         </Button>
       </div>
 
-      {/* 消息流 + 输入 */}
-      <div className="flex-1 overflow-hidden p-3">
-        <ChatPrototype />
+      {/* 当前模式视图 */}
+      <div className="flex-1 overflow-hidden">
+        {mode === "agent" && <AgentView />}
+        {mode === "coding" && <CodingView />}
+        {mode === "design" && <DesignView />}
       </div>
     </div>
   );
