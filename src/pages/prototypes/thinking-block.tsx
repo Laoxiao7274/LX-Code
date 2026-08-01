@@ -1,56 +1,52 @@
-import { useRef, useState } from "react";
-import { gsap } from "gsap";
-import { useGSAP } from "@gsap/react";
-import { ChevronRight } from "lucide-react";
-import { Brain } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronRight, Brain } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ThinkingPart } from "./chat-store";
-
-gsap.registerPlugin(useGSAP);
 
 interface ThinkingBlockProps {
   part: ThinkingPart;
 }
 
 /**
- * 思考段:流式时显示 5 行滚动窗口,折叠后显示最后一段 teaser。
- * 点击展开/折叠全部分段。等宽字体,muted 配色,贴近 kimi/codex 思考样式。
+ * 思考段:流式时展开显示滚动窗口,结束后自动收起为一行 teaser。
+ * 点击可重新展开/折叠。等宽字体,muted 配色,贴近 kimi/codex 思考样式。
  */
 export function ThinkingBlock({ part }: ThinkingBlockProps) {
   const [open, setOpen] = useState(part.streaming ?? false);
-  const container = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
-  const { contextSafe } = useGSAP({ scope: container });
+
+  // 流式时自动展开;流式结束自动收起
+  useEffect(() => {
+    if (part.streaming) {
+      setOpen(true);
+    } else if (open) {
+      // 流式刚结束,收起
+      setOpen(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [part.streaming]);
+
+  // 流式时窗口滚到底
+  useEffect(() => {
+    if (!part.streaming) return;
+    const el = bodyRef.current?.querySelector(".tb-window") as HTMLElement | null;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [part.text, part.streaming]);
 
   const paragraphs = part.text.split(/\n{2,}/).filter((p) => p.trim().length > 0);
   const teaser = paragraphs[paragraphs.length - 1] ?? "";
 
-  const toggle = contextSafe(() => {
-    setOpen((prev) => {
-      const next = !prev;
-      // 折叠动画:用 grid-template-rows 0fr↔1fr 过渡(比 height:auto 平滑)
-      const wrap = bodyRef.current?.querySelector(".tb-window") as HTMLElement | null;
-      if (wrap) {
-        gsap.to(wrap, {
-          height: next ? "auto" : 0,
-          duration: 0.3,
-          ease: "power2.inOut",
-          overwrite: true,
-        });
-      }
-      return next;
-    });
-  });
-
   return (
-    <div ref={container} className="my-1">
+    <div className="my-1">
       <button
         type="button"
-        onClick={toggle}
+        onClick={() => setOpen((v) => !v)}
         className="group flex w-full items-center gap-2 rounded-lg px-1 py-1.5 text-left"
       >
-        <Brain className={cn("h-3.5 w-3.5", part.streaming ? "text-accent" : "text-muted-foreground")} />
-        <span className="text-xs font-medium text-muted-foreground">
+        <Brain
+          className={cn("h-3.5 w-3.5 shrink-0", part.streaming ? "text-accent" : "text-muted-foreground")}
+        />
+        <span className="shrink-0 text-xs font-medium text-muted-foreground">
           {part.streaming ? "思考中" : "已思考"}
         </span>
         {part.streaming ? (
@@ -61,7 +57,12 @@ export function ThinkingBlock({ part }: ThinkingBlockProps) {
           </span>
         ) : (
           <>
-            <span className="truncate font-mono text-[11px] text-muted-foreground/70">{teaser}</span>
+            {/* 折叠时才显示 teaser,展开时不显示(避免和窗口内容重复) */}
+            {!open ? (
+              <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground/70">
+                {teaser}
+              </span>
+            ) : null}
             <ChevronRight
               className={cn(
                 "ml-auto h-3.5 w-3.5 shrink-0 text-muted-foreground/60 transition-transform",
@@ -72,19 +73,21 @@ export function ThinkingBlock({ part }: ThinkingBlockProps) {
         )}
       </button>
 
-      <div ref={bodyRef} className="overflow-hidden">
-        <div className="tb-window overflow-hidden">
-          <pre
-            className={cn(
-              "max-h-32 overflow-y-auto whitespace-pre-wrap break-words px-1 py-2 font-mono text-[12px] leading-relaxed",
-              "text-muted-foreground",
-            )}
-          >
-            {part.text}
-            {part.streaming ? (
-              <span className="ml-0.5 inline-block h-3.5 w-px animate-pulse bg-foreground/50 align-middle" />
-            ) : null}
-          </pre>
+      {/* 用 grid-template-rows 1fr/0fr 过渡,自动高度且平滑 */}
+      <div
+        ref={bodyRef}
+        className="grid transition-[grid-template-rows] duration-300 ease-out"
+        style={{ gridTemplateRows: open ? "1fr" : "0fr" }}
+      >
+        <div className="overflow-hidden">
+          <div className="tb-window max-h-40 overflow-y-auto px-1 py-2">
+            <pre className="whitespace-pre-wrap break-words font-mono text-[12px] leading-relaxed text-muted-foreground">
+              {part.text}
+              {part.streaming ? (
+                <span className="ml-0.5 inline-block h-3.5 w-px animate-pulse bg-foreground/50 align-middle" />
+              ) : null}
+            </pre>
+          </div>
         </div>
       </div>
     </div>
