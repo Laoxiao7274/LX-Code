@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Logo } from "@/components/ui/logo";
+import { ModeSwitcher } from "./mode-switcher";
 import { useChatStore } from "@/pages/prototypes/chat-store";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +15,8 @@ export function Titlebar() {
       <span className="text-[13px] font-semibold tracking-tight">LXCode</span>
       <Separator orientation="vertical" className="mx-1 h-4" />
       <span className="text-xs text-muted-foreground">本地编码助手</span>
+      <div className="flex-1" />
+      <ModeSwitcher />
     </div>
   );
 }
