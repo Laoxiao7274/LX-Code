@@ -33,6 +33,7 @@ export function ChatPrototype() {
   // 新消息时自动滚到底
   const bottomRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const prevCount = useRef(0);
 
   useGSAP(
     () => {
@@ -56,12 +57,24 @@ export function ChatPrototype() {
   useGSAP(
     () => {
       if (messages.length > 0) {
-        gsap.fromTo(
-          ".bubble:last-child",
-          { y: 16, opacity: 0, scale: 0.96 },
-          { y: 0, opacity: 1, scale: 1, duration: 0.5, ease: "back.out(1.4)" },
-        );
+        const added = messages.length - prevCount.current;
+        if (added > 1) {
+          // 批量注入(如长任务场景):所有 bubble stagger 入场
+          gsap.fromTo(
+            ".bubble",
+            { y: 16, opacity: 0, scale: 0.96 },
+            { y: 0, opacity: 1, scale: 1, duration: 0.45, ease: "power3.out", stagger: 0.06 },
+          );
+        } else if (added === 1) {
+          // 单条新增:只动画最后一条
+          gsap.fromTo(
+            ".bubble:last-child",
+            { y: 16, opacity: 0, scale: 0.96 },
+            { y: 0, opacity: 1, scale: 1, duration: 0.5, ease: "back.out(1.4)" },
+          );
+        }
       }
+      prevCount.current = messages.length;
       bottomRef.current?.scrollIntoView({ block: "end" });
     },
     { scope: rootRef, dependencies: [messages.length] },
