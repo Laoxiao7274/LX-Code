@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { ChevronRight, Check, X, FileText, Terminal, Pencil, Search, FileSearch } from "lucide-react";
@@ -36,10 +36,37 @@ export function ToolCallRow({ part }: ToolCallRowProps) {
   const container = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const { contextSafe } = useGSAP({ scope: container });
+  const prevStatus = useRef<ToolStatus>(part.status);
 
   const Icon = TOOL_ICON[part.name] ?? Terminal;
   const hasOutput = !!part.output && part.output.length > 0;
   const canExpand = hasOutput || part.status === "running";
+
+  // 状态从 running 切到 ok/error 时:自动展开 + output/图标/timing 淄入(非打字机)
+  useEffect(() => {
+    if (prevStatus.current === "running" && part.status !== "running") {
+      setOpen(true);
+      const body = bodyRef.current;
+      if (body) {
+        gsap.fromTo(
+          body,
+          { opacity: 0, y: -4 },
+          { opacity: 1, y: 0, duration: 0.3, ease: "power2.out", overwrite: true },
+        );
+      }
+      // 状态图标缩放淡入
+      const icon = container.current?.querySelector(".status-icon") as HTMLElement | null;
+      if (icon) {
+        gsap.fromTo(icon, { scale: 0.4, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.25, ease: "back.out(2)" });
+      }
+      // timing 从右侧滑入
+      const chip = container.current?.querySelector(".timing-chip") as HTMLElement | null;
+      if (chip) {
+        gsap.fromTo(chip, { opacity: 0, x: 6 }, { opacity: 1, x: 0, duration: 0.3, ease: "power2.out" });
+      }
+    }
+    prevStatus.current = part.status;
+  }, [part.status]);
 
   const toggle = contextSafe(() => {
     if (!canExpand) return;
@@ -80,19 +107,19 @@ export function ToolCallRow({ part }: ToolCallRowProps) {
         <span className="shrink-0 font-medium text-foreground">{part.name}</span>
         <span className="min-w-0 flex-1 truncate text-muted-foreground">{part.arg}</span>
 
-        {/* 状态指示 */}
-        <span className={cn("flex shrink-0 items-center", STATUS_CLASS[part.status])}>
+        {/* 状态指示:running→ok/error 平滑过渡,非打字机 */}
+        <span className={cn("flex shrink-0 items-center transition-colors duration-200", STATUS_CLASS[part.status])}>
           {part.status === "ok" ? (
-            <Check className="h-3.5 w-3.5" />
+            <Check className="status-icon h-3.5 w-3.5" />
           ) : part.status === "error" ? (
-            <X className="h-3.5 w-3.5" />
+            <X className="status-icon h-3.5 w-3.5" />
           ) : (
             <span className="signal-dot signal-dot-live" aria-hidden />
           )}
         </span>
 
         {part.timing ? (
-          <span className="shrink-0 text-[11px] text-muted-foreground/70">{part.timing}</span>
+          <span className="timing-chip shrink-0 text-[11px] text-muted-foreground/70">{part.timing}</span>
         ) : null}
 
         {canExpand ? (
