@@ -119,7 +119,7 @@ export const SCENES: SceneDef[] = [
         handler: () => {
           useChatStore.setState({ messages: [], input: "", pendingAttachments: [], isGenerating: false });
           const s = useChatStore.getState();
-          s.addAttachment({ id: `img${Date.now()}`, kind: "image", name: "界面截图.png" });
+          s.addAttachment({ id: `img${Date.now()}`, kind: "image", name: "ide-screenshot.svg", url: "/img/ide-screenshot.svg" });
           s.setInput("看下这个界面");
           s.send();
           return "已发送图片消息(含思考+工具回复)";
@@ -144,8 +144,8 @@ export const SCENES: SceneDef[] = [
         handler: () => {
           useChatStore.setState({ messages: [], input: "", pendingAttachments: [], isGenerating: false });
           const s = useChatStore.getState();
-          s.addAttachment({ id: `a1`, kind: "image", name: "图1.png" });
-          s.addAttachment({ id: `a2`, kind: "image", name: "图2.png" });
+          s.addAttachment({ id: `a1`, kind: "image", name: "ide-screenshot.svg", url: "/img/ide-screenshot.svg" });
+          s.addAttachment({ id: `a2`, kind: "image", name: "chart-dashboard.svg", url: "/img/chart-dashboard.svg" });
           s.addAttachment({ id: `a3`, kind: "file", name: "package.json", size: "1.1 KB" });
           s.setInput("看这三份");
           s.send();

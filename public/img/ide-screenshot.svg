@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="400" viewBox="0 0 640 400">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1e1e2e"/>
+      <stop offset="1" stop-color="#181825"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="400" fill="url(#bg)"/>
+
+  <!-- 左侧侧栏 -->
+  <rect width="176" height="400" fill="#11111b" opacity="0.95"/>
+  <rect x="16" y="18" width="60" height="12" rx="3" fill="#313244"/>
+  <rect x="16" y="44" width="130" height="9" rx="2" fill="#45475a" opacity="0.7"/>
+  <rect x="16" y="62" width="108" height="9" rx="2" fill="#313244" opacity="0.55"/>
+  <rect x="16" y="80" width="144" height="9" rx="2" fill="#585b70" opacity="0.45"/>
+
+  <!-- 顶部标签栏 -->
+  <rect x="176" y="0" width="464" height="34" fill="#1e1e2e"/>
+  <rect x="184" y="6" width="120" height="22" rx="4" fill="#181825"/>
+  <rect x="312" y="6" width="90" height="22" rx="4" fill="#181825"/>
+  <!-- 标签上的关闭点 -->
+  <circle cx="306" cy="17" r="3" fill="#f38ba8" opacity="0.9"/>
+  <circle cx="318" cy="17" r="3" fill="#f9e2af" opacity="0.9"/>
+  <circle cx="330" cy="17" r="3" fill="#a6e3a1" opacity="0.9"/>
+
+  <!-- 代码区域(语法着色块) -->
+  <g opacity="0.92">
+    <rect x="194" y="52" width="70" height="8" rx="2" fill="#a6e3a1"/>
+    <rect x="268" y="52" width="150" height="8" rx="2" fill="#89b4fa"/>
+    <rect x="194" y="70" width="200" height="8" rx="2" fill="#f38ba8"/>
+    <rect x="194" y="88" width="160" height="8" rx="2" fill="#94e2d5"/>
+    <rect x="194" y="106" width="120" height="8" rx="2" fill="#ffffff" opacity="0.35"/>
+    <rect x="194" y="124" width="180" height="8" rx="2" fill="#f9e2af"/>
+    <rect x="194" y="142" width="90" height="8" rx="2" fill="#89b4fa" opacity="0.7"/>
+    <rect x="194" y="160" width="230" height="8" rx="2" fill="#ffffff" opacity="0.25"/>
+    <rect x="194" y="178" width="140" height="8" rx="2" fill="#a6e3a1" opacity="0.6"/>
+    <rect x="194" y="196" width="110" height="8" rx="2" fill="#f38ba8" opacity="0.6"/>
+  </g>
+
+  <!-- 底部状态栏 -->
+  <rect x="176" y="360" width="464" height="40" fill="#11111b"/>
+  <rect x="196" y="376" width="16" height="8" rx="4" fill="#a6e3a1"/>
+  <rect x="220" y="376" width="70" height="8" rx="2" fill="#45475a"/>
+</svg>

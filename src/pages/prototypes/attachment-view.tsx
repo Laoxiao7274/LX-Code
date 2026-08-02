@@ -38,8 +38,11 @@ function fileInfo(name: string): { Icon: typeof FileText; color: string; type: s
 
 const basename = (name: string) => name.split("/").pop() ?? name;
 
-/** 图片缩略图:渐变模拟,不同图片不同色相。 */
+/** 图片缩略图:优先用真实 url(附件的 url),否则渐变占位。 */
 function ImageThumb({ a }: { a: Attachment }) {
+  if (a.url) {
+    return <img src={a.url} alt={a.name} className="h-full w-full object-cover" />;
+  }
   const pale = [
     "from-sky-400/70 to-indigo-500/70",
     "from-fuchsia-400/70 to-purple-500/70",
