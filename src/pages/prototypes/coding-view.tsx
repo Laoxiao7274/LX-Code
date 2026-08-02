@@ -32,15 +32,15 @@ export function CodingView() {
   return (
     <ResizablePanelGroup orientation="horizontal" className="h-full">
       {/* 主体:对话 + Monaco */}
-      <ResizablePanel defaultSize={open ? 74 : 96} minSize={50}>
+      <ResizablePanel defaultSize={open ? "74" : "96"} minSize={"50"}>
         <ResizablePanelGroup orientation="vertical">
-          <ResizablePanel defaultSize={45} minSize={18}>
+          <ResizablePanel defaultSize={"45"} minSize={"18"}>
             <div className="h-full p-2">
               <ChatPrototype />
             </div>
           </ResizablePanel>
           <ResizableHandle withHandle />
-          <ResizablePanel defaultSize={55} minSize={18}>
+          <ResizablePanel defaultSize={"55"} minSize={"18"}>
             <CodeEditor />
           </ResizablePanel>
         </ResizablePanelGroup>
@@ -48,7 +48,7 @@ export function CodingView() {
 
       {/* 右侧面板 */}
       <ResizableHandle withHandle />
-      <ResizablePanel defaultSize={open ? 26 : 4} minSize={open ? 18 : 4} maxSize={36}>
+      <ResizablePanel defaultSize={open ? "26" : "4"} minSize={open ? "18" : "4"} maxSize={"36"}>
         {open ? (
           <div className="flex h-full flex-col">
             {/* 顶部:Tab 切换 + 收起按钮 */}
