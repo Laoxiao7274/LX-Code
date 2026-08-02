@@ -99,23 +99,20 @@ export function AttachmentView({ attachments, view = "message", onRemove, onClic
         </div>
       ) : null}
 
-      {/* 文件卡片 */}
+      {/* 文件卡片:单色中性,图标灰 + 文件名 + 大小(opencode 克制风格) */}
       {files.map((f) => {
-        const { Icon, color, type } = fileInfo(f.name);
+        const { Icon } = fileInfo(f.name);
         return (
           <div
             key={f.id}
-            className="flex w-full items-center gap-2.5 rounded-lg border border-border/60 bg-background/60 px-3 py-2 transition-colors hover:bg-muted/40"
+            className="flex w-full items-center gap-2.5 rounded-lg border border-border/60 bg-background px-3 py-2 transition-colors hover:bg-muted/40"
           >
-            <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted/60", color)}>
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
               <Icon className="h-4 w-4" />
             </span>
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <span className="truncate text-[13px] font-medium text-foreground">{basename(f.name)}</span>
-                <span className="shrink-0 px-1 text-[9px] font-bold uppercase tracking-wider opacity-50">{type}</span>
-              </div>
-              <div className="truncate text-[11px] text-muted-foreground">{f.size ?? type}</div>
+              <div className="truncate text-[13px] font-medium text-foreground">{basename(f.name)}</div>
+              <div className="truncate text-[11px] text-muted-foreground">{f.size ?? "文档"}</div>
             </div>
             {pending ? (
               <button
@@ -125,9 +122,7 @@ export function AttachmentView({ attachments, view = "message", onRemove, onClic
               >
                 <X className="h-2.5 w-2.5" />
               </button>
-            ) : (
-              <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground/70">{f.size}</span>
-            )}
+            ) : null}
           </div>
         );
       })}

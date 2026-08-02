@@ -149,7 +149,7 @@ export function ChatPrototype() {
                   </AvatarFallback>
                 </Avatar>
                 {m.role === "user" ? (
-                  <div className="max-w-[72%] rounded-2xl rounded-tr-sm bg-primary px-3.5 py-2 text-[13px] leading-relaxed text-primary-foreground">
+                  <div className="max-w-[72%] rounded-2xl rounded-tr-sm border border-border/50 bg-card px-3.5 py-2 text-[13px] leading-relaxed text-foreground">
                     {m.attachments?.length ? <AttachmentView attachments={m.attachments} /> : null}
                     {m.text ? <div>{m.text}</div> : null}
                   </div>

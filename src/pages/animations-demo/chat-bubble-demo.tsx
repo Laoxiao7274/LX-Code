@@ -80,7 +80,7 @@ export function ChatBubbleDemo() {
               className={cn(
                 "max-w-[72%] rounded-2xl px-3.5 py-2 text-[13px] leading-relaxed",
                 m.role === "user"
-                  ? "rounded-tr-sm bg-primary text-primary-foreground"
+                  ? "rounded-tr-sm border border-border/50 bg-card text-foreground"
                   : "rounded-tl-sm border border-border/50 bg-card",
               )}
             >
