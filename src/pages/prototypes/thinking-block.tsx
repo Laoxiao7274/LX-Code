@@ -57,9 +57,9 @@ export function ThinkingBlock({ part }: ThinkingBlockProps) {
           </span>
         ) : (
           <>
-            {/* 折叠时才显示 teaser,展开时不显示(避免和窗口内容重复) */}
+            {/* 折叠时才显示 teaser(截断多行),展开时不显示 */}
             {!open ? (
-              <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground/70">
+              <span className="min-w-0 flex-1 break-words font-mono text-[11px] leading-snug text-muted-foreground/70 line-clamp-2">
                 {teaser}
               </span>
             ) : null}
@@ -80,8 +80,8 @@ export function ThinkingBlock({ part }: ThinkingBlockProps) {
         style={{ gridTemplateRows: open ? "1fr" : "0fr" }}
       >
         <div className="overflow-hidden">
-          <div className="tb-window max-h-40 overflow-y-auto px-1 py-2">
-            <pre className="whitespace-pre-wrap break-words font-mono text-[12px] leading-relaxed text-muted-foreground">
+          <div className="tb-window max-h-40 overflow-y-auto overflow-x-hidden px-1 py-2">
+            <pre className="min-w-0 whitespace-pre-wrap break-words font-mono text-[12px] leading-relaxed text-muted-foreground">
               {part.text}
               {part.streaming ? (
                 <span className="ml-0.5 inline-block h-3.5 w-px animate-pulse bg-foreground/50 align-middle" />

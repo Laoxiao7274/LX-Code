@@ -154,7 +154,7 @@ export function ChatPrototype() {
                     {m.text ? <div>{m.text}</div> : null}
                   </div>
                 ) : (
-                  <div className="max-w-[80%] rounded-2xl rounded-tl-sm border border-border/50 bg-card px-3.5 py-2.5">
+                  <div className="max-w-[80%] min-w-0 rounded-2xl rounded-tl-sm border border-border/50 bg-card px-3.5 py-2.5">
                     {m.parts?.map((part: MessagePart) => {
                       if (part.type === "thinking") return <ThinkingBlock key={part.id} part={part} />;
                       if (part.type === "tool") return <ToolCallRow key={part.id} part={part} />;
