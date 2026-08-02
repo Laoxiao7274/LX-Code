@@ -40,12 +40,25 @@ export interface TextPart {
 
 export type MessagePart = ThinkingPart | ToolCallPart | TextPart;
 
+/** 消息附件:文件或图片。 */
+export interface Attachment {
+  id: string;
+  /** 类型:图片(渲染预览)或文件(渲染卡片)。 */
+  kind: "image" | "file";
+  name: string;
+  /** 图片直接展示;文件显示名称 + 大小。 */
+  url?: string;
+  size?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   /** 纯用户消息只有 text;助手消息用 parts 分段。 */
   text?: string;
   parts?: MessagePart[];
+  /** 消息携带的附件(图片/文件)。 */
+  attachments?: Attachment[];
   /** 这条助手消息是否正在流式生成中(用于演示中断) */
   streaming?: boolean;
 }
@@ -55,10 +68,16 @@ interface ChatState {
   input: string;
   /** 当前是否正在生成回复(用于演示中断) */
   isGenerating: boolean;
+  /** 输入区待发送的附件(图片/文件)。 */
+  pendingAttachments: Attachment[];
 
   setInput: (text: string) => void;
   /** 发送当前 input,追加一条用户消息并启动一段模拟的助手回复流(含思考+工具调用) */
   send: () => void;
+  /** 新增一条待发送附件 */
+  addAttachment: (a: Attachment) => void;
+  /** 移除一条待发送附件 */
+  removeAttachment: (id: string) => void;
   /** 中断当前正在生成的回复 */
   abort: () => void;
   /** 重新生成最后一条助手回复 */
@@ -230,16 +249,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
   ],
   input: "",
   isGenerating: false,
+  pendingAttachments: [],
 
   setInput: (text) => set({ input: text }),
 
   send: () => {
-    const { input, isGenerating } = get();
-    if (!input.trim() || isGenerating) return;
-    const userMsg: ChatMessage = { id: nextId(), role: "user", text: input.trim() };
-    set({ input: "", messages: [...get().messages, userMsg] });
+    const { input, isGenerating, pendingAttachments } = get();
+    if ((!input.trim() && pendingAttachments.length === 0) || isGenerating) return;
+    const userMsg: ChatMessage = {
+      id: nextId(),
+      role: "user",
+      text: input.trim() || undefined,
+      // 携带待发送附件,随后清空待发送区
+      attachments: pendingAttachments.length ? pendingAttachments : undefined,
+    };
+    set({ input: "", pendingAttachments: [], messages: [...get().messages, userMsg] });
     streamReply(get, set);
   },
+
+  addAttachment: (a) => set({ pendingAttachments: [...get().pendingAttachments, a] }),
+  removeAttachment: (id) =>
+    set({ pendingAttachments: get().pendingAttachments.filter((a) => a.id !== id) }),
 
   abort: () => {
     if (!get().isGenerating) return;

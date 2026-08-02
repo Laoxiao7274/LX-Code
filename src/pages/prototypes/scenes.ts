@@ -112,6 +112,46 @@ export const SCENES: SceneDef[] = [
           return "已填入示例对话";
         },
       },
+      {
+        id: "att-image",
+        label: "发送图片消息",
+        description: "加一张图片并发送",
+        handler: () => {
+          useChatStore.setState({ messages: [], input: "", pendingAttachments: [], isGenerating: false });
+          const s = useChatStore.getState();
+          s.addAttachment({ id: `img${Date.now()}`, kind: "image", name: "界面截图.png" });
+          s.setInput("看下这个界面");
+          s.send();
+          return "已发送图片消息(含思考+工具回复)";
+        },
+      },
+      {
+        id: "att-file",
+        label: "发送文件消息",
+        description: "附一个文件并发送",
+        handler: () => {
+          useChatStore.setState({ messages: [], input: "", pendingAttachments: [], isGenerating: false });
+          useChatStore.getState().addAttachment({ id: `file${Date.now()}`, kind: "file", name: "requirements.md", size: "4.2 KB" });
+          useChatStore.getState().setInput("根据需求文档实现");
+          useChatStore.getState().send();
+          return "已发送文件消息";
+        },
+      },
+      {
+        id: "att-multi",
+        label: "多附件预览",
+        description: "一次发图+文件(看网格/卡片样式)",
+        handler: () => {
+          useChatStore.setState({ messages: [], input: "", pendingAttachments: [], isGenerating: false });
+          const s = useChatStore.getState();
+          s.addAttachment({ id: `a1`, kind: "image", name: "图1.png" });
+          s.addAttachment({ id: `a2`, kind: "image", name: "图2.png" });
+          s.addAttachment({ id: `a3`, kind: "file", name: "package.json", size: "1.1 KB" });
+          s.setInput("看这三份");
+          s.send();
+          return "已发送多附件(2图+1文件)";
+        },
+      },
     ],
   },
   {

@@ -8,10 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Logo } from "@/components/ui/logo";
-import { FileCode, Bug, Sparkles } from "lucide-react";
+import { FileCode, Bug, Sparkles, FileText, ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThinkingBlock } from "./thinking-block";
 import { ToolCallRow } from "./tool-call-row";
+import { AttachmentView } from "./attachment-view";
 import type { MessagePart } from "./chat-store";
 
 gsap.registerPlugin(useGSAP);
@@ -29,6 +30,9 @@ export function ChatPrototype() {
   const setInput = useChatStore((s) => s.setInput);
   const send = useChatStore((s) => s.send);
   const abort = useChatStore((s) => s.abort);
+  const pending = useChatStore((s) => s.pendingAttachments);
+  const addAttachment = useChatStore((s) => s.addAttachment);
+  const removeAttachment = useChatStore((s) => s.removeAttachment);
 
   // 新消息时自动滚到底
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -146,7 +150,8 @@ export function ChatPrototype() {
                 </Avatar>
                 {m.role === "user" ? (
                   <div className="max-w-[72%] rounded-2xl rounded-tr-sm bg-primary px-3.5 py-2 text-[13px] leading-relaxed text-primary-foreground">
-                    {m.text}
+                    {m.attachments?.length ? <AttachmentView attachments={m.attachments} /> : null}
+                    {m.text ? <div>{m.text}</div> : null}
                   </div>
                 ) : (
                   <div className="max-w-[80%] rounded-2xl rounded-tl-sm border border-border/50 bg-card px-3.5 py-2.5">
@@ -174,6 +179,7 @@ export function ChatPrototype() {
       {/* 输入区 */}
       <div className="mt-3">
         <Separator className="mb-3 bg-border/50" />
+        <AttachmentView attachments={pending} view="pending" onRemove={removeAttachment} />
         <div className="flex gap-2">
           <Input
             placeholder={isGenerating ? "生成中…" : "输入消息,回车发送"}
@@ -188,12 +194,32 @@ export function ChatPrototype() {
             }}
             className="h-10 shadow-sm"
           />
+          <Button
+            variant="outline"
+            className="h-10 w-10 shrink-0 px-0"
+            onClick={() =>
+              addAttachment({ id: `att${Date.now()}`, kind: "image", name: "截图_20250101.png", url: "#" })
+            }
+            title="添加图片"
+          >
+            <ImageIcon className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            className="h-10 w-10 shrink-0 px-0"
+            onClick={() =>
+              addAttachment({ id: `att${Date.now()}`, kind: "file", name: "requirements.md", size: "4.2 KB" })
+            }
+            title="添加文件"
+          >
+            <FileText className="h-4 w-4" />
+          </Button>
           {isGenerating ? (
             <Button variant="destructive" className="h-10" onClick={abort}>
               中断
             </Button>
           ) : (
-            <Button className="h-10 px-5 shadow-sm" disabled={!input.trim()} onClick={send}>
+            <Button className="h-10 px-5 shadow-sm" disabled={!input.trim() && pending.length === 0} onClick={send}>
               发送
             </Button>
           )}
