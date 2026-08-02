@@ -7,6 +7,8 @@ import type { AgentTask } from "./agent-task-store";
 interface TaskPlannerProps {
   activeTask?: AgentTask;
   onClose?: () => void;
+  /** 嵌入模式:不显示顶部标题栏(由外层 Tab 栏提供切换)。 */
+  embedded?: boolean;
 }
 
 /** 构造一个示例执行计划(用于演示)。 */
@@ -24,24 +26,26 @@ function stepsFor(): { label: string; done: boolean; current?: boolean }[] {
  * 任务规划面板:展示 Coding agent 当前任务的执行计划步骤。
  * 占位/打勾/当前步 三种状态,并显示任务标题与进度。
  */
-export function TaskPlanner({ activeTask, onClose }: TaskPlannerProps) {
+export function TaskPlanner({ activeTask, onClose, embedded }: TaskPlannerProps) {
   const title = activeTask?.title ?? "等待任务…";
   const steps = stepsFor();
   const done = steps.filter((s) => s.done).length;
 
   return (
     <div className="flex h-full flex-col bg-muted/20">
-      <div className="flex h-8 items-center justify-between border-b border-border/60 bg-muted/20 pl-3 pr-1">
-        <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-          <ListTodo className="h-3 w-3" />
-          任务规划
-        </span>
-        {onClose ? (
-          <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground" onClick={onClose}>
-            <X className="h-3.5 w-3.5" />
-          </Button>
-        ) : null}
-      </div>
+      {!embedded ? (
+        <div className="flex h-8 items-center justify-between border-b border-border/60 bg-muted/20 pl-3 pr-1">
+          <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+            <ListTodo className="h-3 w-3" />
+            任务规划
+          </span>
+          {onClose ? (
+            <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground" onClick={onClose}>
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
 
       <ScrollArea className="flex-1">
         <div className="p-3">
