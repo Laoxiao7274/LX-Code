@@ -1,4 +1,4 @@
-import { FileText, ImageIcon, X } from "lucide-react";
+import { FileCode, FileText, FileJson, Image as ImageIcon, FileSpreadsheet, FileArchive, Terminal, Type, X } from "lucide-react";
 import type { Attachment } from "./chat-store";
 import { cn } from "@/lib/utils";
 
@@ -7,61 +7,89 @@ type View = "message" | "pending";
 interface AttachmentViewProps {
   attachments: Attachment[];
   view?: View;
-  /** pending 视图下移除附件。 */
   onRemove?: (id: string) => void;
-  /** message 视图下点击图片。 */
   onClick?: (a: Attachment) => void;
 }
 
-/** 图片缩略图占位:不同 fileIndex 给不同渐变,模拟真实图片缩略图。 */
-function ImageThumb({ a, onClick }: { a: Attachment; onClick?: () => void }) {
-  const hues = ["from-sky-400/70 to-indigo-500/70", "from-fuchsia-400/70 to-purple-500/70", "from-amber-400/70 to-rose-500/70"];
-  // 用 name 的 hash 稳定选一个渐变
-  const idx = a.name.split("").reduce((s, c) => s + c.charCodeAt(0), 0) % hues.length;
+/** 文件类型信息:图标 + 颜色 + 类型名。按扩展名区分。 */
+function fileInfo(name: string): { Icon: typeof FileText; color: string; type: string } {
+  const ext = name.split(".").pop()?.toLowerCase() ?? "";
+  const map: Record<string, { Icon: typeof FileText; color: string; type: string }> = {
+    ts: { Icon: FileCode, color: "text-sky-500", type: "TS" },
+    tsx: { Icon: FileCode, color: "text-sky-500", type: "TSX" },
+    js: { Icon: FileCode, color: "text-amber-500", type: "JS" },
+    jsx: { Icon: FileCode, color: "text-amber-500", type: "JSX" },
+    json: { Icon: FileJson, color: "text-yellow-500", type: "JSON" },
+    md: { Icon: FileText, color: "text-slate-500", type: "MD" },
+    py: { Icon: FileCode, color: "text-blue-500", type: "PY" },
+    css: { Icon: Type, color: "text-fuchsia-500", type: "CSS" },
+    html: { Icon: FileCode, color: "text-orange-500", type: "HTML" },
+    sh: { Icon: Terminal, color: "text-emerald-500", type: "SH" },
+    zip: { Icon: FileArchive, color: "text-amber-500", type: "ZIP" },
+    xlsx: { Icon: FileSpreadsheet, color: "text-green-500", type: "表格" },
+    png: { Icon: ImageIcon, color: "text-purple-500", type: "图片" },
+    jpg: { Icon: ImageIcon, color: "text-purple-500", type: "图片" },
+    jpeg: { Icon: ImageIcon, color: "text-purple-500", type: "图片" },
+    gif: { Icon: ImageIcon, color: "text-purple-500", type: "图片" },
+    webp: { Icon: ImageIcon, color: "text-purple-500", type: "图片" },
+  };
+  return map[ext] ?? { Icon: FileText, color: "text-muted-foreground", type: ext.toUpperCase() || "文件" };
+}
+
+const basename = (name: string) => name.split("/").pop() ?? name;
+
+/** 图片缩略图:渐变模拟,不同图片不同色相。 */
+function ImageThumb({ a }: { a: Attachment }) {
+  const pale = [
+    "from-sky-400/70 to-indigo-500/70",
+    "from-fuchsia-400/70 to-purple-500/70",
+    "from-amber-400/70 to-rose-500/70",
+    "from-emerald-400/70 to-teal-500/70",
+  ];
+  const idx = a.name.split("").reduce((s, c) => s + c.charCodeAt(0), 0) % pale.length;
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "block overflow-hidden rounded-lg border border-border/60 bg-gradient-to-br transition hover:opacity-90",
-        hues[idx],
-      )}
-    >
-      <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-white">
-        <ImageIcon className="h-5 w-5 opacity-90" />
-        <span className="px-1 text-[9px] font-medium leading-tight break-all">{a.name}</span>
-      </div>
-    </button>
+    <div className={cn("flex h-full w-full items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br", pale[idx])}>
+      <span className="text-white opacity-90">
+        <ImageIcon className="h-6 w-6" />
+      </span>
+    </div>
   );
 }
 
 /**
- * 附件渲染:
- * - message 视图:嵌在气泡内,图片网格 + 文件卡片(带大小)
- * - pending 视图:嵌在输入区上方,可移除(X)。小尺寸。
+ * 附件渲染。
+ * - pending 视图:输入区上方小尺寸,可移除
+ * - message 视图:气泡内完整尺寸,图片网格 + 文件卡片
+ *
+ * 文件卡片(opencode file-chip 风格):
+ * - 按扩展名区分图标 + 颜色(code/文档/图片各自配色)
+ * - 文件名粗体 + 类型 chip
+ * - 圆角 + 边框 + hover 状态
  */
 export function AttachmentView({ attachments, view = "message", onRemove, onClick }: AttachmentViewProps) {
   if (!attachments.length) return null;
+  const pending = view === "pending";
   const images = attachments.filter((a) => a.kind === "image");
   const files = attachments.filter((a) => a.kind === "file");
-  const pending = view === "pending";
+  const gridCols = images.length === 1 ? "grid-cols-2" : images.length === 2 ? "grid-cols-3" : "grid-cols-4";
 
   return (
-    <div className={cn("flex flex-wrap gap-2", pending ? "mb-1.5" : "mt-0")}>
+    <div className={cn("flex flex-wrap gap-2", pending && "mb-1.5")}>
       {/* 图片网格 */}
       {images.length ? (
-        <div className={cn("grid gap-1.5", pending ? "grid-cols-4" : images.length > 2 ? "grid-cols-3" : "grid-cols-2")}>
+        <div className={cn("grid gap-1.5", pending ? "grid-cols-4" : gridCols)}>
           {images.map((img) => (
-            <div key={img.id} className="group relative">
-              <ImageThumb
-                a={img}
-                onClick={() => !pending && onClick?.(img)}
-              />
+            <div key={img.id} className="relative">
+              <button type="button" onClick={() => !pending && onClick?.(img)} className="block">
+                <div className="h-14 w-14 md:h-16 md:w-16">
+                  <ImageThumb a={img} />
+                </div>
+              </button>
               {pending ? (
                 <button
                   type="button"
                   onClick={() => onRemove?.(img.id)}
-                  className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-foreground text-background shadow-sm transition hover:bg-destructive"
+                  className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-foreground text-background shadow-sm hover:bg-destructive"
                 >
                   <X className="h-2.5 w-2.5" />
                 </button>
@@ -72,30 +100,37 @@ export function AttachmentView({ attachments, view = "message", onRemove, onClic
       ) : null}
 
       {/* 文件卡片 */}
-      {files.map((f) => (
-        <div
-          key={f.id}
-          className={cn(
-            "group relative flex items-center gap-2 rounded-lg border border-border/60 bg-muted/40",
-            pending ? "h-9 px-2.5" : "max-w-[220px] px-3 py-2",
-          )}
-        >
-          <FileText className="h-4 w-4 shrink-0 text-foreground/70" />
-          <div className="min-w-0">
-            <div className="truncate text-[12px] font-medium leading-tight">{f.name}</div>
-            {f.size ? <div className="text-[10px] text-muted-foreground font-mono">{f.size}</div> : null}
+      {files.map((f) => {
+        const { Icon, color, type } = fileInfo(f.name);
+        return (
+          <div
+            key={f.id}
+            className="flex w-full items-center gap-2.5 rounded-lg border border-border/60 bg-background/60 px-3 py-2 transition-colors hover:bg-muted/40"
+          >
+            <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted/60", color)}>
+              <Icon className="h-4 w-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="truncate text-[13px] font-medium text-foreground">{basename(f.name)}</span>
+                <span className="shrink-0 px-1 text-[9px] font-bold uppercase tracking-wider opacity-50">{type}</span>
+              </div>
+              <div className="truncate text-[11px] text-muted-foreground">{f.size ?? type}</div>
+            </div>
+            {pending ? (
+              <button
+                type="button"
+                onClick={() => onRemove?.(f.id)}
+                className="flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition hover:bg-destructive hover:text-white"
+              >
+                <X className="h-2.5 w-2.5" />
+              </button>
+            ) : (
+              <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground/70">{f.size}</span>
+            )}
           </div>
-          {pending ? (
-            <button
-              type="button"
-              onClick={() => onRemove?.(f.id)}
-              className="flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition hover:bg-destructive hover:text-white"
-            >
-              <X className="h-2.5 w-2.5" />
-            </button>
-          ) : null}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
