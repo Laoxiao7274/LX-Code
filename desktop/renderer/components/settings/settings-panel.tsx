@@ -323,9 +323,10 @@ export function SettingsPanel() {
   // 面板打开:淡入 + 轻微缩放(fromTo 明确起止,overwrite 防叠加)
   useGSAP(
     () => {
-      if (!open) return;
-      gsap.fromTo(".sp-overlay", { opacity: 0 }, { opacity: 1, duration: 0.18, ease: "power2.out", overwrite: true });
-      gsap.fromTo(".sp-card", { opacity: 0, scale: 0.97, y: 6 }, { opacity: 1, scale: 1, y: 0, duration: 0.22, ease: "power3.out", overwrite: true });
+      if (!open || !rootRef.current) return;
+      gsap.fromTo(rootRef.current, { opacity: 0 }, { opacity: 1, duration: 0.18, ease: "power2.out", overwrite: true });
+      const card = rootRef.current.querySelector(".sp-card");
+      if (card) gsap.fromTo(card, { opacity: 0, scale: 0.97, y: 6 }, { opacity: 1, scale: 1, y: 0, duration: 0.22, ease: "power3.out", overwrite: true });
     },
     { scope: rootRef, dependencies: [open] },
   );
@@ -333,9 +334,10 @@ export function SettingsPanel() {
   // 分类切换:内容淡入上移 + 左条弹出
   useGSAP(
     () => {
-      if (!open) return;
+      if (!open || !contentRef.current || !rootRef.current) return;
       gsap.fromTo(contentRef.current, { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: 0.2, ease: "power2.out", overwrite: true });
-      gsap.fromTo(".sp-nav-indicator", { scaleY: 0 }, { scaleY: 1, duration: 0.25, ease: "back.out(2.5)", overwrite: true });
+      const indicator = rootRef.current.querySelector(".sp-nav-indicator");
+      if (indicator) gsap.fromTo(indicator, { scaleY: 0 }, { scaleY: 1, duration: 0.25, ease: "back.out(2.5)", overwrite: true });
     },
     { scope: rootRef, dependencies: [active, open] },
   );

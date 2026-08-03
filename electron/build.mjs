@@ -24,14 +24,13 @@ const mainConfig = {
 /** preload:单独 bundle(渲染进程侧,要小且隔离)。 */
 const preloadConfig = {
   entryPoints: ["desktop/preload/index.ts"],
-  outdir: "desktop/dist",
+  outfile: "desktop/dist/preload.cjs",
   bundle: true,
   platform: "node",
   format: "cjs",
   target: "node20",
   sourcemap: true,
   external: ["electron"],
-  outExtension: { ".js": ".cjs" },
 };
 
 if (watch) {
