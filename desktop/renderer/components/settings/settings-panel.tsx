@@ -343,13 +343,13 @@ export function SettingsPanel() {
   if (!open) return null;
 
   return (
-    <div ref={rootRef} className="sp-overlay absolute inset-0 z-40 flex flex-col rounded-xl bg-background/80 backdrop-blur-sm" onClick={() => setOpen(false)}>
+    <div ref={rootRef} className="sp-overlay absolute inset-0 z-40 flex items-center justify-center rounded-xl bg-background/80 backdrop-blur-sm" onClick={() => setOpen(false)}>
       <div
-        className="sp-card surface m-2 mt-1 flex flex-1 overflow-hidden rounded-lg"
+        className="sp-card surface flex h-[80%] w-[80%] max-w-3xl max-h-[640px] min-w-[640px] overflow-hidden rounded-lg shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 左侧分类导航 */}
-        <aside className="flex w-52 shrink-0 flex-col border-r border-border/60 bg-muted/20">
+        <aside className="flex w-48 shrink-0 flex-col border-r border-border/60 bg-muted/20">
           <div className="px-4 pb-2 pt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
             设置
           </div>
