@@ -8,7 +8,10 @@ export default defineConfig({
   base: "./",
   resolve: {
     alias: {
+      // 设计原型入口
       "@": path.resolve(__dirname, "./src"),
+      // 真实应用入口(桌面 renderer)
+      "@app": path.resolve(__dirname, "./desktop/renderer"),
     },
   },
   server: {
@@ -17,5 +20,12 @@ export default defineConfig({
   },
   build: {
     outDir: "dist",
+    // 多入口:设计原型(index.html) + 真实应用(desktop/renderer/index.html)
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, "index.html"),
+        app: path.resolve(__dirname, "desktop/renderer/index.html"),
+      },
+    },
   },
 });

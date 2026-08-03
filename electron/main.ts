@@ -41,10 +41,10 @@ function createWindow() {
   });
 
   if (isDev) {
-    void mainWindow.loadURL(DEV_SERVER_URL);
+    void mainWindow.loadURL(DEV_SERVER_URL + "/desktop/renderer/index.html");
     mainWindow.webContents.openDevTools({ mode: "detach" });
   } else {
-    void mainWindow.loadFile(path.join(__dirname, "../../dist/index.html"));
+    void mainWindow.loadFile(path.join(__dirname, "../../dist/desktop/renderer/index.html"));
   }
 }
 
