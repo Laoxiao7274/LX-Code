@@ -28,7 +28,7 @@ function ModelSelect({ value, onChange, disabled }: { value: string; onChange: (
   useGSAP(
     () => {
       if (open && menuRef.current) {
-        gsap.fromTo(menuRef.current, { opacity: 0, y: -6, scale: 0.96 }, { opacity: 1, y: 0, scale: 1, duration: 0.2, ease: "power2.out" });
+        gsap.fromTo(menuRef.current, { opacity: 0, y: -6, scale: 0.96 }, { opacity: 1, y: 0, scale: 1, duration: 0.18, ease: "power2.out", overwrite: true });
       }
     },
     { dependencies: [open] },

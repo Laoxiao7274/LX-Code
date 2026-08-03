@@ -41,8 +41,9 @@ function ToggleRow({ label, desc, defaultOn = false }: { label: string; desc?: s
       if (!knobRef.current) return;
       gsap.to(knobRef.current, {
         left: on ? 18 : 2,
-        duration: 0.3,
+        duration: 0.25,
         ease: "back.out(2)",
+        overwrite: true,
       });
     },
     { dependencies: [on] },
@@ -86,7 +87,7 @@ function ThemeRow() {
     () => {
       const active = cardsRef.current?.querySelector(".theme-card-active");
       if (active) {
-        gsap.fromTo(active, { scale: 0.9 }, { scale: 1, duration: 0.4, ease: "back.out(2.5)" });
+        gsap.fromTo(active, { scale: 0.92 }, { scale: 1, duration: 0.35, ease: "back.out(2.5)", overwrite: true });
       }
     },
     { scope: cardsRef, dependencies: [theme] },
@@ -319,12 +320,12 @@ export function SettingsPanel() {
   const rootRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
-  // 面板打开:淡入 + 轻微缩放
+  // 面板打开:淡入 + 轻微缩放(fromTo 明确起止,overwrite 防叠加)
   useGSAP(
     () => {
       if (!open) return;
-      gsap.fromTo(".sp-overlay", { opacity: 0 }, { opacity: 1, duration: 0.2, ease: "power2.out" });
-      gsap.from(".sp-card", { opacity: 0, scale: 0.96, y: 8, duration: 0.3, ease: "power3.out" });
+      gsap.fromTo(".sp-overlay", { opacity: 0 }, { opacity: 1, duration: 0.18, ease: "power2.out", overwrite: true });
+      gsap.fromTo(".sp-card", { opacity: 0, scale: 0.97, y: 6 }, { opacity: 1, scale: 1, y: 0, duration: 0.22, ease: "power3.out", overwrite: true });
     },
     { scope: rootRef, dependencies: [open] },
   );
@@ -333,8 +334,8 @@ export function SettingsPanel() {
   useGSAP(
     () => {
       if (!open) return;
-      gsap.fromTo(contentRef.current, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.25, ease: "power2.out" });
-      gsap.fromTo(".sp-nav-indicator", { scaleY: 0 }, { scaleY: 1, duration: 0.3, ease: "back.out(2.5)" });
+      gsap.fromTo(contentRef.current, { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: 0.2, ease: "power2.out", overwrite: true });
+      gsap.fromTo(".sp-nav-indicator", { scaleY: 0 }, { scaleY: 1, duration: 0.25, ease: "back.out(2.5)", overwrite: true });
     },
     { scope: rootRef, dependencies: [active, open] },
   );
