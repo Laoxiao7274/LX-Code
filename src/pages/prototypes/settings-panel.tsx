@@ -327,7 +327,7 @@ export function SettingsPanel() {
 
         {/* 右侧内容 */}
         <main className="flex-1 overflow-y-auto">
-          <div className="flex h-12 items-center justify-between border-b border-border/60 px-6">
+          <div className="flex h-12 items-center justify-between border-b border-border/60 px-8">
             <h2 className="text-[15px] font-semibold tracking-tight">
               {SECTIONS.find((s) => s.id === active)?.label}
             </h2>
@@ -335,7 +335,7 @@ export function SettingsPanel() {
               <X className="h-4 w-4" />
             </Button>
           </div>
-          <div className="mx-auto max-w-2xl px-6 py-4">
+          <div className="px-8 py-6">
             <SectionContent id={active} />
           </div>
         </main>
