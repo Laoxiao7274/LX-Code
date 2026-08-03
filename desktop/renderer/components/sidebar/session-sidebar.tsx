@@ -1,8 +1,10 @@
-import { Plus, MessageSquare } from "lucide-react";
+import { Plus, MessageSquare, Settings } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { ScrollArea } from "../../components/ui/scroll-area";
+import { Separator } from "../../components/ui/separator";
 import { cn } from "../../lib/utils";
 import { useSessionStore } from "../../stores/session-store";
+import { useSettingsStore } from "../../stores/settings-store";
 
 /** 会话侧栏:新建 + 会话列表。照抄设计原型样式。 */
 export function SessionSidebar() {
@@ -10,6 +12,7 @@ export function SessionSidebar() {
   const activeId = useSessionStore((s) => s.activeId);
   const create = useSessionStore((s) => s.create);
   const select = useSessionStore((s) => s.select);
+  const openSettings = useSettingsStore((s) => s.setOpen);
 
   return (
     <div className="flex h-full flex-col bg-muted/25">
@@ -53,6 +56,16 @@ export function SessionSidebar() {
           })}
         </div>
       </ScrollArea>
+
+      <Separator className="bg-border/60" />
+
+      {/* 底部:设置入口 */}
+      <div className="p-1.5">
+        <Button variant="ghost" className="w-full justify-start gap-2.5 text-muted-foreground" onClick={() => openSettings(true)}>
+          <div className="flex h-5 w-5 items-center justify-center"><Settings className="h-4 w-4" /></div>
+          设置
+        </Button>
+      </div>
     </div>
   );
 }

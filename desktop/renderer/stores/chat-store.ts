@@ -30,11 +30,22 @@ export interface TextPart {
 
 export type MessagePart = ThinkingPart | ToolCallPart | TextPart;
 
+/** 消息附件:文件或图片。 */
+export interface Attachment {
+  id: string;
+  kind: "image" | "file";
+  name: string;
+  url?: string;
+  size?: string;
+}
+
 export interface Message {
   id: string;
   role: "user" | "assistant";
   text?: string;
   parts?: MessagePart[];
+  /** 消息携带的附件(图片/文件)。 */
+  attachments?: Attachment[];
   streaming?: boolean;
 }
 
@@ -43,8 +54,14 @@ interface ChatState {
   messagesBySession: Record<string, Message[]>;
   input: string;
   isGenerating: boolean;
+  /** 输入区待发送的附件(图片/文件)。 */
+  pendingAttachments: Attachment[];
 
   setInput: (t: string) => void;
+  /** 新增一条待发送附件。 */
+  addAttachment: (a: Attachment) => void;
+  /** 移除一条待发送附件。 */
+  removeAttachment: (id: string) => void;
   /** 发送消息(调真实 agent)。 */
   send: (sessionId: string, cwd: string) => Promise<void>;
   /** 中断。 */
@@ -65,14 +82,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messagesBySession: {},
   input: "",
   isGenerating: false,
+  pendingAttachments: [],
 
   setInput: (t) => set({ input: t }),
 
-  send: async (sessionId, cwd) => {
-    const { input, isGenerating } = get();
-    if (!input.trim() || isGenerating) return;
+  addAttachment: (a) => set((s) => ({ pendingAttachments: [...s.pendingAttachments, a] })),
+  removeAttachment: (id) =>
+    set((s) => ({ pendingAttachments: s.pendingAttachments.filter((a) => a.id !== id) })),
 
-    const userMsg: Message = { id: nid(), role: "user", text: input.trim() };
+  send: async (sessionId, cwd) => {
+    const { input, isGenerating, pendingAttachments } = get();
+    if ((!input.trim() && pendingAttachments.length === 0) || isGenerating) return;
+
+    const userMsg: Message = {
+      id: nid(),
+      role: "user",
+      text: input.trim() || undefined,
+      attachments: pendingAttachments.length ? pendingAttachments : undefined,
+    };
     const assistantId = nid();
     const assistantMsg: Message = {
       id: assistantId,
@@ -83,6 +110,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     set((s) => ({
       input: "",
+      pendingAttachments: [],
       isGenerating: true,
       messagesBySession: {
         ...s.messagesBySession,

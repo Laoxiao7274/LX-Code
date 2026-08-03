@@ -1,15 +1,18 @@
 import { Avatar, AvatarFallback } from "../../components/ui/avatar";
 import { cn } from "../../lib/utils";
-import type { Message, MessagePart } from "../../stores/chat-store";
+import type { Message, MessagePart, Attachment } from "../../stores/chat-store";
 import { ThinkingBlock } from "./thinking-block";
 import { ToolCallRow } from "./tool-call-row";
+import { AttachmentView } from "./attachment-view";
 
 interface ChatMessageProps {
   message: Message;
+  /** 图片点击放大回调。 */
+  onImageClick?: (a: Attachment) => void;
 }
 
 /** 单条消息渲染:用户气泡 / 助手分段(思考+工具+文本)。照抄设计原型样式。 */
-export function ChatMessage({ message }: ChatMessageProps) {
+export function ChatMessage({ message, onImageClick }: ChatMessageProps) {
   const isUser = message.role === "user";
   return (
     <div className={cn("bubble flex items-start gap-2.5", isUser ? "flex-row-reverse" : "flex-row")}>
@@ -26,7 +29,15 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
       {isUser ? (
         <div className="max-w-[72%] rounded-2xl rounded-tr-sm border border-border/50 bg-card px-3.5 py-2 text-[13px] leading-relaxed text-foreground">
-          {message.text}
+          {message.attachments?.length ? (
+            <div className="mb-2">
+              <AttachmentView
+                attachments={message.attachments}
+                onClick={(a) => a.kind === "image" && onImageClick?.(a)}
+              />
+            </div>
+          ) : null}
+          {message.text ? <div>{message.text}</div> : null}
         </div>
       ) : (
         <div className="max-w-[80%] min-w-0 rounded-2xl rounded-tl-sm border border-border/50 bg-card px-3.5 py-2.5">
