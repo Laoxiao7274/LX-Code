@@ -4,13 +4,15 @@ packages:
   # pi 驱动进程(Phase 4 才启用,先占位)
   - "driver"
 
-# 允许运行构建脚本的依赖(esbuild 是 Vite 核心依赖,electron 需下载二进制)
+# 允许运行构建脚本的依赖
 onlyBuiltDependencies:
   - esbuild
   - electron
+  - protobufjs
+  - electron-winstaller
 allowBuilds:
   esbuild: true
   electron: true
-  '@google/genai': set this to true or false
-  electron-winstaller: set this to true or false
-  protobufjs: set this to true or false
+  protobufjs: true
+  electron-winstaller: true
+  '@google/genai': true
