@@ -7,7 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import {
   X, Settings, Cpu, Palette, Keyboard, Info, ChevronRight,
   Sun, Moon, Monitor, Check,
+  Globe, BookOpen, MessageCircle, GitBranch,
 } from "lucide-react";
+import { Logo } from "@/components/ui/logo";
 import { cn } from "@/lib/utils";
 
 /** 分类定义。 */
@@ -216,24 +218,71 @@ function SectionContent({ id }: { id: string }) {
   return (
     <div>
       <h3 className="mb-1 text-base font-semibold">关于</h3>
-      <p className="mb-2 text-[12px] text-muted-foreground">应用版本与信息。</p>
-      <Separator className="my-2 bg-border/60" />
-      <div className="py-3">
-        <div className="mb-3 flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent/10 text-accent">
-            <Cpu className="h-6 w-6" />
-          </div>
-          <div>
-            <div className="text-[15px] font-semibold">LXCode</div>
-            <div className="font-mono text-[11px] text-muted-foreground">v0.1.0 · 设计阶段</div>
-          </div>
+      <p className="mb-3 text-[12px] text-muted-foreground">应用版本与信息。</p>
+
+      {/* 品牌头部 */}
+      <div className="surface mb-4 flex flex-col items-center rounded-xl p-6 text-center">
+        <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-accent/15 to-accent/5 text-accent">
+          <Logo className="h-10 w-10" />
         </div>
-        <div className="space-y-2 text-[12px] text-muted-foreground">
-          <div className="flex justify-between"><span>Electron</span><span className="font-mono">—</span></div>
-          <div className="flex justify-between"><span>React</span><span className="font-mono">19.x</span></div>
-          <div className="flex justify-between"><span>Vite</span><span className="font-mono">7.x</span></div>
-          <div className="flex justify-between"><span>pi-core</span><span className="font-mono">0.83.0</span></div>
+        <div className="text-xl font-semibold tracking-tight">LXCode</div>
+        <div className="mt-1 text-[12px] text-muted-foreground">本地优先的 AI 编码助手</div>
+        <div className="mt-3 flex items-center gap-2">
+          <Badge variant="outline" className="font-mono text-[11px]">v0.1.0</Badge>
+          <Badge variant="outline" className="border-accent/30 text-[11px] text-accent">设计阶段</Badge>
         </div>
+      </div>
+
+      {/* 技术栈 */}
+      <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">技术栈</div>
+      <div className="grid grid-cols-2 gap-2">
+        {[
+          { name: "React", ver: "19.x", color: "text-sky-500" },
+          { name: "Vite", ver: "7.x", color: "text-amber-500" },
+          { name: "Tailwind", ver: "3.4", color: "text-cyan-500" },
+          { name: "TypeScript", ver: "5.x", color: "text-blue-500" },
+          { name: "Monaco", ver: "0.56", color: "text-indigo-500" },
+          { name: "GSAP", ver: "3.15", color: "text-green-500" },
+          { name: "Zustand", ver: "5.x", color: "text-orange-500" },
+          { name: "Tauri", ver: "2.x", color: "text-rose-500" },
+        ].map((t) => (
+          <div key={t.name} className="flex items-center justify-between rounded-lg border border-border/60 bg-background/60 px-3 py-2">
+            <span className={cn("flex items-center gap-1.5 text-[12px] font-medium", t.color)}>
+              <span className="h-2 w-2 rounded-full bg-current" />
+              {t.name}
+            </span>
+            <span className="font-mono text-[11px] text-muted-foreground">{t.ver}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* 链接区 */}
+      <div className="mb-3 mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">资源</div>
+      <div className="grid grid-cols-4 gap-2">
+        {[
+          { Icon: Globe, label: "官网" },
+          { Icon: BookOpen, label: "文档" },
+          { Icon: MessageCircle, label: "反馈" },
+          { Icon: GitBranch, label: "源码" },
+        ].map((l) => {
+          const Icon = l.Icon;
+          return (
+            <button
+              key={l.label}
+              type="button"
+              className="flex flex-col items-center gap-1.5 rounded-lg border border-border/60 bg-background/60 px-2 py-3 transition-colors hover:bg-muted/40"
+            >
+              <Icon className="h-4 w-4 text-muted-foreground" />
+              <span className="text-[11px] font-medium">{l.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 版权 */}
+      <div className="mt-6 border-t border-border/60 pt-3 text-center text-[11px] text-muted-foreground/70">
+        <div>© 2025 LXCode</div>
+        <div className="mt-0.5">Powered by pi-core</div>
       </div>
     </div>
   );
