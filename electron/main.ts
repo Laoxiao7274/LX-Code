@@ -1,5 +1,6 @@
 import { app, BrowserWindow, shell } from "electron";
 import path from "node:path";
+import { initAgentIpc, shutdownAgent } from "../desktop/main/index";
 
 // 是否开发模式(由 vite dev server 提供页面)。
 const DEV_SERVER_URL = process.env.LX_DEV_SERVER_URL;
@@ -23,7 +24,7 @@ function createWindow() {
     autoHideMenuBar: true,
     backgroundColor: "#0e0e14",
     webPreferences: {
-      preload: path.join(__dirname, "preload.cjs"),
+      preload: path.join(__dirname, "../../desktop/dist/preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
@@ -48,6 +49,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  initAgentIpc();
   createWindow();
 
   app.on("activate", () => {
@@ -58,4 +60,8 @@ app.whenReady().then(() => {
 app.on("window-all-closed", () => {
   // macOS 上应用应保持活动,除非用户显式退出
   if (process.platform !== "darwin") app.quit();
+});
+
+app.on("before-quit", () => {
+  shutdownAgent();
 });
