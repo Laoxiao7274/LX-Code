@@ -7,7 +7,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { PanelRightClose, FolderTree, ListTodo } from "lucide-react";
 import { FileTree } from "./file-tree";
-import { CodeEditor } from "./code-editor";
 import { ChatPrototype } from "./chat";
 import { TaskPlanner } from "./task-planner";
 import { useAgentStore } from "./agent-task-store";
@@ -31,19 +30,11 @@ export function CodingView() {
 
   return (
     <ResizablePanelGroup orientation="horizontal" className="h-full">
-      {/* 主体:对话 + Monaco */}
+      {/* 主体:对话占满(不再在下方放 Monaco) */}
       <ResizablePanel defaultSize={open ? "74" : "96"} minSize={"50"}>
-        <ResizablePanelGroup orientation="vertical">
-          <ResizablePanel defaultSize={"45"} minSize={"18"}>
-            <div className="h-full p-2">
-              <ChatPrototype />
-            </div>
-          </ResizablePanel>
-          <ResizableHandle withHandle />
-          <ResizablePanel defaultSize={"55"} minSize={"18"}>
-            <CodeEditor />
-          </ResizablePanel>
-        </ResizablePanelGroup>
+        <div className="h-full p-2">
+          <ChatPrototype />
+        </div>
       </ResizablePanel>
 
       {/* 右侧面板 */}
