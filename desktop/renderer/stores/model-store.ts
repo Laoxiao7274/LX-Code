@@ -56,6 +56,8 @@ interface ModelStore {
   removeProvider: (providerId: string) => void;
   /** 模拟自动获取模型(根据 baseURL + key)。 */
   fetchModels: (providerId: string) => void;
+  /** 从 pi-core 重新加载真实 providers + models。 */
+  reloadFromPi: () => Promise<void>;
 }
 
 const PRESETS: Provider[] = [
@@ -99,7 +101,17 @@ export const useModelStore = create<ModelStore>((set, get) => ({
   editing: null,
   isAdding: false,
 
-  setDefault: (key) => set({ defaultModel: key }),
+  setDefault: (key) => {
+    set({ defaultModel: key });
+    // 真实切换会话模型(key = "providerId/modelId")
+    if (typeof window !== "undefined" && window.lxcode?.agent) {
+      const [providerId, modelId] = key.split("/");
+      if (providerId && modelId) {
+        // 应用到所有活跃会话(简化:取项目根 cwd)
+        void window.lxcode.agent.setModel("C:/Users/xzy/Desktop/my/lx-code", providerId, modelId);
+      }
+    }
+  },
   toggleModel: (providerId, modelId) =>
     set({
       providers: get().providers.map((p) =>
@@ -166,5 +178,32 @@ export const useModelStore = create<ModelStore>((set, get) => ({
           : p,
       ),
     });
+  },
+
+  /** 从 pi-core 重新加载真实 providers + models(替换 mock)。 */
+  reloadFromPi: async () => {
+    if (typeof window === "undefined" || !window.lxcode?.agent) return;
+    try {
+      const res = await window.lxcode.agent.listProviders();
+      if (!res.ok || !res.providers?.length) return;
+      const real: Provider[] = res.providers.map((p) => ({
+        id: p.id,
+        name: p.name,
+        kind: "preset",
+        icon: p.name.slice(0, 1).toUpperCase(),
+        color: "text-accent",
+        baseURL: "",
+        apiKey: "",
+        headers: [],
+        connected: true,
+        models: p.models.map((m) => ({ id: m.id, name: m.name, enabled: true })),
+      }));
+      set({ providers: real });
+      if (real.length && real[0].models.length) {
+        set({ defaultModel: `${real[0].id}/${real[0].models[0].id}` });
+      }
+    } catch {
+      // 非 Electron 环境静默失败,保留 mock
+    }
   },
 }));

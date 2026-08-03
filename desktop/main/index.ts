@@ -3,7 +3,7 @@
  * 由 electron/main.ts 加载,在 app ready 后初始化。
  */
 import { ipcMain, BrowserWindow } from "electron";
-import { prompt, abort, disposeSession, disposeAll } from "./agent-service";
+import { prompt, abort, disposeSession, disposeAll, listProviders, listSessions, createSession, setModel } from "./agent-service";
 
 /** 初始化所有 IPC handler。 */
 export function initAgentIpc() {
@@ -34,6 +34,43 @@ export function initAgentIpc() {
   ipcMain.handle("agent:dispose", (_evt, args: { cwd: string }) => {
     disposeSession(args.cwd);
     return { ok: true };
+  });
+
+  // 列出真实 providers + models。
+  ipcMain.handle("agent:listProviders", async () => {
+    try {
+      return { ok: true, providers: await listProviders() };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message, providers: [] };
+    }
+  });
+
+  // 列出某工作目录的已有会话。
+  ipcMain.handle("agent:listSessions", async (_evt, args: { cwd: string }) => {
+    try {
+      return { ok: true, sessions: await listSessions(args.cwd) };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message, sessions: [] };
+    }
+  });
+
+  // 创建新持久化会话。
+  ipcMain.handle("agent:createSession", async (_evt, args: { cwd: string; name?: string }) => {
+    try {
+      return { ok: true, ...(await createSession(args.cwd, args.name)) };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
+  });
+
+  // 设置某会话的默认模型。
+  ipcMain.handle("agent:setModel", async (_evt, args: { cwd: string; providerId: string; modelId: string }) => {
+    try {
+      await setModel(args.cwd, args.providerId, args.modelId);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
   });
 }
 

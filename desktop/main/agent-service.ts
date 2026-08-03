@@ -9,7 +9,16 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 
 type ModelRuntimeType = {
-  listModels?: () => unknown[];
+  getProviders: () => readonly { id: string; name?: string }[];
+  getModels: (providerId?: string) => readonly { id: string; name?: string; provider?: string; reasoning?: boolean }[];
+  getProvider: (id: string) => unknown;
+};
+
+type SessionInfoType = {
+  path: string;
+  id: string;
+  cwd: string;
+  name?: string;
 };
 
 // 动态加载的模块类型
@@ -93,15 +102,16 @@ function serializeEvent(event: AgentSessionEvent): unknown {
   }
 }
 
-/** 获取或创建某工作目录的 agent 会话。 */
+/** 获取或创建某工作目录的 agent 会话(持久化到磁盘)。 */
 export async function getSession(cwd: string, onEvent: (e: unknown) => void) {
   const existing = sessions.get(cwd);
   if (existing) return existing.session;
 
   const { createAgentSession, SessionManager } = await loadPi();
   const modelRuntime = await getModelRuntime();
+  // 持久化会话(写到 ~/.pi/agent/sessions),而非 inMemory
   const { session } = await createAgentSession({
-    sessionManager: SessionManager.inMemory(),
+    sessionManager: SessionManager.create(cwd),
     modelRuntime: modelRuntime as never,
     cwd,
   });
@@ -137,10 +147,53 @@ export function disposeSession(cwd: string) {
   }
 }
 
-/** 列出可用模型(供前端模型选择)。 */
-export async function listModels() {
+/** 列出真实 providers + models(来自 ~/.pi/agent/models.json)。 */
+export async function listProviders() {
   const rt = await getModelRuntime();
-  return { current: rt };
+  const providers = rt.getProviders();
+  return providers.map((p) => ({
+    id: p.id,
+    name: p.name ?? p.id,
+    models: rt.getModels(p.id).map((m) => ({
+      id: m.id,
+      name: m.name ?? m.id,
+      provider: p.id,
+      reasoning: m.reasoning ?? false,
+    })),
+  }));
+}
+
+/** 列出某工作目录的已有会话(来自磁盘)。 */
+export async function listSessions(cwd: string): Promise<SessionInfoType[]> {
+  const { SessionManager } = await loadPi();
+  try {
+    return await SessionManager.list(cwd);
+  } catch {
+    return [];
+  }
+}
+
+/** 创建新持久化会话(返回 session id + name)。 */
+export async function createSession(cwd: string, name?: string) {
+  const { createAgentSession, SessionManager } = await loadPi();
+  const modelRuntime = await getModelRuntime();
+  const { session } = await createAgentSession({
+    sessionManager: SessionManager.create(cwd),
+    modelRuntime: modelRuntime as never,
+    cwd,
+  });
+  const sid = session.sessionId;
+  session.dispose();
+  return { id: sid, name: name ?? "新会话", cwd };
+}
+
+/** 设置某会话的默认模型。 */
+export async function setModel(cwd: string, providerId: string, modelId: string) {
+  const entry = sessions.get(cwd);
+  if (!entry) return;
+  const rt = await getModelRuntime();
+  const model = rt.getModels(providerId).find((m) => m.id === modelId) as never;
+  if (model) await entry.session.setModel(model);
 }
 
 /** 销毁所有会话(应用退出时)。 */
