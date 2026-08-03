@@ -150,7 +150,11 @@ export function ChatPrototype() {
                 </Avatar>
                 {m.role === "user" ? (
                   <div className="max-w-[72%] rounded-2xl rounded-tr-sm border border-border/50 bg-card px-3.5 py-2 text-[13px] leading-relaxed text-foreground">
-                    {m.attachments?.length ? <AttachmentView attachments={m.attachments} /> : null}
+                    {m.attachments?.length ? (
+                      <div className="mb-2">
+                        <AttachmentView attachments={m.attachments} />
+                      </div>
+                    ) : null}
                     {m.text ? <div>{m.text}</div> : null}
                   </div>
                 ) : (
