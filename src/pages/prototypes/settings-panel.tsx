@@ -8,15 +8,18 @@ import {
   X, Settings, Cpu, Palette, Keyboard, Info, ChevronRight,
   Sun, Moon, Monitor,
   Globe, BookOpen, MessageCircle, GitBranch,
+  Layers,
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { ModelConfigPanel } from "./model-config-panel";
+import { UseCasePanel } from "./usecase-panel";
 import { cn } from "@/lib/utils";
 
 /** 分类定义。 */
 const SECTIONS = [
   { id: "general", label: "通用", Icon: Settings },
   { id: "model", label: "模型", Icon: Cpu },
+  { id: "usecase", label: "用途", Icon: Layers },
   { id: "appearance", label: "外观", Icon: Palette },
   { id: "keybindings", label: "快捷键", Icon: Keyboard },
   { id: "about", label: "关于", Icon: Info },
@@ -134,6 +137,15 @@ function SectionContent({ id }: { id: string }) {
         <ToggleRow label="流式输出" desc="逐字显示回复,而非等待整段" defaultOn />
         <Separator className="bg-border/40" />
         <ToggleRow label="自动思考" desc="模型推理时显示思考过程" defaultOn />
+      </div>
+    );
+  }
+  if (id === "usecase") {
+    return (
+      <div>
+        <h3 className="mb-1 text-base font-semibold">用途</h3>
+        <p className="mb-3 text-[12px] text-muted-foreground">为不同功能场景指定专用模型。</p>
+        <UseCasePanel />
       </div>
     );
   }
