@@ -11,3 +11,6 @@ onlyBuiltDependencies:
 allowBuilds:
   esbuild: true
   electron: true
+  '@google/genai': set this to true or false
+  electron-winstaller: set this to true or false
+  protobufjs: set this to true or false
