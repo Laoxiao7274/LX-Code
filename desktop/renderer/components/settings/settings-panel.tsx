@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { gsap } from "gsap";
+import { useGSAP } from "@gsap/react";
 import { useSettingsStore } from "../../stores/settings-store";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -15,6 +17,10 @@ import { ModelConfigPanel } from "./model-config-panel";
 import { UseCasePanel } from "./usecase-panel";
 import { cn } from "../../lib/utils";
 
+gsap.registerPlugin(useGSAP);
+
+gsap.registerPlugin(useGSAP);
+
 /** 分类定义。 */
 const SECTIONS = [
   { id: "general", label: "通用", Icon: Settings },
@@ -28,6 +34,20 @@ const SECTIONS = [
 /** 开关行。 */
 function ToggleRow({ label, desc, defaultOn = false }: { label: string; desc?: string; defaultOn?: boolean }) {
   const [on, setOn] = useState(defaultOn);
+  const knobRef = useRef<HTMLSpanElement>(null);
+
+  useGSAP(
+    () => {
+      if (!knobRef.current) return;
+      gsap.to(knobRef.current, {
+        left: on ? 18 : 2,
+        duration: 0.3,
+        ease: "back.out(2)",
+      });
+    },
+    { dependencies: [on] },
+  );
+
   return (
     <div className="flex items-center justify-between py-3">
       <div className="min-w-0">
@@ -38,15 +58,14 @@ function ToggleRow({ label, desc, defaultOn = false }: { label: string; desc?: s
         type="button"
         onClick={() => setOn(!on)}
         className={cn(
-          "relative h-5 w-9 shrink-0 rounded-full transition-colors",
+          "relative h-5 w-9 shrink-0 rounded-full transition-colors duration-200",
           on ? "bg-accent" : "bg-muted-foreground/30",
         )}
       >
         <span
-          className={cn(
-            "absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-white shadow transition-all",
-            on ? "left-[18px]" : "left-0.5",
-          )}
+          ref={knobRef}
+          className="absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-white shadow"
+          style={{ left: on ? 18 : 2 }}
         />
       </button>
     </div>
@@ -61,10 +80,22 @@ function ThemeRow() {
     { id: "dark", label: "深色", Icon: Moon },
     { id: "system", label: "跟随系统", Icon: Monitor },
   ];
+  const cardsRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(
+    () => {
+      const active = cardsRef.current?.querySelector(".theme-card-active");
+      if (active) {
+        gsap.fromTo(active, { scale: 0.9 }, { scale: 1, duration: 0.4, ease: "back.out(2.5)" });
+      }
+    },
+    { scope: cardsRef, dependencies: [theme] },
+  );
+
   return (
     <div className="py-3">
       <div className="mb-2 text-[13px] font-medium">主题</div>
-      <div className="grid grid-cols-3 gap-2">
+      <div ref={cardsRef} className="grid grid-cols-3 gap-2">
         {opts.map((o) => {
           const active = theme === o.id;
           const Icon = o.Icon;
@@ -75,7 +106,7 @@ function ThemeRow() {
               onClick={() => setTheme(o.id)}
               className={cn(
                 "flex flex-col items-center gap-1.5 rounded-lg border p-3 transition-colors",
-                active ? "border-accent bg-accent/5 text-accent" : "border-border/60 hover:bg-muted/40",
+                active ? "theme-card-active border-accent bg-accent/5 text-accent" : "border-border/60 hover:bg-muted/40",
               )}
             >
               <Icon className="h-4 w-4" />
@@ -285,12 +316,35 @@ export function SettingsPanel() {
   const setSection = useSettingsStore((s) => s.setSection);
   const setOpen = useSettingsStore((s) => s.setOpen);
 
+  const rootRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // 面板打开:淡入 + 轻微缩放
+  useGSAP(
+    () => {
+      if (!open) return;
+      gsap.fromTo(".sp-overlay", { opacity: 0 }, { opacity: 1, duration: 0.2, ease: "power2.out" });
+      gsap.from(".sp-card", { opacity: 0, scale: 0.96, y: 8, duration: 0.3, ease: "power3.out" });
+    },
+    { scope: rootRef, dependencies: [open] },
+  );
+
+  // 分类切换:内容淡入上移 + 左条弹出
+  useGSAP(
+    () => {
+      if (!open) return;
+      gsap.fromTo(contentRef.current, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.25, ease: "power2.out" });
+      gsap.fromTo(".sp-nav-indicator", { scaleY: 0 }, { scaleY: 1, duration: 0.3, ease: "back.out(2.5)" });
+    },
+    { scope: rootRef, dependencies: [active, open] },
+  );
+
   if (!open) return null;
 
   return (
-    <div className="absolute inset-0 z-40 flex flex-col rounded-xl bg-background/80 backdrop-blur-sm" onClick={() => setOpen(false)}>
+    <div ref={rootRef} className="sp-overlay absolute inset-0 z-40 flex flex-col rounded-xl bg-background/80 backdrop-blur-sm" onClick={() => setOpen(false)}>
       <div
-        className="surface m-2 mt-1 flex flex-1 overflow-hidden rounded-lg"
+        className="sp-card surface m-2 mt-1 flex flex-1 overflow-hidden rounded-lg"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 左侧分类导航 */}
@@ -313,7 +367,7 @@ export function SettingsPanel() {
                         isActive ? "bg-background text-foreground shadow-sm" : "text-foreground/80 hover:bg-background/60",
                       )}
                     >
-                      {isActive ? <span className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-accent" /> : null}
+                      {isActive ? <span className="sp-nav-indicator absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-accent origin-center" /> : null}
                       <Icon className="h-4 w-4 text-muted-foreground" />
                       {s.label}
                       <ChevronRight className={cn("ml-auto h-3.5 w-3.5 text-muted-foreground/40", isActive && "text-foreground/60")} />
@@ -335,7 +389,7 @@ export function SettingsPanel() {
               <X className="h-4 w-4" />
             </Button>
           </div>
-          <div className="px-8 py-6">
+          <div ref={contentRef} className="sp-content px-8 py-6">
             <SectionContent id={active} />
           </div>
         </main>

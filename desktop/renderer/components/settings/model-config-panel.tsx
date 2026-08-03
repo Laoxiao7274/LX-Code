@@ -1,10 +1,14 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { gsap } from "gsap";
+import { useGSAP } from "@gsap/react";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { ChevronDown, Plus, Pencil, Trash2, RefreshCw, Server, Check } from "lucide-react";
 import { useModelStore } from "../../stores/model-store";
 import { ProviderForm } from "./provider-form";
 import { cn } from "../../lib/utils";
+
+gsap.registerPlugin(useGSAP);
 
 /** 提供商图标:预设用首字母,自定义用 Server 图标。 */
 function ProviderIcon({ p }: { p: { icon?: string; color: string; kind: string } }) {

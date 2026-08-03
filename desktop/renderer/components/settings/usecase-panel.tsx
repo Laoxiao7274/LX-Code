@@ -1,8 +1,12 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { gsap } from "gsap";
+import { useGSAP } from "@gsap/react";
 import { ChevronDown, Check, Code, FileText, Image, ListTodo, GitCommitHorizontal, ScanSearch, Boxes } from "lucide-react";
 import { useUseCaseStore, allModels, type UseCase } from "../../stores/usecase-store";
 import { useModelStore } from "../../stores/model-store";
 import { cn } from "../../lib/utils";
+
+gsap.registerPlugin(useGSAP);
 
 /** 用途图标映射。 */
 const ICONS: Record<string, typeof Code> = {
@@ -19,6 +23,16 @@ const ICONS: Record<string, typeof Code> = {
 /** 模型下拉选择。 */
 function ModelSelect({ value, onChange, disabled }: { value: string; onChange: (v: string) => void; disabled?: boolean }) {
   const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(
+    () => {
+      if (open && menuRef.current) {
+        gsap.fromTo(menuRef.current, { opacity: 0, y: -6, scale: 0.96 }, { opacity: 1, y: 0, scale: 1, duration: 0.2, ease: "power2.out" });
+      }
+    },
+    { dependencies: [open] },
+  );
   const models = allModels();
   const defaultModel = useModelStore((s) => s.defaultModel);
   const current = value ? models.find((m) => m.key === value) : null;
@@ -46,7 +60,7 @@ function ModelSelect({ value, onChange, disabled }: { value: string; onChange: (
         <>
           {/* 点外侧关闭 */}
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-20 mt-1 max-h-64 w-56 overflow-y-auto rounded-lg border border-border/60 bg-popover p-1 shadow-lg">
+          <div ref={menuRef} className="absolute right-0 z-20 mt-1 max-h-64 w-56 overflow-y-auto rounded-lg border border-border/60 bg-popover p-1 shadow-lg">
             {/* 跟随默认 */}
             <button
               type="button"
