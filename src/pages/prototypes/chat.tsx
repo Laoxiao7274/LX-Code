@@ -70,6 +70,12 @@ export function ChatPrototype() {
     () => {
       if (messages.length > 0) {
         const added = messages.length - prevCount.current;
+        const bubbles = rootRef.current?.querySelectorAll(".bubble");
+        if (!bubbles || bubbles.length === 0) {
+          prevCount.current = messages.length;
+          bottomRef.current?.scrollIntoView({ block: "end" });
+          return;
+        }
         if (added > 1) {
           // 批量注入(如长任务场景):所有 bubble stagger 入场
           gsap.fromTo(

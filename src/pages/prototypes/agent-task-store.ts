@@ -40,7 +40,9 @@ interface AgentState {
 }
 
 let seed = 0;
+let stepSeed = 0;
 const nid = () => `task${++seed}`;
+const stepId = () => `step${++stepSeed}`;
 
 const NOW = Date.now();
 
@@ -99,7 +101,6 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   runTask: (goal) => {
     const id = get().activeId;
     if (!id) return;
-    const stepId = () => `s${++seed}`;
 
     // 在当前任务下追加执行流
     const appendStep = (step: TaskStep) =>

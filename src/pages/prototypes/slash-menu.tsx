@@ -22,19 +22,17 @@ const COMMANDS: Command[] = [
 ];
 
 interface SlashMenuProps {
-  /** 是否显示菜单(输入框以 / 开头时)。 */
   open: boolean;
-  /** 当前已输入的过滤词(去掉 /)。 */
   query: string;
-  /** 选中某命令时回调,传入要插入的文本。 */
   onSelect: (insert: string) => void;
-  /** 关闭菜单(如 Esc / 失焦)。 */
   onClose: () => void;
 }
 
 /**
  * 斜杠命令菜单:输入框输入 / 时弹出,键盘上下选择 + 回车确认。
  * 参照 Cursor/codex 的 slash command 体验。
+ *
+ * 注意:所有 hooks 必须在早返回之前调用,保持 hooks 顺序稳定。
  */
 export function SlashMenu({ open, query, onSelect, onClose }: SlashMenuProps) {
   const [active, setActive] = useState(0);
@@ -43,6 +41,7 @@ export function SlashMenu({ open, query, onSelect, onClose }: SlashMenuProps) {
   const filtered = COMMANDS.filter(
     (c) => !query || c.name.includes(query.toLowerCase()) || c.label.includes(query),
   );
+  const visible = open && filtered.length > 0;
 
   // query 变化时重置选中
   useEffect(() => {
@@ -51,16 +50,14 @@ export function SlashMenu({ open, query, onSelect, onClose }: SlashMenuProps) {
 
   // 滚动到当前选中项
   useEffect(() => {
+    if (!visible) return;
     const el = listRef.current?.querySelector(`[data-idx="${active}"]`) as HTMLElement | null;
     el?.scrollIntoView({ block: "nearest" });
-  }, [active]);
+  }, [active, visible]);
 
-  if (!open || filtered.length === 0) return null;
-
-  // 键盘导航(由输入框的 onKeyDown 转发,这里暴露处理函数)
-  // 为简化,这里通过全局键盘事件监听
+  // 键盘导航:全局监听(仅在 visible 时处理)
   useEffect(() => {
-    if (!open) return;
+    if (!visible) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -78,7 +75,9 @@ export function SlashMenu({ open, query, onSelect, onClose }: SlashMenuProps) {
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [open, active, filtered, onSelect, onClose]);
+  }, [visible, active, filtered, onSelect, onClose]);
+
+  if (!visible) return null;
 
   return (
     <div className="mb-1 overflow-hidden rounded-lg border border-border/60 bg-popover shadow-lg">
