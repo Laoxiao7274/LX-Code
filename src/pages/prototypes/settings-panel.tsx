@@ -38,8 +38,8 @@ function ToggleRow({ label, desc, defaultOn = false }: { label: string; desc?: s
       >
         <span
           className={cn(
-            "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform",
-            on ? "translate-x-[18px]" : "translate-x-0.5",
+            "absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-white shadow transition-all",
+            on ? "left-[18px]" : "left-0.5",
           )}
         />
       </button>
