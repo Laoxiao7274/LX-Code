@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "check": "tsc -b --noEmit",
     "electron:dev": "concurrently -k \"node electron/build.mjs --watch\" \"vite\" \"wait-on tcp:1420 && cross-env LX_DEV_SERVER_URL=http://localhost:1420 electron electron/dist/main.cjs",
+    "electron:run": "node electron/build.mjs --watch & wait-on tcp:1420 && cross-env LX_DEV_SERVER_URL=http://localhost:1420 electron electron/dist/main.cjs",
     "electron:build": "tsc -b && vite build && node electron/build.mjs && electron-builder"
   },
   "dependencies": {
