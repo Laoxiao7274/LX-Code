@@ -1,0 +1,170 @@
+import { create } from "zustand";
+
+/** 模型定义。 */
+export interface Model {
+  id: string;
+  name: string;
+  /** 是否启用(在模型选择器显示)。 */
+  enabled: boolean;
+}
+
+/** 自定义请求头。 */
+export interface CustomHeader {
+  key: string;
+  value: string;
+}
+
+/** 提供商类型。 */
+export type ProviderKind = "preset" | "custom";
+
+/** 提供商。 */
+export interface Provider {
+  id: string;
+  name: string;
+  /** preset 或 custom。 */
+  kind: ProviderKind;
+  /** 图标标识:预设用 id,自定义用 emoji 或字母。 */
+  icon?: string;
+  color: string;
+  baseURL?: string;
+  apiKey?: string;
+  headers: CustomHeader[];
+  models: Model[];
+  /** 是否已连接(有有效 apiKey)。 */
+  connected: boolean;
+}
+
+interface ModelStore {
+  providers: Provider[];
+  /** 当前默认模型 "providerId/modelId"。 */
+  defaultModel: string;
+  /** 正在编辑/新增的提供商表单(null 关闭)。 */
+  editing: Provider | null;
+  /** 是否新增(区分编辑/新增)。 */
+  isAdding: boolean;
+
+  setDefault: (key: string) => void;
+  toggleModel: (providerId: string, modelId: string) => void;
+  /** 打开新增表单。 */
+  openAdd: () => void;
+  /** 打开编辑表单。 */
+  openEdit: (providerId: string) => void;
+  closeForm: () => void;
+  /** 保存表单(新增或更新)。 */
+  saveForm: (p: Provider) => void;
+  /** 删除提供商。 */
+  removeProvider: (providerId: string) => void;
+  /** 模拟自动获取模型(根据 baseURL + key)。 */
+  fetchModels: (providerId: string) => void;
+}
+
+const PRESETS: Provider[] = [
+  {
+    id: "anthropic",
+    name: "Anthropic",
+    kind: "preset",
+    icon: "A",
+    color: "text-amber-600",
+    baseURL: "https://api.anthropic.com",
+    apiKey: "sk-ant-••••••••",
+    headers: [],
+    connected: true,
+    models: [
+      { id: "claude-sonnet-4", name: "Claude Sonnet 4", enabled: true },
+      { id: "claude-opus-4", name: "Claude Opus 4", enabled: true },
+      { id: "claude-haiku-3.5", name: "Claude Haiku 3.5", enabled: false },
+    ],
+  },
+  {
+    id: "openai",
+    name: "OpenAI",
+    kind: "preset",
+    icon: "O",
+    color: "text-emerald-600",
+    baseURL: "https://api.openai.com/v1",
+    apiKey: "sk-••••••••",
+    headers: [],
+    connected: true,
+    models: [
+      { id: "gpt-4o", name: "GPT-4o", enabled: true },
+      { id: "gpt-4o-mini", name: "GPT-4o mini", enabled: true },
+      { id: "o3-mini", name: "o3-mini", enabled: false },
+    ],
+  },
+];
+
+export const useModelStore = create<ModelStore>((set, get) => ({
+  providers: PRESETS,
+  defaultModel: "anthropic/claude-sonnet-4",
+  editing: null,
+  isAdding: false,
+
+  setDefault: (key) => set({ defaultModel: key }),
+  toggleModel: (providerId, modelId) =>
+    set({
+      providers: get().providers.map((p) =>
+        p.id === providerId
+          ? { ...p, models: p.models.map((m) => (m.id === modelId ? { ...m, enabled: !m.enabled } : m)) }
+          : p,
+      ),
+    }),
+
+  openAdd: () => set({
+    isAdding: true,
+    editing: {
+      id: "",
+      name: "",
+      kind: "custom",
+      icon: "",
+      color: "text-muted-foreground",
+      baseURL: "",
+      apiKey: "",
+      headers: [],
+      connected: false,
+      models: [],
+    },
+  }),
+  openEdit: (providerId) => {
+    const p = get().providers.find((x) => x.id === providerId);
+    if (p) set({ isAdding: false, editing: { ...p } });
+  },
+  closeForm: () => set({ editing: null, isAdding: false }),
+  saveForm: (p) => {
+    const exists = get().providers.some((x) => x.id === p.id);
+    set({
+      providers: exists
+        ? get().providers.map((x) => (x.id === p.id ? p : x))
+        : [...get().providers, p],
+      editing: null,
+      isAdding: false,
+    });
+  },
+  removeProvider: (providerId) =>
+    set({ providers: get().providers.filter((p) => p.id !== providerId) }),
+
+  fetchModels: (providerId) => {
+    // 模拟自动获取:根据 providerId 给一些示例模型
+    const sample: Record<string, Model[]> = {
+      anthropic: [
+        { id: "claude-3.5-sonnet", name: "Claude 3.5 Sonnet", enabled: true },
+        { id: "claude-3-opus", name: "Claude 3 Opus", enabled: false },
+      ],
+      openai: [
+        { id: "gpt-4-turbo", name: "GPT-4 Turbo", enabled: true },
+        { id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo", enabled: false },
+      ],
+    };
+    set({
+      providers: get().providers.map((p) =>
+        p.id === providerId
+          ? {
+              ...p,
+              models: [...p.models, ...(sample[p.id] ?? [{ id: "custom-model", name: "自定义模型", enabled: true }])].filter(
+                (m, i, arr) => arr.findIndex((x) => x.id === m.id) === i,
+              ),
+            }
+          : p,
+      ),
+    });
+  },
+}));
