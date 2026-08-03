@@ -4,8 +4,10 @@ packages:
   # pi 驱动进程(Phase 4 才启用,先占位)
   - "driver"
 
-# 允许运行构建脚本的依赖(esbuild 是 Vite 核心依赖,必须放行)
+# 允许运行构建脚本的依赖(esbuild 是 Vite 核心依赖,electron 需下载二进制)
 onlyBuiltDependencies:
   - esbuild
+  - electron
 allowBuilds:
   esbuild: true
+  electron: true
