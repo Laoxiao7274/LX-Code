@@ -23,7 +23,7 @@ export function AppShell() {
   const mode = useModeStore((s) => s.mode);
 
   return (
-    <div className="surface flex h-full flex-col overflow-hidden rounded-xl">
+    <div className="surface relative flex h-full flex-col overflow-hidden rounded-xl">
       <Titlebar />
       {mode === "agent" ? (
         <ResizablePanelGroup orientation="horizontal" className="flex-1">

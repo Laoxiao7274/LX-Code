@@ -252,9 +252,9 @@ export function SettingsPanel() {
   if (!open) return null;
 
   return (
-    <div className="absolute inset-0 z-40 bg-background/80 backdrop-blur-sm" onClick={() => setOpen(false)}>
+    <div className="absolute inset-0 z-40 flex flex-col rounded-xl bg-background/80 backdrop-blur-sm" onClick={() => setOpen(false)}>
       <div
-        className="surface absolute inset-x-6 bottom-6 top-16 flex overflow-hidden rounded-xl"
+        className="surface m-2 mt-1 flex flex-1 overflow-hidden rounded-lg"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 左侧分类导航 */}
