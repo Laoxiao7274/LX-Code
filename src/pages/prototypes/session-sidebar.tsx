@@ -1,4 +1,5 @@
 import { useSessionStore } from "@/pages/prototypes/session-store";
+import { useSettingsStore } from "@/pages/prototypes/settings-store";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -24,6 +25,7 @@ export function SessionSidebar() {
   const activeId = useSessionStore((s) => s.activeId);
   const create = useSessionStore((s) => s.create);
   const select = useSessionStore((s) => s.select);
+  const openSettings = useSettingsStore((s) => s.setOpen);
 
   return (
     <div className="flex h-full flex-col bg-muted/25">
@@ -91,7 +93,7 @@ export function SessionSidebar() {
 
       {/* 底部:设置入口 */}
       <div className="p-1.5">
-        <Button variant="ghost" className="w-full justify-start gap-2.5 text-muted-foreground">
+        <Button variant="ghost" className="w-full justify-start gap-2.5 text-muted-foreground" onClick={() => openSettings(true)}>
           <div className="flex h-5 w-5 items-center justify-center">
             <Settings className="h-4 w-4" />
           </div>

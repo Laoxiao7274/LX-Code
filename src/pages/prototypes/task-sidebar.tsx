@@ -1,4 +1,5 @@
 import { useAgentStore, type TaskStatus } from "./agent-task-store";
+import { useSettingsStore } from "./settings-store";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -30,6 +31,7 @@ export function TaskSidebar() {
   const activeId = useAgentStore((s) => s.activeId);
   const create = useAgentStore((s) => s.create);
   const select = useAgentStore((s) => s.select);
+  const openSettings = useSettingsStore((s) => s.setOpen);
 
   return (
     <div className="flex h-full flex-col bg-muted/25">
@@ -87,7 +89,7 @@ export function TaskSidebar() {
       <Separator className="bg-border/60" />
 
       <div className="p-1.5">
-        <Button variant="ghost" className="w-full justify-start gap-2.5 text-muted-foreground">
+        <Button variant="ghost" className="w-full justify-start gap-2.5 text-muted-foreground" onClick={() => openSettings(true)}>
           <div className="flex h-5 w-5 items-center justify-center"><Settings className="h-4 w-4" /></div>
           设置
         </Button>

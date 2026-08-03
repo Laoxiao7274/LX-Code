@@ -10,6 +10,7 @@ import { AgentMain } from "./agent-main";
 import { SessionSidebar } from "./session-sidebar";
 import { ChatMain } from "./chat-main";
 import { DesignView } from "./design-view";
+import { SettingsPanel } from "./settings-panel";
 
 /**
  * LXCode 应用框架:三种大模式各自独立框架,标题栏全局切换。
@@ -50,6 +51,8 @@ export function AppShell() {
         </div>
       )}
       <StatusBar />
+      {/* 设置面板(覆盖层) */}
+      <SettingsPanel />
     </div>
   );
 }
