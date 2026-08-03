@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChevronRight, Brain } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ThinkingPart } from "./chat-store";
@@ -26,12 +26,23 @@ export function ThinkingBlock({ part }: ThinkingBlockProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [part.streaming]);
 
-  // 流式时窗口滚到底
+  // 流式时窗口滚到底(useLayoutEffect 在绘制前执行,rAF 再保一层 DOM 已更新)
+  useLayoutEffect(() => {
+    if (!part.streaming) return;
+    const el = bodyRef.current?.querySelector(".tb-window") as HTMLElement | null;
+    if (!el) return;
+    const raf = requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [part.text, part.streaming]);
+
+  // 流式开始时也滚一次(确保初始就在底)
   useEffect(() => {
     if (!part.streaming) return;
     const el = bodyRef.current?.querySelector(".tb-window") as HTMLElement | null;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [part.text, part.streaming]);
+  }, [part.streaming]);
 
   const paragraphs = part.text.split(/\n{2,}/).filter((p) => p.trim().length > 0);
   const teaser = paragraphs[paragraphs.length - 1] ?? "";
