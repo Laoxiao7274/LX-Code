@@ -91,7 +91,7 @@ function UseCaseRow({ c }: { c: UseCase }) {
   const setModel = useUseCaseStore((s) => s.setModel);
   const Icon = ICONS[c.icon] ?? Code;
   return (
-    <div className="flex items-center gap-3 py-2.5">
+    <div className="flex items-center gap-3 px-3 py-2.5">
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
         <Icon className="h-4 w-4" />
       </span>
