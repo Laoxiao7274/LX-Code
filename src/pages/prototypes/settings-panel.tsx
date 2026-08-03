@@ -8,6 +8,7 @@ import {
   X, Settings, Cpu, Palette, Keyboard, Info, ChevronRight,
   Sun, Moon, Monitor, Check,
   Globe, BookOpen, MessageCircle, GitBranch,
+  ChevronDown, Key, Plus, Server, Sparkles,
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { cn } from "@/lib/utils";
@@ -96,6 +97,150 @@ function KeyRow({ label, keys }: { label: string; keys: string }) {
   );
 }
 
+/** 提供商定义。 */
+interface Provider {
+  id: string;
+  name: string;
+  Icon: typeof Server;
+  color: string;
+  connected: boolean;
+  models: { id: string; name: string; desc: string; badge?: string }[];
+}
+
+const PROVIDERS: Provider[] = [
+  {
+    id: "anthropic",
+    name: "Anthropic",
+    Icon: Sparkles,
+    color: "text-amber-600",
+    connected: true,
+    models: [
+      { id: "sonnet-4", name: "Claude Sonnet 4", desc: "均衡,推荐", badge: "推荐" },
+      { id: "opus-4", name: "Claude Opus 4", desc: "最强,慢且贵" },
+      { id: "haiku", name: "Claude Haiku 3.5", desc: "最快,简单任务" },
+    ],
+  },
+  {
+    id: "openai",
+    name: "OpenAI",
+    Icon: Cpu,
+    color: "text-emerald-600",
+    connected: true,
+    models: [
+      { id: "gpt-4o", name: "GPT-4o", desc: "全能旗舰" },
+      { id: "gpt-4o-mini", name: "GPT-4o mini", desc: "轻量快速" },
+      { id: "o3-mini", name: "o3-mini", desc: "推理增强" },
+    ],
+  },
+  {
+    id: "local",
+    name: "本地 (Ollama)",
+    Icon: Server,
+    color: "text-sky-600",
+    connected: false,
+    models: [
+      { id: "qwen", name: "Qwen2.5-Coder", desc: "本地代码模型" },
+      { id: "deepseek", name: "DeepSeek-Coder", desc: "本地代码模型" },
+    ],
+  },
+];
+
+/** 提供商 + 模型两级配置。 */
+function ModelConfig() {
+  const [expanded, setExpanded] = useState<string | null>("anthropic");
+  const [selected, setSelected] = useState("sonnet-4");
+
+  return (
+    <div className="space-y-2">
+      {PROVIDERS.map((p) => {
+        const isOpen = expanded === p.id;
+        const ProviderIcon = p.Icon;
+        const hasSelected = p.models.some((m) => m.id === selected);
+        return (
+          <div key={p.id} className="overflow-hidden rounded-lg border border-border/60">
+            {/* 提供商头 */}
+            <button
+              type="button"
+              onClick={() => setExpanded(isOpen ? null : p.id)}
+              className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-muted/40"
+            >
+              <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted", p.color)}>
+                <ProviderIcon className="h-4 w-4" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[13px] font-medium">{p.name}</span>
+                  {hasSelected ? <Badge variant="outline" className="h-4 px-1 text-[9px] text-accent">默认</Badge> : null}
+                </div>
+                <div className="flex items-center gap-1.5 text-[11px]">
+                  <span className={cn("h-1.5 w-1.5 rounded-full", p.connected ? "bg-emerald-500" : "bg-muted-foreground/40")} />
+                  <span className="text-muted-foreground">{p.connected ? "已连接" : "未连接"}</span>
+                </div>
+              </div>
+              <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground/60 transition-transform", isOpen && "rotate-180")} />
+            </button>
+
+            {/* 展开内容:API Key + 模型列表 */}
+            {isOpen ? (
+              <div className="border-t border-border/60 bg-muted/20 p-3">
+                {/* API Key */}
+                <div className="mb-3">
+                  <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+                    <Key className="h-3 w-3" />
+                    API Key
+                  </div>
+                  <Input
+                    type="password"
+                    className="h-8 font-mono text-[12px]"
+                    placeholder={p.id === "local" ? "无需 API Key" : "sk-..."}
+                    defaultValue={p.connected ? "sk-ant-••••••••••••" : ""}
+                  />
+                </div>
+
+                {/* 模型列表 */}
+                <div className="text-[11px] font-medium text-muted-foreground">模型</div>
+                <div className="mt-1 space-y-1">
+                  {p.models.map((m) => {
+                    const active = m.id === selected;
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setSelected(m.id)}
+                        className={cn(
+                          "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors",
+                          active ? "bg-accent/10" : "hover:bg-muted/50",
+                        )}
+                      >
+                        <span className={cn("flex h-4 w-4 shrink-0 items-center justify-center rounded-full border", active ? "border-accent bg-accent" : "border-muted-foreground/30")}>
+                          {active ? <Check className="h-2.5 w-2.5 text-white" /> : null}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className={cn("text-[13px]", active ? "font-medium text-foreground" : "text-foreground/85")}>{m.name}</span>
+                            {m.badge ? <Badge variant="outline" className="h-4 px-1 text-[9px] text-accent">{m.badge}</Badge> : null}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground">{m.desc}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+
+      {/* 添加提供商 */}
+      <button type="button" className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border/60 py-2 text-[12px] text-muted-foreground transition-colors hover:bg-muted/40">
+        <Plus className="h-3.5 w-3.5" />
+        添加提供商
+      </button>
+    </div>
+  );
+}
+
 /** 各分类内容。 */
 function SectionContent({ id }: { id: string }) {
   if (id === "general") {
@@ -124,38 +269,12 @@ function SectionContent({ id }: { id: string }) {
     return (
       <div>
         <h3 className="mb-1 text-base font-semibold">模型</h3>
-        <p className="mb-2 text-[12px] text-muted-foreground">选择与配置 AI 模型。</p>
-        <Separator className="my-2 bg-border/60" />
-        <div className="py-3">
-          <div className="mb-2 text-[13px] font-medium">默认模型</div>
-          <div className="space-y-1.5">
-            {[
-              { id: "sonnet", name: "Claude Sonnet 4", desc: "均衡,推荐", badge: "推荐" },
-              { id: "opus", name: "Claude Opus 4", desc: "最强,慢且贵" },
-              { id: "haiku", name: "Claude Haiku", desc: "最快,简单任务" },
-            ].map((m, i) => (
-              <button
-                key={m.id}
-                type="button"
-                className={cn(
-                  "flex w-full items-center gap-2.5 rounded-lg border px-3 py-2 text-left transition-colors",
-                  i === 0 ? "border-accent bg-accent/5" : "border-border/60 hover:bg-muted/40",
-                )}
-              >
-                <Cpu className={cn("h-4 w-4", i === 0 ? "text-accent" : "text-muted-foreground")} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[13px] font-medium">{m.name}</span>
-                    {m.badge ? <Badge variant="outline" className="h-4 px-1 text-[9px] text-accent">{m.badge}</Badge> : null}
-                  </div>
-                  <div className="text-[11px] text-muted-foreground">{m.desc}</div>
-                </div>
-                {i === 0 ? <Check className="h-4 w-4 text-accent" /> : null}
-              </button>
-            ))}
-          </div>
-        </div>
-        <Separator className="bg-border/40" />
+        <p className="mb-3 text-[12px] text-muted-foreground">配置提供商与模型,选择默认模型。</p>
+
+        <ModelConfig />
+
+        <Separator className="my-3 bg-border/60" />
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">生成选项</div>
         <ToggleRow label="流式输出" desc="逐字显示回复,而非等待整段" defaultOn />
         <Separator className="bg-border/40" />
         <ToggleRow label="自动思考" desc="模型推理时显示思考过程" defaultOn />
