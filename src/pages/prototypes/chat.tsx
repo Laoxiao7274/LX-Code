@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { useChatStore } from "./chat-store";
@@ -13,7 +13,9 @@ import { cn } from "@/lib/utils";
 import { ThinkingBlock } from "./thinking-block";
 import { ToolCallRow } from "./tool-call-row";
 import { AttachmentView } from "./attachment-view";
-import type { MessagePart } from "./chat-store";
+import { ImageLightbox } from "./image-lightbox";
+import { SlashMenu } from "./slash-menu";
+import type { Attachment, MessagePart } from "./chat-store";
 
 gsap.registerPlugin(useGSAP);
 
@@ -33,6 +35,12 @@ export function ChatPrototype() {
   const pending = useChatStore((s) => s.pendingAttachments);
   const addAttachment = useChatStore((s) => s.addAttachment);
   const removeAttachment = useChatStore((s) => s.removeAttachment);
+
+  // 图片放大预览状态
+  const [lightbox, setLightbox] = useState<Attachment | null>(null);
+  // 斜杠命令菜单
+  const slashOpen = input.startsWith("/") && !isGenerating;
+  const slashQuery = input.slice(1).split(" ")[0] ?? "";
 
   // 新消息时自动滚到底
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -152,7 +160,10 @@ export function ChatPrototype() {
                   <div className="max-w-[72%] rounded-2xl rounded-tr-sm border border-border/50 bg-card px-3.5 py-2 text-[13px] leading-relaxed text-foreground">
                     {m.attachments?.length ? (
                       <div className="mb-2">
-                        <AttachmentView attachments={m.attachments} />
+                        <AttachmentView
+                          attachments={m.attachments}
+                          onClick={(a) => a.kind === "image" && setLightbox(a)}
+                        />
                       </div>
                     ) : null}
                     {m.text ? <div>{m.text}</div> : null}
@@ -183,6 +194,13 @@ export function ChatPrototype() {
       {/* 输入区 */}
       <div className="mt-3">
         <Separator className="mb-3 bg-border/50" />
+        {/* 斜杠命令菜单(输入 / 时显示) */}
+        <SlashMenu
+          open={slashOpen}
+          query={slashQuery}
+          onSelect={(insert) => setInput(insert)}
+          onClose={() => setInput(input.replace(/^\/[a-z]*/, ""))}
+        />
         <AttachmentView attachments={pending} view="pending" onRemove={removeAttachment} />
         <div className="flex gap-2">
           <Input
@@ -229,6 +247,9 @@ export function ChatPrototype() {
           )}
         </div>
       </div>
+
+      {/* 图片放大预览 */}
+      <ImageLightbox image={lightbox} onClose={() => setLightbox(null)} />
     </div>
   );
 }
