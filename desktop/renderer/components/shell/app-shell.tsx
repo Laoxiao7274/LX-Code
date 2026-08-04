@@ -3,7 +3,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "../../components/ui/resizable";
-import { Titlebar, StatusBar } from "./titlebar-status";
+import { Titlebar } from "./titlebar-status";
 import { ModeSwitcher } from "./mode-switcher";
 import { SessionSidebar } from "../sidebar/session-sidebar";
 import { TaskSidebar } from "../sidebar/task-sidebar";
@@ -40,7 +40,6 @@ export function AppShell() {
           </ResizablePanel>
         </ResizablePanelGroup>
       )}
-      <StatusBar />
       {/* 设置面板(覆盖层) */}
       <SettingsPanel />
     </div>
