@@ -91,7 +91,7 @@ export const SCENES: SceneDef[] = [
         label: "新建会话",
         description: "左侧栏新增一条会话",
         handler: () => {
-          useSessionStore.getState().create();
+          useSessionStore.getState().create("lx-code");
           return "已在侧栏新增会话";
         },
       },
