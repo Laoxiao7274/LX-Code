@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useModelStore } from "../../stores/model-store";
+import { useChatStore } from "../../stores/chat-store";
 import { cn } from "../../lib/utils";
 import { ChevronDown, Check, Brain, Activity } from "lucide-react";
 
@@ -110,13 +111,30 @@ function ThinkingLevelSelect({ sessionId }: { sessionId: string }) {
 }
 
 /** 上下文用量纯展示(不点击)。 */
-function ContextUsage() {
-  // 模拟(真实接 session 上下文用量)
-  const used = 24576;
-  const total = 200000;
-  const pct = Math.round((used / total) * 100);
+function ContextUsage({ sessionId }: { sessionId: string }) {
+  const usage = useChatStore((s) => s.usageBySession[sessionId]);
+  const providers = useModelStore((s) => s.providers);
+  const defaultModel = useModelStore((s) => s.defaultModel);
+  // 从默认模型查 contextWindow
+  let total = 128000;
+  if (defaultModel) {
+    const [pid, mid] = defaultModel.split("/");
+    const m = providers.find((p) => p.id === pid)?.models.find((x) => x.id === mid) as unknown as { contextWindow?: number } | undefined;
+    if (m?.contextWindow) total = m.contextWindow;
+  }
+  const used = usage?.input ?? 0;
+  const pct = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0;
+  if (!usage) {
+    // 还没收到 usage(未发过消息):显示空占位
+    return (
+      <div className="flex h-6 items-center gap-1.5 px-2 text-[11px] text-muted-foreground/50" title="发送消息后显示上下文用量">
+        <Activity className="h-3.5 w-3.5" />
+        <span className="font-mono tabular-nums">—</span>
+      </div>
+    );
+  }
   return (
-    <div className="flex h-6 items-center gap-1.5 px-2 text-[11px] text-muted-foreground" title={`${used.toLocaleString()} / ${total.toLocaleString()} tokens`}>
+    <div className="flex h-6 items-center gap-1.5 px-2 text-[11px] text-muted-foreground" title={`${used.toLocaleString()} / ${total.toLocaleString()} tokens(当前上下文 / 模型窗口)`}>
       <Activity className="h-3.5 w-3.5" />
       <div className="h-1.5 w-14 overflow-hidden rounded-full bg-muted">
         <div
@@ -143,7 +161,7 @@ export function ChatToolbar({ sessionId }: { sessionId: string }) {
       <span className="h-3 w-px bg-border/40" />
       <ThinkingLevelSelect sessionId={sessionId} />
       <div className="flex-1" />
-      <ContextUsage />
+      <ContextUsage sessionId={sessionId} />
     </div>
   );
 }

@@ -73,12 +73,17 @@ function serializeEvent(event: AgentSessionEvent): unknown {
     case "turn_start":
     case "turn_end":
     case "message_start":
-    case "message_end":
     case "compaction_start":
     case "compaction_end":
     case "auto_retry_start":
     case "auto_retry_end":
       return { type: event.type };
+    case "message_end": {
+      // 传 usage(上下文用量统计):message_end 的 message 是 AssistantMessage
+      const msg = (event as { message?: { usage?: { input?: number; output?: number; totalTokens?: number } } }).message;
+      const u = msg?.usage;
+      return { type: "message_end", usage: u ? { input: u.input, output: u.output, totalTokens: u.totalTokens } : undefined };
+    }
     case "thinking_level_changed":
       return { type: event.type, level: (event as { level?: string }).level };
     case "message_update": {

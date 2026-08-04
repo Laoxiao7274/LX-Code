@@ -63,6 +63,8 @@ interface ChatState {
   isGenerating: boolean;
   /** 每个会话的生成状态(per-session 隔离)。 */
   generatingBySession: Record<string, boolean>;
+  /** 每个会话的上下文用量(最新一轮 usage.input=当前上下文 tokens)。 */
+  usageBySession: Record<string, { input: number; output: number; totalTokens: number } | undefined>;
   /** 输入区待发送的附件(图片/文件)。 */
   pendingAttachments: Attachment[];
 
@@ -91,6 +93,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   input: "",
   isGenerating: false,
   generatingBySession: {},
+  usageBySession: {},
   pendingAttachments: [],
 
   setInput: (t) => set({ input: t }),
@@ -451,7 +454,7 @@ function handleAgentEvent(
       // 内部状态事件,UI 忽略
       break;
     case "message_end": {
-      // 单条消息结束(思考或回复):结束当前 streaming part
+      // 单条消息结束(思考或回复):结束当前 streaming part + 记录上下文用量
       updateAssistant((m) => ({
         ...m,
         parts: (m.parts ?? []).map((p) =>
@@ -460,6 +463,11 @@ function handleAgentEvent(
             : p,
         ),
       }));
+      // 记录最新 usage(input=当前上下文 tokens)
+      const u = (event as { usage?: { input: number; output: number; totalTokens: number } }).usage;
+      if (u) {
+        set((s) => ({ usageBySession: { ...s.usageBySession, [sessionId]: u } }));
+      }
       break;
     }
     case "turn_end": {
