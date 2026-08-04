@@ -11,12 +11,6 @@ import { app } from "electron";
 import path from "node:path";
 import fs from "node:fs/promises";
 
-/** 主进程日志写文件(调试用)。 */
-const logFile = path.join(app?.getPath?.("home") ?? ".", ".lxcode", "agent-debug.log");
-async function piLog(msg: string) {
-  console.log(msg);
-  try { await fs.appendFile(logFile, new Date().toISOString().slice(11,19) + " " + msg + "\n"); } catch {}
-}
 
 type ModelRuntimeType = {
   getProviders: () => readonly { id: string; name?: string }[];
@@ -160,8 +154,6 @@ function subscribeSession(session: AgentSession, sid: string, win: { webContents
   if (!win) return () => {};
   return session.subscribe((event) => {
     const evt = serializeEvent(event) as Record<string, unknown>;
-    if (evt.type === "message_update") piLog(`[pi→ui] ${sid.slice(0,8)} ${evt.type}:${(evt.assistantMessageEvent as { type?: string })?.type} delta=${JSON.stringify((evt.assistantMessageEvent as { delta?: string })?.delta ?? "").slice(0,60)}`);
-    else piLog(`[pi→ui] ${sid.slice(0,8)} ${evt.type}`);
     win.webContents.send(`agent:event:${sid}`, { ...evt, __sid: sid });
   });
 }
@@ -176,9 +168,6 @@ export async function getOrCreateSession(sessionId: string | undefined, cwd: str
       if (!existing.subscribed && win) {
         existing.unsubscribe = subscribeSession(existing.session, sessionId, win);
         existing.subscribed = true;
-        piLog(`[session] 补订阅 ${sessionId.slice(0,8)}`);
-      } else {
-        piLog(`[session] 复用已订阅 ${sessionId.slice(0,8)} subscribed=${existing.subscribed}`);
       }
       return { session: existing.session, sessionId };
     }
@@ -260,7 +249,6 @@ export async function prompt(
   win: { webContents: { send: (ch: string, ...a: unknown[]) => void } } | null,
   images?: { path: string }[],
 ) {
-  piLog(`[prompt] sid=${sessionId.slice(0,8)} text=${JSON.stringify(text).slice(0,40)}`);
   const { session } = await getOrCreateSession(sessionId, cwd, win);
   // 读图片附件转 base64
   const imgContents: { type: "image"; data: string; mimeType: string }[] = [];
