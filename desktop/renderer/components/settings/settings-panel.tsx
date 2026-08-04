@@ -2,6 +2,7 @@ import { useRef, useState, useEffect } from "react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { useSettingsStore } from "../../stores/settings-store";
+import { useSessionStore } from "../../stores/session-store";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Separator } from "../ui/separator";
@@ -32,8 +33,8 @@ const SECTIONS = [
 ] as const;
 
 /** 开关行。 */
-function ToggleRow({ label, desc, defaultOn = false }: { label: string; desc?: string; defaultOn?: boolean }) {
-  const [on, setOn] = useState(defaultOn);
+function ToggleRow({ label, desc, value, onChange }: { label: string; desc?: string; value: boolean; onChange: (v: boolean) => void }) {
+  const on = value;
   const knobRef = useRef<HTMLSpanElement>(null);
 
   useGSAP(
@@ -57,7 +58,7 @@ function ToggleRow({ label, desc, defaultOn = false }: { label: string; desc?: s
       </div>
       <button
         type="button"
-        onClick={() => setOn(!on)}
+        onClick={() => onChange(!on)}
         className={cn(
           "relative h-5 w-9 shrink-0 rounded-full transition-colors duration-200",
           on ? "bg-accent" : "bg-muted-foreground/30",
@@ -75,7 +76,8 @@ function ToggleRow({ label, desc, defaultOn = false }: { label: string; desc?: s
 
 /** 主题选择卡。 */
 function ThemeRow() {
-  const [theme, setTheme] = useState<"light" | "dark" | "system">("system");
+  const theme = useSettingsStore((s) => s.settings.theme);
+  const update = useSettingsStore((s) => s.update);
   const opts: { id: typeof theme; label: string; Icon: typeof Sun }[] = [
     { id: "light", label: "浅色", Icon: Sun },
     { id: "dark", label: "深色", Icon: Moon },
@@ -104,7 +106,7 @@ function ThemeRow() {
             <button
               key={o.id}
               type="button"
-              onClick={() => setTheme(o.id)}
+              onClick={() => update({ theme: o.id })}
               className={cn(
                 "flex flex-col items-center gap-1.5 rounded-lg border p-3 transition-colors",
                 active ? "theme-card-active border-accent bg-accent/5 text-accent" : "border-border/60 hover:bg-muted/40",
@@ -134,24 +136,33 @@ function KeyRow({ label, keys }: { label: string; keys: string }) {
 
 /** 各分类内容。 */
 function SectionContent({ id }: { id: string }) {
+  const settings = useSettingsStore((s) => s.settings);
+  const update = useSettingsStore((s) => s.update);
+  // 工作目录 = 当前选中会话所属项目路径
+  const projects = useSessionStore((s) => s.projects);
+  const activeId = useSessionStore((s) => s.activeId);
+  let cwd = "(未选择项目)";
+  for (const p of projects) {
+    if (p.sessions.some((s) => s.id === activeId)) { cwd = p.path; break; }
+  }
   if (id === "general") {
     return (
       <div>
         <h3 className="mb-1 text-base font-semibold">通用</h3>
         <p className="mb-2 text-[12px] text-muted-foreground">应用基础行为与默认值。</p>
         <Separator className="my-2 bg-border/60" />
-        <ToggleRow label="自动保存会话" desc="关闭窗口前自动保存当前会话" defaultOn />
+        <ToggleRow label="自动保存会话" desc="关闭窗口前自动保存当前会话" value={settings.autoSave} onChange={(v) => update({ autoSave: v })} />
         <Separator className="bg-border/40" />
-        <ToggleRow label="发送后清空输入" desc="回车发送消息后自动清空输入框" defaultOn />
+        <ToggleRow label="发送后清空输入" desc="回车发送消息后自动清空输入框" value={settings.clearInputOnSend} onChange={(v) => update({ clearInputOnSend: v })} />
         <Separator className="bg-border/40" />
-        <ToggleRow label="显示工具调用细节" desc="在对话中展开工具调用输出" defaultOn />
+        <ToggleRow label="显示工具调用细节" desc="在对话中展开工具调用输出" value={settings.showToolDetails} onChange={(v) => update({ showToolDetails: v })} />
         <Separator className="bg-border/40" />
         <div className="flex items-center justify-between py-3">
           <div>
             <div className="text-[13px] font-medium">工作目录</div>
-            <div className="mt-0.5 text-[12px] text-muted-foreground">agent 操作的根目录</div>
+            <div className="mt-0.5 text-[12px] text-muted-foreground">当前会话所属项目(只读)</div>
           </div>
-          <Input className="h-8 w-64 font-mono text-[12px]" defaultValue="C:/Users/xzy/Desktop/my/lx-code" />
+          <Input className="h-8 w-64 font-mono text-[12px]" value={cwd} readOnly />
         </div>
       </div>
     );
@@ -166,9 +177,9 @@ function SectionContent({ id }: { id: string }) {
 
         <Separator className="my-3 bg-border/60" />
         <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">生成选项</div>
-        <ToggleRow label="流式输出" desc="逐字显示回复,而非等待整段" defaultOn />
+        <ToggleRow label="流式输出" desc="逐字显示回复,而非等待整段" value={settings.streaming} onChange={(v) => update({ streaming: v })} />
         <Separator className="bg-border/40" />
-        <ToggleRow label="自动思考" desc="模型推理时显示思考过程" defaultOn />
+        <ToggleRow label="自动思考" desc="模型推理时显示思考过程" value={settings.autoThinking} onChange={(v) => update({ autoThinking: v })} />
       </div>
     );
   }
@@ -192,24 +203,25 @@ function SectionContent({ id }: { id: string }) {
         <div className="py-3">
           <div className="mb-2 text-[13px] font-medium">界面密度</div>
           <div className="grid grid-cols-3 gap-2">
-            {["紧凑", "标准", "宽松"].map((d, i) => (
+            {(["compact", "standard", "comfortable"] as const).map((d, i) => (
               <button
                 key={d}
                 type="button"
+                onClick={() => update({ density: d })}
                 className={cn(
                   "rounded-lg border px-3 py-2 text-[12px] font-medium transition-colors",
-                  i === 1 ? "border-accent bg-accent/5 text-accent" : "border-border/60 hover:bg-muted/40",
+                  settings.density === d ? "border-accent bg-accent/5 text-accent" : "border-border/60 hover:bg-muted/40",
                 )}
               >
-                {d}
+                {["紧凑", "标准", "宽松"][i]}
               </button>
             ))}
           </div>
         </div>
         <Separator className="bg-border/40" />
-        <ToggleRow label="显示状态栏" defaultOn />
+        <ToggleRow label="显示状态栏" value={settings.showStatusBar} onChange={(v) => update({ showStatusBar: v })} />
         <Separator className="bg-border/40" />
-        <ToggleRow label="动画效果" desc="启用界面过渡与微交互" defaultOn />
+        <ToggleRow label="动画效果" desc="启用界面过渡与微交互" value={settings.animations} onChange={(v) => update({ animations: v })} />
       </div>
     );
   }

@@ -16,8 +16,10 @@ export interface UseCase {
 
 interface UseCaseState {
   cases: UseCase[];
-  /** 设置某用途的模型。 */
+  /** 设置某用途的模型(自动持久化)。 */
   setModel: (id: string, modelKey: string) => void;
+  /** 从 ~/.lxcode/usecases.json 加载(合并到 DEFAULTS)。 */
+  reload: () => Promise<void>;
 }
 
 /** 所有可用模型扁平列表(来自已连接提供商的启用模型)。 */
@@ -32,19 +34,45 @@ export function allModels(): { key: string; label: string; provider: string }[] 
   return out;
 }
 
+/** 用途固定结构(8 个预设),只 modelKey 持久化。 */
 const DEFAULTS: UseCase[] = [
-  { id: "codegen", label: "代码生成", desc: "生成与修改代码", icon: "code", modelKey: "anthropic/claude-sonnet-4", selectable: true },
-  { id: "completion", label: "代码补全", desc: "行内自动补全", icon: "complete", modelKey: "anthropic/claude-haiku-3.5", selectable: true },
-  { id: "fileread", label: "文件读取", desc: "读取与总结文件内容", icon: "file", modelKey: "openai/gpt-4o-mini", selectable: true },
-  { id: "vision", label: "视觉理解", desc: "识别图片内容", icon: "image", modelKey: "openai/gpt-4o", selectable: true },
-  { id: "planning", label: "任务规划", desc: "拆解复杂任务", icon: "plan", modelKey: "anthropic/claude-opus-4", selectable: true },
+  { id: "codegen", label: "代码生成", desc: "生成与修改代码", icon: "code", modelKey: "", selectable: true },
+  { id: "completion", label: "代码补全", desc: "行内自动补全", icon: "complete", modelKey: "", selectable: true },
+  { id: "fileread", label: "文件读取", desc: "读取与总结文件内容", icon: "file", modelKey: "", selectable: true },
+  { id: "vision", label: "视觉理解", desc: "识别图片内容", icon: "image", modelKey: "", selectable: true },
+  { id: "planning", label: "任务规划", desc: "拆解复杂任务", icon: "plan", modelKey: "", selectable: true },
   { id: "embed", label: "嵌入向量化", desc: "语义检索与索引", icon: "embed", modelKey: "", selectable: false },
-  { id: "commit", label: "提交信息", desc: "生成 commit message", icon: "git", modelKey: "anthropic/claude-haiku-3.5", selectable: true },
-  { id: "review", label: "代码审查", desc: "审查 diff 与改动", icon: "review", modelKey: "anthropic/claude-sonnet-4", selectable: true },
+  { id: "commit", label: "提交信息", desc: "生成 commit message", icon: "git", modelKey: "", selectable: true },
+  { id: "review", label: "代码审查", desc: "审查 diff 与改动", icon: "review", modelKey: "", selectable: true },
 ];
+
+/** 持久化当前 cases 的 modelKey 到 ~/.lxcode/usecases.json。 */
+function persist(cases: UseCase[]) {
+  if (typeof window === "undefined" || !window.lxcode?.data) return;
+  const data = cases.map((c) => ({ id: c.id, label: c.label, modelKey: c.modelKey }));
+  void window.lxcode.data.writeUseCases(data);
+}
 
 export const useUseCaseStore = create<UseCaseState>((set, get) => ({
   cases: DEFAULTS,
-  setModel: (id, modelKey) =>
-    set({ cases: get().cases.map((c) => (c.id === id ? { ...c, modelKey } : c)) }),
+
+  setModel: (id, modelKey) => {
+    const cases = get().cases.map((c) => (c.id === id ? { ...c, modelKey } : c));
+    set({ cases });
+    persist(cases);
+  },
+
+  reload: async () => {
+    if (typeof window === "undefined" || !window.lxcode?.data) return;
+    try {
+      const res = await window.lxcode.data.readUseCases();
+      if (!res.ok) return;
+      const saved = res.cases as { id: string; modelKey?: string }[];
+      // 合并:用持久化的 modelKey 覆盖 DEFAULTS
+      const map = new Map(saved.map((c) => [c.id, c.modelKey ?? ""]));
+      set({ cases: DEFAULTS.map((c) => ({ ...c, modelKey: map.get(c.id) ?? "" })) });
+    } catch {
+      // 静默,用 DEFAULTS
+    }
+  },
 }));

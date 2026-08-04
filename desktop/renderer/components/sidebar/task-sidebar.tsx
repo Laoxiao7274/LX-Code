@@ -48,7 +48,13 @@ export function TaskSidebar() {
 
       <ScrollArea className="flex-1">
         <div className="space-y-0.5 px-1.5 pb-2">
-          {tasks.map((t) => {
+          {tasks.length === 0 ? (
+            <div className="flex flex-col items-center gap-1.5 px-3 py-10 text-center text-muted-foreground">
+              <div className="text-[12px]">还没有任务</div>
+              <div className="text-[11px] text-muted-foreground/70">Agent 模式任务流待对接</div>
+            </div>
+          ) : (
+            tasks.map((t) => {
             const active = t.id === activeId;
             const s = STATUS[t.status];
             const Icon = s.icon;
@@ -82,7 +88,7 @@ export function TaskSidebar() {
                 </div>
               </button>
             );
-          })}
+          }))}
         </div>
       </ScrollArea>
 

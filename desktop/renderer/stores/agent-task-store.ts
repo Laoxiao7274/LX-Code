@@ -44,43 +44,9 @@ let stepSeed = 0;
 const nid = () => `task${++seed}`;
 const stepId = () => `step${++stepSeed}`;
 
-const NOW = Date.now();
-
-const DEMO_TASKS: AgentTask[] = [
-  {
-    id: "task-demo1",
-    title: "给 filter 函数加单元测试",
-    status: "done",
-    doneSteps: 4,
-    totalSteps: 4,
-    updatedAt: NOW - 3600_000,
-    steps: [
-      { id: "s1", type: "goal", text: "给 filter 函数加单元测试" },
-      { id: "s2", type: "thinking", text: "先看 filter 函数实现,再设计测试用例:正常过滤、空数组、无匹配。" },
-      { id: "s3", type: "tool", toolName: "read", toolArg: "src/utils/filter.ts", toolStatus: "ok", toolTiming: "0.4s", toolOutput: ["已读取 7 行"] },
-      { id: "s4", type: "tool", toolName: "write", toolArg: "tests/filter.test.ts", toolStatus: "ok", toolTiming: "0.6s", toolOutput: ["已创建 tests/filter.test.ts (412 B)"] },
-      { id: "s5", type: "text", text: "已添加 3 个测试用例,覆盖正常过滤、空数组、无匹配场景。" },
-    ],
-  },
-  {
-    id: "task-demo2",
-    title: "重构 API 模块用 fetch 替代 axios",
-    status: "running",
-    doneSteps: 2,
-    totalSteps: 5,
-    updatedAt: NOW - 120_000,
-    steps: [
-      { id: "s1", type: "goal", text: "重构 API 模块用 fetch 替代 axios" },
-      { id: "s2", type: "thinking", text: "扫描所有 axios 引用,逐个替换为 fetch,保持接口兼容。", streaming: false },
-      { id: "s3", type: "tool", toolName: "grep", toolArg: "import.*axios", toolStatus: "ok", toolTiming: "0.3s", toolOutput: ["src/api/client.ts:1", "src/api/user.ts:2"] },
-      { id: "s4", type: "tool", toolName: "edit", toolArg: "src/api/client.ts", toolStatus: "running" },
-    ],
-  },
-];
-
 export const useAgentStore = create<AgentState>((set, get) => ({
-  tasks: DEMO_TASKS,
-  activeId: "task-demo2",
+  tasks: [],
+  activeId: "",
 
   select: (id) => set({ activeId: id }),
 

@@ -184,7 +184,7 @@ export const useModelStore = create<ModelStore>((set, get) => ({
     }
   },
 
-  /** 从 pi-core 重新加载真实 providers + models(替换 mock)。 */
+  /** 从 ~/.lxcode/models.json 重新加载 providers + models。 */
   reloadFromPi: async () => {
     if (typeof window === "undefined" || !window.lxcode?.data) return;
     try {
@@ -211,7 +211,7 @@ export const useModelStore = create<ModelStore>((set, get) => ({
       }));
       set({ providers: real, defaultModel: cfg.defaultModel || (real.length && real[0].models.length ? `${real[0].id}/${real[0].models[0].id}` : "") });
     } catch {
-      // 非 Electron 环境静默失败,保留 mock
+      // 非 Electron 环境静默失败,用空
     }
   },
 }));
