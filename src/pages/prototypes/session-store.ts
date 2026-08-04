@@ -9,6 +9,8 @@ export interface SessionMeta {
   id: string;
   title: string;
   updatedAt: number;
+  /** 已归档(不显示在主列表)。 */
+  archived?: boolean;
 }
 
 export interface Project {
@@ -19,6 +21,8 @@ export interface Project {
   path: string;
   sessions: SessionMeta[];
   collapsed?: boolean;
+  /** 项目已归档。 */
+  archived?: boolean;
 }
 
 interface SessionListState {
@@ -31,6 +35,16 @@ interface SessionListState {
   rename: (id: string, title: string) => void;
   /** 折叠/展开项目。 */
   toggleProject: (projectId: string) => void;
+  /** 项目改名。 */
+  renameProject: (projectId: string, name: string) => void;
+  /** 删除项目(连同会话)。 */
+  removeProject: (projectId: string) => void;
+  /** 归档项目。 */
+  archiveProject: (projectId: string) => void;
+  /** 归档会话。 */
+  archiveSession: (id: string) => void;
+  /** 恢复会话(取消归档)。 */
+  unarchiveSession: (id: string) => void;
 }
 
 let seed = 0;
@@ -111,5 +125,42 @@ export const useSessionStore = create<SessionListState>((set) => ({
       projects: st.projects.map((p) =>
         p.id === projectId ? { ...p, collapsed: !p.collapsed } : p,
       ),
+    })),
+
+  renameProject: (projectId, name) =>
+    set((st) => ({
+      projects: st.projects.map((p) => (p.id === projectId ? { ...p, name } : p)),
+    })),
+
+  removeProject: (projectId) =>
+    set((st) => {
+      const proj = st.projects.find((p) => p.id === projectId);
+      const activeGone = proj?.sessions.some((s) => s.id === st.activeId);
+      return {
+        projects: st.projects.filter((p) => p.id !== projectId),
+        activeId: activeGone ? "" : st.activeId,
+      };
+    }),
+
+  archiveProject: (projectId) =>
+    set((st) => ({
+      projects: st.projects.map((p) => (p.id === projectId ? { ...p, archived: !p.archived } : p)),
+    })),
+
+  archiveSession: (id) =>
+    set((st) => ({
+      projects: st.projects.map((p) => ({
+        ...p,
+        sessions: p.sessions.map((x) => (x.id === id ? { ...x, archived: !x.archived } : x)),
+      })),
+      activeId: st.activeId === id ? "" : st.activeId,
+    })),
+
+  unarchiveSession: (id) =>
+    set((st) => ({
+      projects: st.projects.map((p) => ({
+        ...p,
+        sessions: p.sessions.map((x) => (x.id === id ? { ...x, archived: false } : x)),
+      })),
     })),
 }));
