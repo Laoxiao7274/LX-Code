@@ -26,6 +26,7 @@ export function initDataIpc() {
 
   // ─── 项目 ──────────────────────────────────────
   ipcMain.handle("data:listProjects", async () => {
+    console.log("[IPC] data:listProjects 被调用");
     return { ok: true, projects: await readProjects() };
   });
 
@@ -64,6 +65,7 @@ export function initDataIpc() {
 
   // ─── 模型配置 ──────────────────────────────────
   ipcMain.handle("data:readModels", async () => {
+    console.log("[IPC] data:readModels 被调用");
     return { ok: true, config: await readModels() };
   });
 
