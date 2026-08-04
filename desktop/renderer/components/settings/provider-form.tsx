@@ -16,10 +16,10 @@ interface ProviderFormProps {
 /** 表单类型预设:不同格式填不同字段。 */
 type FormKind = "openai" | "anthropic" | "custom";
 
-const KINDS: { id: FormKind; label: string; desc: string }[] = [
-  { id: "openai", label: "OpenAI 兼容", desc: "标准 /v1/chat/completions" },
-  { id: "anthropic", label: "Anthropic", desc: "Messages API" },
-  { id: "custom", label: "自定义", desc: "自定义 endpoint + headers" },
+const KINDS: { id: FormKind; label: string; desc: string; api: string }[] = [
+  { id: "openai", label: "OpenAI 兼容", desc: "标准 /v1/chat/completions", api: "openai-completions" },
+  { id: "anthropic", label: "Anthropic", desc: "Messages API", api: "anthropic-messages" },
+  { id: "custom", label: "自定义", desc: "自定义 endpoint + headers", api: "openai-completions" },
 ];
 
 /** 字段:label + hint + 输入。 */
@@ -179,7 +179,8 @@ export function ProviderForm({ provider, isAdding, embedded }: ProviderFormProps
     setTimeout(() => { fetchModels(form.id || "custom"); setFetching(false); }, 800);
   };
   const handleSave = () => {
-    saveForm({ ...form, kind: isAdding ? (kind === "custom" ? "custom" : "preset") : form.kind, connected: !!form.apiKey });
+    const apiFromKind = KINDS.find((k) => k.id === kind)?.api ?? "openai-completions";
+    saveForm({ ...form, api: form.api || apiFromKind, kind: isAdding ? (kind === "custom" ? "custom" : "preset") : form.kind, connected: !!form.apiKey });
   };
 
   const body = (

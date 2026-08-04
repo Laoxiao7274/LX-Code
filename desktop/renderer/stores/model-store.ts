@@ -18,11 +18,15 @@ export interface CustomHeader {
 export type ProviderKind = "preset" | "custom";
 
 /** 提供商。 */
+export type ApiProtocol = "openai-completions" | "anthropic-messages" | "openai-responses" | (string & {});
+
 export interface Provider {
   id: string;
   name: string;
   /** preset 或 custom。 */
   kind: ProviderKind;
+  /** 协议:openai-completions(通用)/anthropic-messages/openai-responses。 */
+  api: ApiProtocol;
   /** 图标标识:预设用 id,自定义用 emoji 或字母。 */
   icon?: string;
   color: string;
@@ -67,6 +71,7 @@ const PRESETS: Provider[] = [
     id: "anthropic",
     name: "Anthropic",
     kind: "preset",
+    api: "anthropic-messages",
     icon: "A",
     color: "text-amber-600",
     baseURL: "https://api.anthropic.com",
@@ -83,6 +88,7 @@ const PRESETS: Provider[] = [
     id: "openai",
     name: "OpenAI",
     kind: "preset",
+    api: "openai-completions",
     icon: "O",
     color: "text-emerald-600",
     baseURL: "https://api.openai.com/v1",
@@ -113,7 +119,7 @@ export const useModelStore = create<ModelStore>((set, get) => ({
       providers: providers.map((p) => ({
         id: p.id,
         name: p.name,
-        api: "openai" as const,
+        api: p.api,
         baseUrl: p.baseURL,
         apiKey: p.apiKey,
         headers: p.headers,
@@ -162,6 +168,7 @@ export const useModelStore = create<ModelStore>((set, get) => ({
       kind: "custom",
       icon: "",
       color: "text-muted-foreground",
+      api: "openai-completions",
       baseURL: "",
       apiKey: "",
       headers: [],
@@ -228,6 +235,7 @@ export const useModelStore = create<ModelStore>((set, get) => ({
         id: String(p.id),
         name: String(p.name),
         kind: "preset",
+        api: (p.api as string) || "openai-completions",
         icon: String(p.name).slice(0, 1).toUpperCase(),
         color: "text-accent",
         baseURL: String(p.baseUrl ?? ""),

@@ -70,15 +70,19 @@ export async function writeProjects(projects: ProjectData[]): Promise<void> {
 }
 
 // ─── 模型配置(provider + models,LXCode 自管) ──────────
+// 协议类型:用 pi 的 KnownApi 值。openai-completions 最通用(覆盖 OpenAI/DeepSeek/Kimi/Qwen/ZAI/ollama),
+// anthropic-messages 用于 Claude 系,openai-responses 用于 OpenAI 新版 Responses API。
+export type ApiProtocol = "openai-completions" | "anthropic-messages" | "openai-responses" | (string & {});
 
+/** LXCode 内部用的 provider 结构(数组形式,前端方便增删改)。 */
 export interface ProviderData {
   id: string;
   name: string;
-  /** 协议类型:openai(兼容) | anthropic | custom。 */
-  api: "openai" | "anthropic" | "custom";
+  /** 协议:openai-completions | anthropic-messages | openai-responses | 自定义。 */
+  api: ApiProtocol;
   baseUrl: string;
   apiKey: string;
-  /** 自定义请求头。 */
+  /** 自定义请求头(数组形式,前端编辑用)。 */
   headers: { key: string; value: string }[];
   models: {
     id: string;
@@ -101,18 +105,94 @@ export interface ModelsConfig {
   providers: ProviderData[];
 }
 
-const DEFAULT_MODELS: ModelsConfig = {
-  defaultModel: "",
-  thinkingLevel: "medium",
-  providers: [],
-};
+
+/** pi 格式的 provider(对象 map,key=providerId)。 */
+export interface PiProviderConfig {
+  name?: string;
+  baseUrl?: string;
+  apiKey?: string;
+  api?: ApiProtocol;
+  headers?: Record<string, string>;
+  models?: {
+    id: string;
+    name?: string;
+    reasoning?: boolean;
+    input?: ("text" | "image")[];
+    contextWindow?: number;
+    maxTokens?: number;
+  }[];
+}
+export interface PiModelsConfig {
+  defaultModel: string;
+  thinkingLevel: string;
+  providers: Record<string, PiProviderConfig>;
+}
+
+/** LXCode 数组形式 → pi 对象 map 形式(写文件)。 */
+export function toPiFormat(cfg: ModelsConfig): PiModelsConfig {
+  const providers: Record<string, PiProviderConfig> = {};
+  for (const p of cfg.providers) {
+    providers[p.id] = {
+      name: p.name,
+      baseUrl: p.baseUrl || undefined,
+      apiKey: p.apiKey || undefined,
+      api: p.api,
+      headers: p.headers.length ? Object.fromEntries(p.headers.map((h) => [h.key, h.value])) : undefined,
+      models: p.models.map((m) => ({
+        id: m.id,
+        name: m.name,
+        reasoning: m.reasoning || undefined,
+        input: ["text", ...(m.vision ? ["image" as const] : [])],
+        contextWindow: m.contextWindow || undefined,
+        maxTokens: m.maxTokens || undefined,
+      })),
+    };
+  }
+  return { defaultModel: cfg.defaultModel, thinkingLevel: cfg.thinkingLevel, providers };
+}
+
+/** pi 对象 map 形式 → LXCode 数组形式(读文件)。 */
+export function fromPiFormat(cfg: PiModelsConfig): ModelsConfig {
+  const providers: ProviderData[] = Object.entries(cfg.providers ?? {}).map(([id, p]) => ({
+    id,
+    name: p.name ?? id,
+    api: p.api ?? "openai-completions",
+    baseUrl: p.baseUrl ?? "",
+    apiKey: p.apiKey ?? "",
+    headers: p.headers ? Object.entries(p.headers).map(([key, value]) => ({ key, value })) : [],
+    models: (p.models ?? []).map((m) => ({
+      id: m.id,
+      name: m.name ?? m.id,
+      reasoning: m.reasoning ?? false,
+      vision: m.input?.includes("image") ?? false,
+      contextWindow: m.contextWindow ?? 128000,
+      maxTokens: m.maxTokens ?? 8192,
+      enabled: true,
+    })),
+  }));
+  return { defaultModel: cfg.defaultModel ?? "", thinkingLevel: cfg.thinkingLevel ?? "medium", providers };
+}
 
 export async function readModels(): Promise<ModelsConfig> {
-  return readJson<ModelsConfig>(path.join(dataDir(), "models.json"), DEFAULT_MODELS);
+  const pi = await readJson<PiModelsConfig>(path.join(dataDir(), "models.json"), {
+    defaultModel: "",
+    thinkingLevel: "medium",
+    providers: {},
+  });
+  return fromPiFormat(pi);
+}
+
+/** 直接读 pi 格式(供 agent-service 用)。 */
+export async function readModelsPi(): Promise<PiModelsConfig> {
+  return readJson<PiModelsConfig>(path.join(dataDir(), "models.json"), {
+    defaultModel: "",
+    thinkingLevel: "medium",
+    providers: {},
+  });
 }
 
 export async function writeModels(cfg: ModelsConfig): Promise<void> {
-  await writeJson(path.join(dataDir(), "models.json"), cfg);
+  await writeJson(path.join(dataDir(), "models.json"), toPiFormat(cfg));
 }
 
 // ─── 设置 ────────────────────────────────────────────
