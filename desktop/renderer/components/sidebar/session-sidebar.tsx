@@ -148,10 +148,14 @@ export function SessionSidebar() {
                   </div>
                 </div>
 
-                {/* 会话列表(折叠时隐藏) */}
-                {!collapsed ? (
-                  <div className="ml-3 space-y-0.5 border-l border-border/40 pl-1">
-                    {visibleSessions.map((s) => {
+                {/* 会话列表(grid 高度过渡展开,折叠 0fr/展开 1fr) */}
+                <div
+                  className="grid transition-all duration-200 ease-out"
+                  style={{ gridTemplateRows: collapsed ? "0fr" : "1fr" }}
+                >
+                  <div className="overflow-hidden">
+                    <div className="ml-3 space-y-0.5 border-l border-border/40 pl-1 py-1">
+                      {visibleSessions.map((s) => {
                       const active = s.id === activeId;
                       return (
                         <div
@@ -189,8 +193,9 @@ export function SessionSidebar() {
                         </div>
                       );
                     })}
+                    </div>
                   </div>
-                ) : null}
+                </div>
               </div>
             );
           })}

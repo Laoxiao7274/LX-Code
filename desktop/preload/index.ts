@@ -54,9 +54,22 @@ const agentApi = {
   },
 };;
 
+const winApi = {
+  minimize: () => ipcRenderer.invoke("win:minimize"),
+  maximize: () => ipcRenderer.invoke("win:maximize"),
+  close: () => ipcRenderer.invoke("win:close"),
+  isMaximized: () => ipcRenderer.invoke("win:isMaximized"),
+  onMaximizedChange: (cb: (maximized: boolean) => void) => {
+    const listener = (_e: unknown, m: boolean) => cb(m);
+    ipcRenderer.on("win:maximized", listener);
+    return () => ipcRenderer.off("win:maximized", listener);
+  },
+};
+
 contextBridge.exposeInMainWorld("lxcode", {
   version: "0.1.0",
   platform: process.platform,
   agent: agentApi,
   data: dataApi,
+  win: winApi,
 });

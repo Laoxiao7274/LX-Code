@@ -24,6 +24,13 @@ export interface LxcodeAPI {
     writeUseCases: (cases: unknown[]) => Promise<{ ok: boolean }>;
     fetchModels: (baseUrl: string, apiKey: string, api: string) => Promise<{ ok: boolean; models?: { id: string; name: string }[]; error?: string }>;
   };
+  win: {
+    minimize: () => Promise<void>;
+    maximize: () => Promise<void>;
+    close: () => Promise<void>;
+    isMaximized: () => Promise<boolean>;
+    onMaximizedChange: (cb: (maximized: boolean) => void) => () => void;
+  };
 }
 
 export type AgentEventListener = (event: unknown) => void;

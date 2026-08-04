@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from "electron";
+import { app, BrowserWindow, shell, ipcMain } from "electron";
 import path from "node:path";
 import { initAgentIpc, shutdownAgent } from "../desktop/main/index";
 
@@ -21,6 +21,7 @@ function createWindow() {
     minWidth: 960,
     minHeight: 640,
     show: false,
+    frame: false,
     autoHideMenuBar: true,
     backgroundColor: "#0e0e14",
     webPreferences: {
@@ -50,7 +51,21 @@ function createWindow() {
 
 app.whenReady().then(() => {
   initAgentIpc();
+
+  // 窗口控制(无边框窗口自定义标题栏用)
+  ipcMain.handle("win:minimize", () => mainWindow?.minimize());
+  ipcMain.handle("win:maximize", () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMaximized()) mainWindow.unmaximize();
+    else mainWindow.maximize();
+  });
+  ipcMain.handle("win:close", () => mainWindow?.close());
+  ipcMain.handle("win:isMaximized", () => mainWindow?.isMaximized() ?? false);
+
   createWindow();
+  // 监听最大化状态变化通知前端
+  mainWindow?.on("maximize", () => mainWindow?.webContents.send("win:maximized", true));
+  mainWindow?.on("unmaximize", () => mainWindow?.webContents.send("win:maximized", false));
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
