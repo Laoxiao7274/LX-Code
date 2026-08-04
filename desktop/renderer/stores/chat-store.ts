@@ -44,6 +44,8 @@ export interface Attachment {
   name: string;
   url?: string;
   size?: string;
+  /** 文件绝对路径(发给 agent 图片输入用)。 */
+  path?: string;
 }
 
 export interface Message {
@@ -143,7 +145,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (typeof unsub === "function") streams.set(sessionId, { msgId: assistantId, unsub });
 
     try {
-      await window.lxcode?.agent?.prompt(sessionId, cwd, userMsg.text!);
+      // 图片附件的 path 传给 agent(主进程读文件转 base64)
+      const images = pendingAttachments.filter((a) => a.kind === "image" && a.path).map((a) => ({ path: a.path! }));
+      await window.lxcode?.agent?.prompt(sessionId, cwd, userMsg.text!, images.length ? images : undefined);
     } catch (e) {
       console.error("agent prompt 失败", e);
       // 失败:清理流 + 停止生成

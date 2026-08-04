@@ -12,10 +12,10 @@ export function initAgentIpc() {
   // 发送 prompt。事件通过 onEvent 推给调用方的 sender。
   ipcMain.handle(
     "agent:prompt",
-    async (evt, args: { sessionId: string; cwd: string; text: string }) => {
+    async (evt, args: { sessionId: string; cwd: string; text: string; images?: { path: string }[] }) => {
       const win = BrowserWindow.fromWebContents(evt.sender);
       try {
-        await prompt(args.sessionId, args.cwd, args.text, win);
+        await prompt(args.sessionId, args.cwd, args.text, win, args.images);
         return { ok: true };
       } catch (err) {
         return { ok: false, error: (err as Error).message };

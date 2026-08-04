@@ -58,6 +58,7 @@ export function ChatMain() {
         id: `att${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         kind: f.kind,
         name: f.name,
+        path: f.path,
         ...(f.kind === "image" ? { url: `file://${f.path}` } : { size: "" }),
       });
     }

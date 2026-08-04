@@ -9,6 +9,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { app } from "electron";
 import path from "node:path";
+import fs from "node:fs/promises";
 
 type ModelRuntimeType = {
   getProviders: () => readonly { id: string; name?: string }[];
@@ -212,9 +213,40 @@ export async function getOrCreateSession(sessionId: string | undefined, cwd: str
 }
 
 /** 发送 prompt。按 sessionId 找会话(没缓存则创建)。 */
-export async function prompt(sessionId: string, cwd: string, text: string, win: { webContents: { send: (ch: string, ...a: unknown[]) => void } } | null) {
+/** 读图片文件转 base64 ImageContent。 */
+async function readImageContent(filePath: string): Promise<{ type: "image"; data: string; mimeType: string } | null> {
+  try {
+    const buf = await fs.readFile(filePath);
+    const ext = path.extname(filePath).slice(1).toLowerCase();
+    const mimeMap: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", bmp: "image/bmp", svg: "image/svg+xml" };
+    const mimeType = mimeMap[ext] ?? "image/png";
+    return { type: "image", data: buf.toString("base64"), mimeType };
+  } catch {
+    return null;
+  }
+}
+
+export async function prompt(
+  sessionId: string,
+  cwd: string,
+  text: string,
+  win: { webContents: { send: (ch: string, ...a: unknown[]) => void } } | null,
+  images?: { path: string }[],
+) {
   const { session } = await getOrCreateSession(sessionId, cwd, win);
-  await session.prompt(text);
+  // 读图片附件转 base64
+  const imgContents: { type: "image"; data: string; mimeType: string }[] = [];
+  if (images?.length) {
+    for (const img of images) {
+      const c = await readImageContent(img.path);
+      if (c) imgContents.push(c);
+    }
+  }
+  await session.prompt(text, {
+    images: imgContents.length ? imgContents : undefined,
+    // 流式时发消息:排队等当前完成(followUp),不中断
+    streamingBehavior: "followUp",
+  } as never);
 }
 
 /** 中断某会话。 */
