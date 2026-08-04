@@ -122,6 +122,21 @@ export async function getSession(cwd: string, onEvent: (e: unknown) => void) {
     cwd,
   });
 
+  // 用 LXCode 配的默认模型(从 ~/.lxcode/models.json 读)
+  try {
+    const { readModelsPi } = await import("./data-store");
+    const cfg = await readModelsPi();
+    if (cfg.defaultModel) {
+      const [providerId, modelId] = cfg.defaultModel.split("/");
+      if (providerId && modelId) {
+        const model = (modelRuntime as { getModels: (id?: string) => readonly { id: string; provider?: string }[] }).getModels(providerId).find((m) => m.id === modelId);
+        if (model) await session.setModel(model as never);
+      }
+    }
+  } catch {
+    // 静默失败,用 pi 默认模型
+  }
+
   const unsubscribe = session.subscribe((event) => {
     onEvent(serializeEvent(event));
   });
