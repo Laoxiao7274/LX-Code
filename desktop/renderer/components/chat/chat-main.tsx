@@ -41,11 +41,13 @@ export function ChatMain() {
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
-  // textarea 自动增高(按内容,单行保持 h-10=40px)
+  // textarea 自动增高(单行保持 h-10,多行才扩展)
   useEffect(() => {
     const ta = taRef.current;
     if (!ta) return;
-    ta.style.height = "40px";
+    // 单行:重置为默认高度(让 h-10 生效),不设 inline height
+    ta.style.height = "";
+    // 多行:按 scrollHeight 扩展
     if (ta.scrollHeight > 40) ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
   }, [input]);
   const [lightbox, setLightbox] = useState<Attachment | null>(null);
@@ -157,7 +159,7 @@ export function ChatMain() {
                 }
               }}
               rows={1}
-              className="block w-full resize-none border-0 bg-transparent px-1 py-2.5 text-[13px] leading-tight text-foreground outline-none placeholder:text-muted-foreground/60 disabled:opacity-60"
+              className="block h-10 w-full resize-none border-0 bg-transparent px-1 py-2.5 text-[13px] leading-tight text-foreground outline-none placeholder:text-muted-foreground/60 disabled:opacity-60"
               style={{ maxHeight: 120 }}
             />
             {isGenerating ? (
