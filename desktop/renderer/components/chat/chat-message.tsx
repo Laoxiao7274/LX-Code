@@ -4,6 +4,7 @@ import type { Message, MessagePart, Attachment } from "../../stores/chat-store";
 import { ThinkingBlock } from "./thinking-block";
 import { ToolCallRow } from "./tool-call-row";
 import { AttachmentView } from "./attachment-view";
+import { MarkdownText } from "./markdown-text";
 
 interface ChatMessageProps {
   message: Message;
@@ -37,7 +38,7 @@ export function ChatMessage({ message, onImageClick }: ChatMessageProps) {
               />
             </div>
           ) : null}
-          {message.text ? <div>{message.text}</div> : null}
+          {message.text ? <div className="whitespace-pre-wrap">{message.text}</div> : null}
         </div>
       ) : (
         <div className="max-w-[80%] min-w-0 rounded-2xl rounded-tl-sm border border-border/50 bg-card px-3.5 py-2.5">
@@ -51,8 +52,8 @@ export function ChatMessage({ message, onImageClick }: ChatMessageProps) {
             if (part.type === "thinking") return <ThinkingBlock key={part.id} part={part} />;
             if (part.type === "tool") return <ToolCallRow key={part.id} part={part} />;
             return (
-              <div key={part.id} className="py-1 text-[13px] leading-relaxed">
-                {part.text}
+              <div key={part.id} className="py-1">
+                <MarkdownText content={part.text} />
                 {part.streaming ? <span className="ml-0.5 inline-block h-3.5 w-px animate-pulse bg-foreground/50 align-middle" /> : null}
               </div>
             );
