@@ -51,6 +51,14 @@ export function ChatMessage({ message, onImageClick }: ChatMessageProps) {
           {message.parts?.map((part: MessagePart) => {
             if (part.type === "thinking") return <ThinkingBlock key={part.id} part={part} />;
             if (part.type === "tool") return <ToolCallRow key={part.id} part={part} />;
+            if (part.type === "image") {
+              const src = part.data.startsWith("data:") ? part.data : `data:${part.mimeType};base64,${part.data}`;
+              return (
+                <div key={part.id} className="py-1">
+                  <img src={src} alt="生成图片" className="max-w-full rounded-lg border border-border/50" />
+                </div>
+              );
+            }
             return (
               <div key={part.id} className="py-1">
                 <MarkdownText content={part.text} />

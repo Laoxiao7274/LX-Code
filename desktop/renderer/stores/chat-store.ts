@@ -28,7 +28,14 @@ export interface TextPart {
   streaming?: boolean;
 }
 
-export type MessagePart = ThinkingPart | ToolCallPart | TextPart;
+export interface ImagePart {
+  type: "image";
+  id: string;
+  data: string;
+  mimeType: string;
+}
+
+export type MessagePart = ThinkingPart | ToolCallPart | TextPart | ImagePart;
 
 /** 消息附件:文件或图片。 */
 export interface Attachment {
@@ -156,12 +163,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
 /** 真实 agent 事件类型(与 desktop/main 的 serializeEvent 对应)。 */
 type AgentEvent = {
   type: string;
-  assistantMessageEvent?: { type: string; delta?: string };
+  assistantMessageEvent?: {
+    type: string;
+    delta?: string;
+    content?: string;
+    reason?: string;
+    data?: string;
+    mimeType?: string;
+    toolCall?: { id?: string; name?: string; arguments?: unknown };
+  };
   toolCallId?: string;
   toolName?: string;
   args?: unknown;
   result?: unknown;
+  partialResult?: unknown;
   isError?: boolean;
+  level?: string;
+  id?: string;
+  delta?: string;
 };
 
 /** 把事件应用到当前活跃流的 assistant 消息。 */
@@ -193,13 +212,21 @@ function handleAgentEvent(
         updateAssistant((m) => ({
           ...m,
           parts: (m.parts ?? []).map((p) =>
-            p.type === "thinking" && p.streaming ? { ...p, streaming: false } : p,
+            p.type === "thinking" && "streaming" in p && p.streaming ? { ...p, streaming: false } : p,
           ),
         }));
       } else if (ae.type === "text_delta") {
         updateAssistant((m) => ({
           ...m,
           parts: appendText(m, ae.delta ?? "", "text"),
+        }));
+      } else if (ae.type === "text_end") {
+        // 文本块结束:标记当前 text part 不再 streaming
+        updateAssistant((m) => ({
+          ...m,
+          parts: (m.parts ?? []).map((p) =>
+            p.type === "text" && "streaming" in p && p.streaming ? { ...p, streaming: false } : p,
+          ),
         }));
       } else if (ae.type === "thinking_delta") {
         updateAssistant((m) => ({
@@ -218,7 +245,65 @@ function handleAgentEvent(
         updateAssistant((m) => ({
           ...m,
           parts: (m.parts ?? []).map((p) =>
-            p.type === "thinking" && p.streaming ? { ...p, streaming: false } : p,
+            p.type === "thinking" && "streaming" in p && p.streaming ? { ...p, streaming: false } : p,
+          ),
+        }));
+      } else if (ae.type === "toolcall_start") {
+        // 工具调用开始(参数流式):占位 tool part,等待 toolcall_delta 填参数
+        updateAssistant((m) => ({
+          ...m,
+          parts: [
+            ...(m.parts ?? []),
+            { type: "tool", id: nid(), name: "", arg: "", status: "running" as ToolStatus },
+          ],
+        }));
+      } else if (ae.type === "toolcall_delta") {
+        // 工具调用参数流式:追加到末尾 tool part 的 arg
+        updateAssistant((m) => ({
+          ...m,
+          parts: (m.parts ?? []).map((p, i) =>
+            p.type === "tool" && i === (m.parts ?? []).length - 1
+              ? { ...p, arg: (p.arg ?? "") + (ae.delta ?? "") }
+              : p,
+          ),
+        }));
+      } else if (ae.type === "toolcall_end") {
+        // 工具调用结束:用完整 toolCall 填补 name/arg
+        const tc = ae.toolCall;
+        updateAssistant((m) => ({
+          ...m,
+          parts: (m.parts ?? []).map((p, i) =>
+            p.type === "tool" && i === (m.parts ?? []).length - 1
+              ? { ...p, name: tc?.name ?? p.name, arg: summarizeArgs(tc?.arguments) ?? p.arg }
+              : p,
+          ),
+        }));
+      } else if (ae.type === "image") {
+        // 图片输出(多模态)
+        updateAssistant((m) => ({
+          ...m,
+          parts: [
+            ...(m.parts ?? []),
+            { type: "image", id: nid(), data: ae.data ?? "", mimeType: ae.mimeType ?? "image/png" },
+          ],
+        }));
+      } else if (ae.type === "error") {
+        // 错误事件:标记错误状态,停止生成
+        updateAssistant((m) => ({
+          ...m,
+          streaming: false,
+          parts: (m.parts ?? []).map((p) =>
+            "streaming" in p && p.streaming ? { ...p, streaming: false } : p,
+          ),
+        }));
+        set(() => ({ isGenerating: false }));
+        activeStream = null;
+      } else if (ae.type === "done") {
+        // 消息完成:结束当前 streaming part
+        updateAssistant((m) => ({
+          ...m,
+          parts: (m.parts ?? []).map((p) =>
+            "streaming" in p && p.streaming ? { ...p, streaming: false } : p,
           ),
         }));
       }
@@ -255,6 +340,67 @@ function handleAgentEvent(
       }));
       break;
     }
+    case "tool_execution_update": {
+      // 工具执行进度(bash 实时输出等):追加到对应 tool part 的 output
+      updateAssistant((m) => ({
+        ...m,
+        parts: (m.parts ?? []).map((p) =>
+          p.type === "tool" && p.id === event.toolCallId
+            ? { ...p, output: [...(p.output ?? []), String(event.partialResult ?? "")] }
+            : p,
+        ),
+      }));
+      break;
+    }
+    case "bash_execution_update": {
+      // bash 命令实时输出:追加到最近 running tool part
+      const delta = event.delta ?? "";
+      if (!delta) break;
+      updateAssistant((m) => {
+        const parts = m.parts ?? [];
+        // 找最后一个 running 的 tool part
+        const idx = [...parts].reverse().findIndex((p) => p.type === "tool" && p.status === "running");
+        if (idx === -1) return m;
+        const realIdx = parts.length - 1 - idx;
+        const tp = parts[realIdx];
+        if (tp.type !== "tool") return m;
+        return { ...m, parts: [...parts.slice(0, realIdx), { ...tp, output: [...(tp.output ?? []), delta] }, ...parts.slice(realIdx + 1)] };
+      });
+      break;
+    }
+    case "turn_start": {
+      // 一轮开始:确保 assistant 消息 streaming 状态
+      updateAssistant((m) => ({ ...m, streaming: true }));
+      break;
+    }
+    case "agent_start":
+    case "agent_end":
+    case "agent_settled": {
+      // agent 生命周期:agent_settled 表示完全结束
+      if (event.type === "agent_settled" || event.type === "agent_end") {
+        updateAssistant((m) => ({
+          ...m,
+          streaming: false,
+          parts: (m.parts ?? []).map((p) =>
+            "streaming" in p && p.streaming ? { ...p, streaming: false } : p,
+          ),
+        }));
+      }
+      break;
+    }
+    case "thinking_level_changed": {
+      // 思考等级变化(由工具或系统触发):记录但不影响 UI part
+      break;
+    }
+    case "compaction_start":
+    case "compaction_end":
+    case "auto_retry_start":
+    case "auto_retry_end":
+    case "session_info_changed":
+    case "entry_appended":
+    case "queue_update":
+      // 内部状态事件,UI 忽略
+      break;
     case "message_end": {
       // 单条消息结束(思考或回复):结束当前 streaming part
       updateAssistant((m) => ({

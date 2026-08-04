@@ -66,15 +66,45 @@ async function getModelRuntime() {
 function serializeEvent(event: AgentSessionEvent): unknown {
   // 大部分事件已是 plain 结构,只挑需要的字段,避免循环引用/大对象
   switch (event.type) {
+    case "agent_start":
+    case "agent_end":
+    case "agent_settled":
+    case "turn_start":
+    case "turn_end":
     case "message_start":
     case "message_end":
+    case "compaction_start":
+    case "compaction_end":
+    case "auto_retry_start":
+    case "auto_retry_end":
       return { type: event.type };
+    case "thinking_level_changed":
+      return { type: event.type, level: (event as { level?: string }).level };
     case "message_update": {
       const ae = event.assistantMessageEvent;
+      const t = ae.type;
+      // 按子 type 传不同字段
+      if ((t as string) === "error") {
+        return { type: "message_update", assistantMessageEvent: { type: "error", reason: (ae as { reason?: string }).reason } };
+      }
+      if ((t as string) === "toolcall_start") {
+        return { type: "message_update", assistantMessageEvent: { type: "toolcall_start", contentIndex: (ae as { contentIndex?: number }).contentIndex } };
+      }
+      if ((t as string) === "toolcall_delta") {
+        return { type: "message_update", assistantMessageEvent: { type: "toolcall_delta", delta: (ae as { delta?: string }).delta } };
+      }
+      if ((t as string) === "toolcall_end") {
+        const tc = (ae as { toolCall?: { id?: string; name?: string; arguments?: unknown } }).toolCall;
+        return { type: "message_update", assistantMessageEvent: { type: "toolcall_end", toolCall: tc ? { id: tc.id, name: tc.name, arguments: tc.arguments } : undefined } };
+      }
+      if ((t as string) === "image") {
+        return { type: "message_update", assistantMessageEvent: { type: "image", data: (ae as { data?: string }).data, mimeType: (ae as { mimeType?: string }).mimeType } };
+      }
+      // text_*/thinking_*/done/start
       return {
         type: "message_update",
         assistantMessageEvent: {
-          type: ae.type,
+          type: t,
           delta: "delta" in ae ? ae.delta : undefined,
           content: "content" in ae ? (ae as { content?: string }).content : undefined,
         },
@@ -102,9 +132,8 @@ function serializeEvent(event: AgentSessionEvent): unknown {
         isError: event.isError,
         result: event.result,
       };
-    case "turn_start":
-    case "turn_end":
-      return { type: event.type };
+    case "bash_execution_update":
+      return { type: event.type, id: (event as { id?: string }).id, delta: (event as { delta?: string }).delta };
     default:
       return { type: (event as { type: string }).type };
   }
