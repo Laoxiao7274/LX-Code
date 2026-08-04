@@ -146,7 +146,7 @@ export function SessionSidebar() {
                   <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
                     <button
                       type="button"
-                      onClick={() => create(p.id)}
+                      onClick={() => void create(p.id)}
                       className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/60 hover:bg-muted/60 hover:text-foreground"
                       title="新建会话"
                     >

@@ -14,7 +14,7 @@ export default function App() {
   useEffect(() => {
     void reloadModels();
     // 工作目录先用电项目根(后续接选目录)
-    void reloadSessions("C:/Users/xzy/Desktop/my/lx-code");
+    void reloadSessions();
   }, [reloadModels, reloadSessions]);
 
   return (

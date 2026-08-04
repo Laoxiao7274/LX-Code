@@ -29,7 +29,7 @@ interface SessionListState {
   projects: Project[];
   activeId: string;
   /** 新建会话:加到指定项目下并选中。 */
-  create: (projectId: string) => void;
+  create: (projectId: string) => Promise<void>;
   select: (id: string) => void;
   remove: (id: string) => void;
   rename: (id: string, title: string) => void;
@@ -46,7 +46,7 @@ interface SessionListState {
   /** 恢复会话(取消归档)。 */
   unarchiveSession: (id: string) => void;
   /** 从 pi-core 加载某 cwd 的已有会话(按项目分组)。 */
-  reloadFromPi: (cwd: string) => Promise<void>;
+  reloadFromPi: () => Promise<void>;
   /** 打开目录选一个项目文件夹,加到项目列表。 */
   addProject: () => Promise<void>;
 }
@@ -92,14 +92,26 @@ export const useSessionStore = create<SessionListState>((set, get) => ({
   projects: DEMO_PROJECTS,
   activeId: "",
 
-  create: (projectId) => {
-    const id = nextId();
-    const s: SessionMeta = { id, title: "新会话", updatedAt: Date.now() };
+  create: async (projectId) => {
+    const p = get().projects.find((x) => x.id === projectId);
+    if (!p) return;
+    let id = nextId();
+    let title = "新会话";
+    // 调真实 agent 创建持久化会话(存到 ~/.lxcode/sessions/)
+    if (typeof window !== "undefined" && window.lxcode?.agent) {
+      try {
+        const res = await window.lxcode.agent.createSession(p.path, title);
+        if (res.ok && res.id) { id = res.id; title = res.name ?? title; }
+      } catch {
+        // 静默,用本地 id
+      }
+    }
+    const s: SessionMeta = { id, title, updatedAt: Date.now() };
     set((st) => ({
-      projects: st.projects.map((p) =>
-        p.id === projectId
-          ? { ...p, collapsed: false, sessions: [s, ...p.sessions] }
-          : p,
+      projects: st.projects.map((p2) =>
+        p2.id === projectId
+          ? { ...p2, collapsed: false, sessions: [s, ...p2.sessions] }
+          : p2,
       ),
       activeId: id,
     }));
@@ -168,20 +180,38 @@ export const useSessionStore = create<SessionListState>((set, get) => ({
       })),
     })),
 
-  reloadFromPi: async (_cwd) => {
-    if (typeof window === "undefined" || !window.lxcode?.data) return;
+  reloadFromPi: async () => {
+    if (typeof window === "undefined" || !window.lxcode?.data || !window.lxcode?.agent) return;
     try {
-      // 从 LXCode 自己的 projects.json 读项目列表
+      // 1. 从 LXCode 自己的 projects.json 读项目列表
       const res = await window.lxcode.data.listProjects();
       if (!res.ok) return;
-      const real = (res.projects as { id: string; name: string; path: string }[]).map((p) => ({
-        id: p.id,
-        name: p.name,
-        path: p.path,
-        sessions: [] as SessionMeta[],
-        collapsed: false,
-      } as Project));
-      if (real.length) set({ projects: real });
+      const projs = res.projects as { id: string; name: string; path: string }[];
+      if (!projs.length) return;
+      // 2. 并行加载每个项目的真实会话(agent.listSessions)
+      const withSessions = await Promise.all(
+        projs.map(async (p) => {
+          let sessions: SessionMeta[] = [];
+          try {
+            const sr = await window.lxcode!.agent.listSessions(p.path);
+            if (sr.ok) {
+              sessions = (sr.sessions as { id: string; name?: string }[]).map((s) => ({
+                id: s.id,
+                title: s.name ?? "未命名会话",
+                updatedAt: 0,
+              }));
+            }
+          } catch {
+            // 静默
+          }
+          return { id: p.id, name: p.name, path: p.path, sessions, collapsed: false } as Project;
+        }),
+      );
+      set({ projects: withSessions });
+      // 默认选第一个项目的第一个会话
+      if (withSessions[0]?.sessions.length && !get().activeId) {
+        set({ activeId: withSessions[0].sessions[0].id });
+      }
     } catch {
       // 静默失败保留 mock
     }

@@ -130,9 +130,10 @@ export async function getSession(cwd: string, onEvent: (e: unknown) => void) {
   });
   await (resourceLoader as unknown as { reload: () => Promise<void> }).reload();
 
-  // 持久化会话(写到 ~/.pi/agent/sessions),而非 inMemory
+  // 持久化会话(写到 ~/.lxcode/sessions/<encoded-cwd>/,LXCode 自己的目录)
+  const sessionDir = path.join(app.getPath("home"), ".lxcode", "sessions", cwd.replace(/[\\/:]/g, "_"));
   const { session } = await createAgentSession({
-    sessionManager: SessionManager.create(cwd),
+    sessionManager: SessionManager.create(cwd, sessionDir),
     modelRuntime: modelRuntime as never,
     resourceLoader: resourceLoader as never,
     cwd,
@@ -204,7 +205,9 @@ export async function listProviders() {
 export async function listSessions(cwd: string): Promise<SessionInfoType[]> {
   const { SessionManager } = await loadPi();
   try {
-    return await SessionManager.list(cwd);
+    // 读 LXCode 自己的会话目录(~/.lxcode/sessions/<encoded-cwd>/)
+    const sessionDir = path.join(app.getPath("home"), ".lxcode", "sessions", cwd.replace(/[\\/:]/g, "_"));
+    return await SessionManager.list(cwd, sessionDir);
   } catch {
     return [];
   }
@@ -212,10 +215,12 @@ export async function listSessions(cwd: string): Promise<SessionInfoType[]> {
 
 /** 创建新持久化会话(返回 session id + name)。 */
 export async function createSession(cwd: string, name?: string) {
-  const { createAgentSession, SessionManager } = await loadPi();
+  const { createAgentSession, SessionManager, DefaultResourceLoader } = await loadPi();
   const modelRuntime = await getModelRuntime();
+  const lxcodeDir = path.join(app.getPath("home"), ".lxcode");
+  const sessionDir = path.join(lxcodeDir, "sessions", cwd.replace(/[\\/:]/g, "_"));
   const { session } = await createAgentSession({
-    sessionManager: SessionManager.create(cwd),
+    sessionManager: SessionManager.create(cwd, sessionDir),
     modelRuntime: modelRuntime as never,
     cwd,
   });
