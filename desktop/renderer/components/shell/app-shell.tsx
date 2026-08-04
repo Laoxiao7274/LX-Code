@@ -31,11 +31,11 @@ export function AppShell() {
         </ResizablePanelGroup>
       ) : (
         <ResizablePanelGroup orientation="horizontal" className="flex-1">
-          <ResizablePanel defaultSize="24" minSize="16" maxSize="32">
+          <ResizablePanel defaultSize="18" minSize="14" maxSize="28">
             <SessionSidebar />
           </ResizablePanel>
           <ResizableHandle withHandle />
-          <ResizablePanel defaultSize="76" minSize="40">
+          <ResizablePanel defaultSize="82" minSize="40">
             <ChatMain />
           </ResizablePanel>
         </ResizablePanelGroup>
