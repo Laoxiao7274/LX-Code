@@ -47,6 +47,8 @@ interface SessionListState {
   unarchiveSession: (id: string) => void;
   /** 从 pi-core 加载某 cwd 的已有会话(按项目分组)。 */
   reloadFromPi: (cwd: string) => Promise<void>;
+  /** 打开目录选一个项目文件夹,加到项目列表。 */
+  addProject: () => Promise<void>;
 }
 
 let seed = 0;
@@ -182,6 +184,26 @@ export const useSessionStore = create<SessionListState>((set, get) => ({
       if (real.length) set({ projects: real });
     } catch {
       // 静默失败保留 mock
+    }
+  },
+
+  addProject: async () => {
+    if (typeof window === "undefined" || !window.lxcode?.data) return;
+    try {
+      const res = await window.lxcode.data.openProject();
+      if (!res.ok || !res.path) return;
+      const path = res.path as string;
+      const name = res.name as string;
+      const projectId = path.replace(/[\\/:]/g, "_");
+      // 已存在不重复加
+      if (get().projects.some((p) => p.id === projectId)) return;
+      const proj: Project = { id: projectId, name, path, sessions: [], collapsed: false };
+      set((st) => ({ projects: [proj, ...st.projects] }));
+      // 持久化到 ~/.lxcode/projects.json
+      const all = get().projects.map((p) => ({ id: p.id, name: p.name, path: p.path, createdAt: Date.now(), lastUsedAt: Date.now() }));
+      void window.lxcode.data.saveProjects(all);
+    } catch {
+      // 静默失败
     }
   },
 }));

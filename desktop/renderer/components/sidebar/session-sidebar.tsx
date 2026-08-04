@@ -5,7 +5,7 @@ import { ScrollArea } from "../ui/scroll-area";
 import { Separator } from "../ui/separator";
 import { cn } from "../../lib/utils";
 import {
-  Plus, MessageSquare, Settings, ChevronRight, Folder,
+  Plus, MessageSquare, Settings, ChevronRight, Folder, FolderPlus,
   MoreHorizontal, Pencil, Trash2, Archive,
 } from "lucide-react";
 
@@ -79,6 +79,7 @@ export function SessionSidebar() {
   const projects = useSessionStore((s) => s.projects);
   const activeId = useSessionStore((s) => s.activeId);
   const create = useSessionStore((s) => s.create);
+  const addProject = useSessionStore((s) => s.addProject);
   const select = useSessionStore((s) => s.select);
   const toggleProject = useSessionStore((s) => s.toggleProject);
   const renameProject = useSessionStore((s) => s.renameProject);
@@ -99,6 +100,19 @@ export function SessionSidebar() {
 
   return (
     <div className="flex h-full flex-col bg-muted/25">
+      {/* 侧栏头部:项目标题 + 新建项目按钮 */}
+      <div className="flex items-center justify-between px-3 pb-1 pt-2.5">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">项目</span>
+        <button
+          type="button"
+          onClick={() => void addProject()}
+          className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          title="新建项目(选择文件夹)"
+        >
+          <FolderPlus className="h-3.5 w-3.5" />
+          新建
+        </button>
+      </div>
       {/* 项目列表 */}
       <ScrollArea className="flex-1">
         <div className="px-1.5 pb-2 pt-2.5">
