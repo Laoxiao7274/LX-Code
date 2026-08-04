@@ -105,6 +105,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((s) => ({ pendingAttachments: s.pendingAttachments.filter((a) => a.id !== id) })),
 
   send: async (sessionId, cwd) => {
+    console.log(`[send] sid=${sessionId.slice(0,8)} cwd=${cwd}`);
     const { input, generatingBySession, pendingAttachments } = get();
     const gen = !!generatingBySession[sessionId];
     if ((!input.trim() && pendingAttachments.length === 0) || gen) return;
@@ -141,6 +142,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // 订阅该会话的事件流(按 sessionId 隔离):先取消旧订阅避免重复 listener
     streams.get(sessionId)?.unsub();
     const unsub = window.lxcode?.agent?.onEvent(sessionId, (event) => {
+      const ae = (event as AgentEvent).assistantMessageEvent;
+      if (ae) console.log(`[ui←pi] ${sessionId.slice(0,8)} ${(event as AgentEvent).type}:${ae.type} delta=${JSON.stringify(ae.delta ?? "").slice(0,60)}`);
+      else console.log(`[ui←pi] ${sessionId.slice(0,8)} ${(event as AgentEvent).type}`);
       handleAgentEvent(sessionId, assistantId, event as AgentEvent, set, get);
     });
     if (typeof unsub === "function") streams.set(sessionId, { msgId: assistantId, unsub });
@@ -148,6 +152,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       // 图片附件的 path 传给 agent(主进程读文件转 base64)
       const images = pendingAttachments.filter((a) => a.kind === "image" && a.path).map((a) => ({ path: a.path! }));
+      console.log(`[send] 调 prompt sid=${sessionId.slice(0,8)}`);
       await window.lxcode?.agent?.prompt(sessionId, cwd, userMsg.text!, images.length ? images : undefined);
     } catch (e) {
       console.error("agent prompt 失败", e);
@@ -267,10 +272,11 @@ function handleAgentEvent(
           ),
         }));
       } else if (ae.type === "text_delta") {
-        updateAssistant((m) => ({
-          ...m,
-          parts: appendText(m, ae.delta ?? "", "text"),
-        }));
+        updateAssistant((m) => {
+          const np = appendText(m, ae.delta ?? "", "text");
+          console.log(`[handle] text_delta 累加后 part.text=${JSON.stringify((np[np.length-1] as { text?: string }).text ?? "").slice(0,80)}`);
+          return { ...m, parts: np };
+        });
       } else if (ae.type === "text_end") {
         // 文本块结束:标记当前 text part 不再 streaming
         updateAssistant((m) => ({
