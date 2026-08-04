@@ -523,3 +523,4 @@ function summarizeResult(result: unknown): string[] | undefined {
     return [String(result)];
   }
 }
+
