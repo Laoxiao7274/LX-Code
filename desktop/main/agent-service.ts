@@ -368,10 +368,10 @@ export async function getMessages(sessionPath: string): Promise<HistoryMessage[]
 
 /** 创建新持久化会话(返回 session id + name,并缓存进 Map)。 */
 export async function createSession(cwd: string, name?: string) {
-  // 复用 getOrCreateSession(传 undefined sessionId → 新建)
-  // 用空 onEvent,真正发消息时 getOrCreateSession 复用已缓存的 session
-  const { sessionId } = await getOrCreateSession(undefined, cwd, null);
-  return { id: sessionId, name: name ?? "新会话", cwd };
+  // 复用 getOrCreateSession(传 undefined sessionId → 新建,win=null 延迟订阅)
+  const { sessionId, session } = await getOrCreateSession(undefined, cwd, null);
+  const sessionPath = (session as { sessionFile?: string }).sessionFile;
+  return { id: sessionId, name: name ?? "新会话", cwd, path: sessionPath };
 }
 
 /** 设置某会话的模型。 */

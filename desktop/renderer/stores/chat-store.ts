@@ -138,7 +138,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       },
     }));
 
-    // 订阅该会话的事件流(按 sessionId 隔离)
+    // 订阅该会话的事件流(按 sessionId 隔离):先取消旧订阅避免重复 listener
+    streams.get(sessionId)?.unsub();
     const unsub = window.lxcode?.agent?.onEvent(sessionId, (event) => {
       handleAgentEvent(sessionId, assistantId, event as AgentEvent, set, get);
     });
@@ -161,9 +162,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       await window.lxcode?.agent?.abort(sessionId);
     } finally {
-      // 中断:清该会话流 + 结束最后 assistant message 的 streaming
+      // 中断:结束最后 assistant message 的 streaming(保留 streams 订阅,
+      // agent_end 事件会正确清理;下次 send 会重新订阅)
       const stream = streams.get(sessionId);
-      streams.delete(sessionId);
       set((s) => ({
         isGenerating: false,
         generatingBySession: { ...s.generatingBySession, [sessionId]: false },
@@ -399,7 +400,7 @@ function handleAgentEvent(
         ...m,
         parts: (m.parts ?? []).map((p) =>
           p.type === "tool" && p.id === event.toolCallId
-            ? { ...p, output: [...(p.output ?? []), String(event.partialResult ?? "")] }
+            ? { ...p, output: [...(p.output ?? []), typeof event.partialResult === "string" ? event.partialResult : JSON.stringify(event.partialResult ?? "")] }
             : p,
         ),
       }));
@@ -429,7 +430,7 @@ function handleAgentEvent(
     case "agent_start":
     case "agent_end":
     case "agent_settled": {
-      // agent 真正结束:停止生成 + 清 activeStream + 结束所有 part
+      // agent 真正结束:停止生成 + 清 streams + 结束所有 part
       updateAssistant((m) => ({
         ...m,
         streaming: false,
@@ -476,7 +477,7 @@ function handleAgentEvent(
     }
     case "turn_end": {
       // 一轮结束(agent 可能继续下一轮工具调用):只结束当前 streaming part
-      // 不清 activeStream/不置 isGenerating=false,等 agent_end/agent_settled 才真正结束
+      // 不置 isGenerating=false,等 agent_end/agent_settled 才真正结束
       updateAssistant((m) => ({
         ...m,
         parts: (m.parts ?? []).map((p) => {

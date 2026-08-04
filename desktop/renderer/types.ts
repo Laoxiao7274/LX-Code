@@ -9,7 +9,7 @@ export interface LxcodeAPI {
     listProviders: () => Promise<{ ok: boolean; error?: string; providers: unknown[] }>;
     listSessions: (cwd: string) => Promise<{ ok: boolean; error?: string; sessions: unknown[] }>;
     getMessages: (sessionPath: string) => Promise<{ ok: boolean; error?: string; messages: unknown[] }>;
-    createSession: (cwd: string, name?: string) => Promise<{ ok: boolean; error?: string; id?: string; name?: string; cwd?: string }>;
+    createSession: (cwd: string, name?: string) => Promise<{ ok: boolean; error?: string; id?: string; name?: string; cwd?: string; path?: string }>;
     setModel: (sessionId: string, providerId: string, modelId: string) => Promise<{ ok: boolean; error?: string }>;
     setThinkingLevel: (sessionId: string, level: string) => Promise<{ ok: boolean; error?: string }>;
     onEvent: (sessionId: string, listener: AgentEventListener) => () => void;

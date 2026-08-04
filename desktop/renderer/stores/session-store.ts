@@ -65,16 +65,18 @@ export const useSessionStore = create<SessionListState>((set, get) => ({
     if (!p) return;
     let id = nextId();
     let title = "新会话";
+    let sessionPath: string | undefined;
     // 调真实 agent 创建持久化会话(存到 ~/.lxcode/sessions/)
     if (typeof window !== "undefined" && window.lxcode?.agent) {
       try {
         const res = await window.lxcode.agent.createSession(p.path, title);
         if (res.ok && res.id) { id = res.id; title = res.name ?? title; }
+        sessionPath = res.path;
       } catch {
         // 静默,用本地 id
       }
     }
-    const s: SessionMeta = { id, title, updatedAt: Date.now() };
+    const s: SessionMeta = { id, title, updatedAt: Date.now(), path: sessionPath };
     set((st) => ({
       projects: st.projects.map((p2) =>
         p2.id === projectId
@@ -194,7 +196,7 @@ export const useSessionStore = create<SessionListState>((set, get) => ({
         set({ activeId: withSessions[0].sessions[0].id });
       }
     } catch {
-      // 静默失败保留 mock
+      // 静默失败
     }
   },
 
