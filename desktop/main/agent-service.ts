@@ -339,32 +339,61 @@ export async function getMessages(sessionPath: string): Promise<HistoryMessage[]
     const sm = SessionManager.open(sessionPath);
     const entries = sm.getEntries();
     const out: HistoryMessage[] = [];
-    let pid = 0;
-    for (const e of entries) {
-      if (e.type !== "message") continue;
-      const msg = (e as { message: { role: string; content: unknown[] } }).message;
-      const role = msg.role;
-      if (role !== "user" && role !== "assistant") continue;
-      const parts: HistoryPart[] = [];
-      let text = "";
+  let pid = 0;
+  // 合并:一次用户提问后的多个 assistant turn(+中间 toolResult)合成一条 assistant 消息
+  let curAssistant: HistoryMessage | null = null;
+  // toolCallId → 对应 tool part(合并 toolResult 到 toolCall)
+  const toolPartById = new Map<string, HistoryPart>();
+
+  const flushAssistant = () => {
+    if (curAssistant) { out.push(curAssistant); curAssistant = null; toolPartById.clear(); }
+  };
+
+  for (const e of entries) {
+    if (e.type !== "message") continue;
+    const msg = (e as { message: { role: string; content: unknown[] } }).message;
+    const role = msg.role;
+    if (role === "user") {
+      // user 开始新轮:先冲刷上一个 assistant
+      flushAssistant();
+      const text = (msg.content as { text?: string }[]).map((c) => c.text ?? "").join("");
+      out.push({ id: e.id, role: "user", text: text || undefined });
+      continue;
+    }
+    if (role === "toolResult") {
+      // toolResult 合并到对应 tool part(按 toolCallId)
+      for (const c of msg.content as Record<string, unknown>[]) {
+        const tcId = (c.toolCallId as string) ?? "";
+        const tp = toolPartById.get(tcId);
+        if (tp && tp.type === "tool") {
+          const resultText = (c.content as { text?: string }[])?.map((x) => x.text ?? "").join("").slice(0, 500);
+          tp.output = [resultText];
+        }
+      }
+      continue;
+    }
+    if (role === "assistant") {
+      // assistant turn:累积 thinking/tool/text 到当前 assistant 消息
+      if (!curAssistant) curAssistant = { id: e.id, role: "assistant", parts: [] };
       for (const c of msg.content as Record<string, unknown>[]) {
         const ct = c.type as string;
         if (ct === "text") {
-          text += (c.text as string) ?? "";
-          parts.push({ type: "text", id: `h${pid++}`, text: (c.text as string) ?? "" });
+          (curAssistant.parts ?? []).push({ type: "text", id: `h${pid++}`, text: (c.text as string) ?? "" });
         } else if (ct === "thinking") {
-          parts.push({ type: "thinking", id: `h${pid++}`, text: (c.thinking as string) ?? "" });
+          (curAssistant.parts ?? []).push({ type: "thinking", id: `h${pid++}`, text: (c.thinking as string) ?? "" });
         } else if (ct === "toolCall") {
-          parts.push({ type: "tool", id: (c.id as string) ?? `h${pid++}`, name: (c.name as string) ?? "tool", arg: JSON.stringify(c.arguments ?? {}).slice(0, 200), output: [], status: "ok" });
-        } else if (ct === "toolResult") {
-          // toolResult 单独不显示(合并到 tool part 由前端处理,这里跳过)
+          const tp: HistoryPart = { type: "tool", id: (c.id as string) ?? `h${pid++}`, name: (c.name as string) ?? "tool", arg: JSON.stringify(c.arguments ?? {}).slice(0, 200), output: [], status: "ok" };
+          (curAssistant.parts ?? []).push(tp);
+          toolPartById.set(tp.id, tp);
         } else if (ct === "image") {
-          parts.push({ type: "image", id: `h${pid++}`, data: (c.data as string) ?? "", mimeType: (c.mimeType as string) ?? "image/png" });
+          (curAssistant.parts ?? []).push({ type: "image", id: `h${pid++}`, data: (c.data as string) ?? "", mimeType: (c.mimeType as string) ?? "image/png" });
         }
       }
-      out.push({ id: e.id, role: role as "user" | "assistant", text: text || undefined, parts: parts.length ? parts : undefined });
+      continue;
     }
-    return out;
+  }
+  flushAssistant();
+  return out;
   } catch {
     return [];
   }
