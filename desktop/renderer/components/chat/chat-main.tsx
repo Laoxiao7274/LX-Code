@@ -20,15 +20,17 @@ export function ChatMain() {
   const activeId = useSessionStore((s) => s.activeId);
 
   // 从 projects 找当前会话 + 所属项目(拿 cwd)
-  let active: { id: string; title: string; cwd: string; projectName: string } | undefined;
+  let active: { id: string; title: string; cwd: string; projectName: string; sessionPath?: string } | undefined;
   for (const p of projects) {
     const s = p.sessions.find((x) => x.id === activeId && !x.archived);
-    if (s) { active = { id: s.id, title: s.title, cwd: p.path, projectName: p.name }; break; }
+    if (s) { active = { id: s.id, title: s.title, cwd: p.path, projectName: p.name, sessionPath: s.path }; break; }
   }
 
   const sessionId = active?.id ?? "";
   const cwd = active?.cwd ?? ".";
+  const sessionPath = active?.sessionPath;
   const allMessages = useChatStore((s) => s.messagesBySession);
+  const loadHistory = useChatStore((s) => s.loadHistory);
   const messages = allMessages[sessionId] ?? [];
   const input = useChatStore((s) => s.input);
   const isGenerating = useChatStore((s) => s.isGenerating);
@@ -65,6 +67,11 @@ export function ChatMain() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
   }, [messages.length]);
+
+  // 选中会话时加载历史消息(首次 + 路径有效)
+  useEffect(() => {
+    if (sessionId && sessionPath) void loadHistory(sessionId, sessionPath);
+  }, [sessionId, sessionPath, loadHistory]);
 
   return (
     <div className="flex h-full flex-col bg-background">

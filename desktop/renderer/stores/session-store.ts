@@ -9,6 +9,8 @@ export interface SessionMeta {
   id: string;
   title: string;
   updatedAt: number;
+  /** 会话文件路径(读历史消息用)。 */
+  path?: string;
   /** 已归档(不显示在主列表)。 */
   archived?: boolean;
 }
@@ -161,10 +163,11 @@ export const useSessionStore = create<SessionListState>((set, get) => ({
           try {
             const sr = await window.lxcode!.agent.listSessions(p.path);
             if (sr.ok) {
-              sessions = (sr.sessions as { id: string; name?: string }[]).map((s) => ({
+              sessions = (sr.sessions as { id: string; name?: string; path?: string }[]).map((s) => ({
                 id: s.id,
                 title: s.name ?? "未命名会话",
                 updatedAt: 0,
+                path: s.path,
               }));
             }
           } catch {

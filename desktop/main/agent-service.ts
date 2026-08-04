@@ -252,6 +252,64 @@ export async function listSessions(cwd: string): Promise<SessionInfoType[]> {
   }
 }
 
+/** 历史消息项(传给前端)。 */
+export interface HistoryMessage {
+  id: string;
+  role: "user" | "assistant";
+  text?: string;
+  parts?: HistoryPart[];
+}
+export interface HistoryPart {
+  type: "thinking" | "text" | "tool" | "image";
+  id: string;
+  text?: string;
+  name?: string;
+  arg?: string;
+  output?: string[];
+  status?: "running" | "ok" | "error";
+  data?: string;
+  mimeType?: string;
+  streaming?: boolean;
+}
+
+/** 读取某会话文件的历史消息(转成前端格式)。 */
+export async function getMessages(sessionPath: string): Promise<HistoryMessage[]> {
+  const { SessionManager } = await loadPi();
+  try {
+    const sm = SessionManager.open(sessionPath);
+    const entries = sm.getEntries();
+    const out: HistoryMessage[] = [];
+    let pid = 0;
+    for (const e of entries) {
+      if (e.type !== "message") continue;
+      const msg = (e as { message: { role: string; content: unknown[] } }).message;
+      const role = msg.role;
+      if (role !== "user" && role !== "assistant") continue;
+      const parts: HistoryPart[] = [];
+      let text = "";
+      for (const c of msg.content as Record<string, unknown>[]) {
+        const ct = c.type as string;
+        if (ct === "text") {
+          text += (c.text as string) ?? "";
+          parts.push({ type: "text", id: `h${pid++}`, text: (c.text as string) ?? "" });
+        } else if (ct === "thinking") {
+          parts.push({ type: "thinking", id: `h${pid++}`, text: (c.thinking as string) ?? "" });
+        } else if (ct === "toolCall") {
+          parts.push({ type: "tool", id: (c.id as string) ?? `h${pid++}`, name: (c.name as string) ?? "tool", arg: JSON.stringify(c.arguments ?? {}).slice(0, 200), output: [], status: "ok" });
+        } else if (ct === "toolResult") {
+          // toolResult 单独不显示(合并到 tool part 由前端处理,这里跳过)
+        } else if (ct === "image") {
+          parts.push({ type: "image", id: `h${pid++}`, data: (c.data as string) ?? "", mimeType: (c.mimeType as string) ?? "image/png" });
+        }
+      }
+      out.push({ id: e.id, role: role as "user" | "assistant", text: text || undefined, parts: parts.length ? parts : undefined });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 /** 创建新持久化会话(返回 session id + name,并缓存进 Map)。 */
 export async function createSession(cwd: string, name?: string) {
   console.log("[createSession] cwd=", cwd, "name=", name);

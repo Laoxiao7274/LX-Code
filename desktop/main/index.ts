@@ -3,7 +3,7 @@
  * 由 electron/main.ts 加载,在 app ready 后初始化。
  */
 import { ipcMain, BrowserWindow } from "electron";
-import { prompt, abort, disposeSession, disposeAll, listProviders, listSessions, createSession, setModel, setThinkingLevel } from "./agent-service";
+import { prompt, abort, disposeSession, disposeAll, listProviders, listSessions, createSession, setModel, setThinkingLevel, getMessages } from "./agent-service";
 import { initDataIpc } from "./data-ipc";
 
 /** 初始化所有 IPC handler。 */
@@ -53,6 +53,15 @@ export function initAgentIpc() {
       return { ok: true, sessions: await listSessions(args.cwd) };
     } catch (err) {
       return { ok: false, error: (err as Error).message, sessions: [] };
+    }
+  });
+
+  // 读取会话历史消息(从会话文件)。
+  ipcMain.handle("agent:getMessages", async (_evt, args: { sessionPath: string }) => {
+    try {
+      return { ok: true, messages: await getMessages(args.sessionPath) };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message, messages: [] };
     }
   });
 

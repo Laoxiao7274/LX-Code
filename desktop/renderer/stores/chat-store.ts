@@ -71,6 +71,8 @@ interface ChatState {
   removeAttachment: (id: string) => void;
   /** 发送消息(调真实 agent)。 */
   send: (sessionId: string, cwd: string) => Promise<void>;
+  /** 加载会话历史消息(从会话文件)。 */
+  loadHistory: (sessionId: string, sessionPath: string) => Promise<void>;
   /** 中断。 */
   abort: (sessionId: string) => Promise<void>;
   clear: (sessionId: string) => void;
@@ -151,6 +153,26 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } finally {
       set({ isGenerating: false });
       activeStream = null;
+    }
+  },
+
+  loadHistory: async (sessionId, sessionPath) => {
+    // 已加载过则不重复加载
+    if (get().messagesBySession[sessionId]?.length) return;
+    if (typeof window === "undefined" || !window.lxcode?.agent) return;
+    try {
+      const res = await window.lxcode.agent.getMessages(sessionPath);
+      if (!res.ok) return;
+      const msgs = res.messages as { id: string; role: "user" | "assistant"; text?: string; parts?: MessagePart[] }[];
+      const history: Message[] = msgs.map((m) => ({
+        id: m.id,
+        role: m.role,
+        text: m.text,
+        parts: m.parts ?? undefined,
+      }));
+      set((s) => ({ messagesBySession: { ...s.messagesBySession, [sessionId]: history } }));
+    } catch {
+      // 静默
     }
   },
 
@@ -378,16 +400,18 @@ function handleAgentEvent(
     case "agent_start":
     case "agent_end":
     case "agent_settled": {
-      // agent 生命周期:agent_settled 表示完全结束
-      if (event.type === "agent_settled" || event.type === "agent_end") {
-        updateAssistant((m) => ({
-          ...m,
-          streaming: false,
-          parts: (m.parts ?? []).map((p) =>
-            "streaming" in p && p.streaming ? { ...p, streaming: false } : p,
-          ),
-        }));
-      }
+      // agent 真正结束:停止生成 + 清 activeStream + 结束所有 part
+      updateAssistant((m) => ({
+        ...m,
+        streaming: false,
+        parts: (m.parts ?? []).map((p) => {
+          if ("streaming" in p && p.streaming) return { ...p, streaming: false };
+          if (p.type === "tool" && p.status === "running") return { ...p, status: "ok" as ToolStatus };
+          return p;
+        }),
+      }));
+      set(() => ({ isGenerating: false }));
+      activeStream = null;
       break;
     }
     case "thinking_level_changed": {
@@ -416,18 +440,15 @@ function handleAgentEvent(
       break;
     }
     case "turn_end": {
+      // 一轮结束(agent 可能继续下一轮工具调用):只结束当前 streaming part
+      // 不清 activeStream/不置 isGenerating=false,等 agent_end/agent_settled 才真正结束
       updateAssistant((m) => ({
         ...m,
-        streaming: false,
         parts: (m.parts ?? []).map((p) => {
           if ((p.type === "thinking" || p.type === "text") && p.streaming) return { ...p, streaming: false };
-          // 残留 running 的 tool part(占位未匹配)标记完成
-          if (p.type === "tool" && p.status === "running") return { ...p, status: "ok" as ToolStatus };
           return p;
         }),
       }));
-      set(() => ({ isGenerating: false }));
-      activeStream = null;
       break;
     }
     default:

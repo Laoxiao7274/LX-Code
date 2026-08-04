@@ -39,6 +39,9 @@ const agentApi = {
   /** 列出某工作目录的已有会话。 */
   listSessions: (cwd: string) => ipcRenderer.invoke("agent:listSessions", { cwd }),
 
+  /** 读取会话历史消息。 */
+  getMessages: (sessionPath: string) => ipcRenderer.invoke("agent:getMessages", { sessionPath }),
+
   /** 创建新持久化会话。 */
   createSession: (cwd: string, name?: string) =>
     ipcRenderer.invoke("agent:createSession", { cwd, name }),
