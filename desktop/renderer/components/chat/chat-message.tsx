@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Avatar, AvatarFallback } from "../../components/ui/avatar";
 import { cn } from "../../lib/utils";
 import type { Message, MessagePart, Attachment } from "../../stores/chat-store";
@@ -12,8 +13,8 @@ interface ChatMessageProps {
   onImageClick?: (a: Attachment) => void;
 }
 
-/** 单条消息渲染:用户气泡 / 助手分段(思考+工具+文本)。照抄设计原型样式。 */
-export function ChatMessage({ message, onImageClick }: ChatMessageProps) {
+/** 单条消息渲染:用户气泡 / 助手分段(思考+工具+文本)。memo 避免流式时全量重渲染。 */
+export const ChatMessage = memo(function ChatMessage({ message, onImageClick }: ChatMessageProps) {
   const isUser = message.role === "user";
   return (
     <div className={cn("bubble flex items-start gap-2.5", isUser ? "flex-row-reverse" : "flex-row")}>
@@ -61,7 +62,12 @@ export function ChatMessage({ message, onImageClick }: ChatMessageProps) {
             }
             return (
               <div key={part.id} className="py-1">
-                <MarkdownText content={part.text} />
+                {/* 流式时纯文本(快),结束后 MarkdownText(解析 markdown) */}
+                {part.streaming ? (
+                  <div className="whitespace-pre-wrap text-[13px] leading-relaxed text-foreground">{part.text}</div>
+                ) : (
+                  <MarkdownText content={part.text} />
+                )}
                 {part.streaming ? <span className="ml-0.5 inline-block h-3.5 w-px animate-pulse bg-foreground/50 align-middle" /> : null}
               </div>
             );
@@ -70,4 +76,4 @@ export function ChatMessage({ message, onImageClick }: ChatMessageProps) {
       )}
     </div>
   );
-}
+});

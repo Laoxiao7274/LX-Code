@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { ChevronRight, Check, X, FileText, Terminal, Pencil, Search, FileSearch, Loader2 } from "lucide-react";
@@ -26,7 +26,7 @@ const STATUS: Record<ToolStatus, { bar: string; icon: string }> = {
 };
 
 /** 工具调用卡片:照抄设计原型样式。 */
-export function ToolCallRow({ part }: ToolCallRowProps) {
+export const ToolCallRow = memo(function ToolCallRow({ part }: ToolCallRowProps) {
   const [open, setOpen] = useState(false);
   const container = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -103,4 +103,4 @@ export function ToolCallRow({ part }: ToolCallRowProps) {
       </div>
     </div>
   );
-}
+});

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChevronRight, Brain } from "lucide-react";
 import { cn } from "../../lib/utils";
 import type { ThinkingPart } from "../../stores/chat-store";
@@ -11,7 +11,7 @@ interface ThinkingBlockProps {
  * 思考段:流式时展开显示滚动窗口,结束后自动收起为一行 teaser。
  * 点击可重新展开/折叠。照抄设计原型样式。
  */
-export function ThinkingBlock({ part }: ThinkingBlockProps) {
+export const ThinkingBlock = memo(function ThinkingBlock({ part }: ThinkingBlockProps) {
   const [open, setOpen] = useState(part.streaming ?? false);
   const bodyRef = useRef<HTMLDivElement>(null);
 
@@ -81,4 +81,4 @@ export function ThinkingBlock({ part }: ThinkingBlockProps) {
       </div>
     </div>
   );
-}
+});
