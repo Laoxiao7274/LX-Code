@@ -29,6 +29,7 @@ interface PiModule {
   ModelRuntime: typeof import("@earendil-works/pi-coding-agent").ModelRuntime;
   SessionManager: typeof import("@earendil-works/pi-coding-agent").SessionManager;
   DefaultResourceLoader: typeof import("@earendil-works/pi-coding-agent").DefaultResourceLoader;
+  SettingsManager: typeof import("@earendil-works/pi-coding-agent").SettingsManager;
 }
 
 let piPromise: Promise<PiModule> | null = null;
@@ -141,14 +142,13 @@ function serializeEvent(event: AgentSessionEvent): unknown {
 
 /** 获取或创建某工作目录的 agent 会话(持久化到磁盘)。 */
 export async function getOrCreateSession(sessionId: string | undefined, cwd: string, onEvent: (e: unknown) => void) {
-  console.log("[getOrCreateSession] sessionId=", sessionId, "cwd=", cwd);
   // 按 sessionId 找已缓存的会话(同一项目多个会话互不干扰)
   if (sessionId) {
     const existing = sessions.get(sessionId);
     if (existing) return { session: existing.session, sessionId };
   }
 
-  const { createAgentSession, SessionManager, DefaultResourceLoader } = await loadPi();
+  const { createAgentSession, SessionManager, DefaultResourceLoader, SettingsManager } = await loadPi();
   const modelRuntime = await getModelRuntime();
   const lxcodeDir = path.join(app.getPath("home"), ".lxcode");
 
@@ -165,32 +165,34 @@ export async function getOrCreateSession(sessionId: string | undefined, cwd: str
   await (resourceLoader as unknown as { reload: () => Promise<void> }).reload();
 
   // 持久化会话(写到 ~/.lxcode/sessions/<encoded-cwd>/,LXCode 自己的目录)
-  const sessionDir = path.join(app.getPath("home"), ".lxcode", "sessions", cwd.replace(/[\\/:]/g, "_"));
-  const { session } = await createAgentSession({
-    sessionManager: SessionManager.create(cwd, sessionDir),
-    modelRuntime: modelRuntime as never,
-    resourceLoader: resourceLoader as never,
-    cwd,
-  });
+  const sessionDir = path.join(lxcodeDir, "sessions", cwd.replace(/[\\/:]/g, "_"));
 
-  // 用 LXCode 配的默认模型(从 ~/.lxcode/models.json 读)
+  // 从 ~/.lxcode/models.json 读默认模型 + 思考等级(直接传给 createAgentSession)
+  let model: unknown = undefined;
+  let thinkingLevel: string | undefined;
   try {
     const { readModelsPi } = await import("./data-store");
     const cfg = await readModelsPi();
+    thinkingLevel = cfg.thinkingLevel;
     if (cfg.defaultModel) {
       const [providerId, modelId] = cfg.defaultModel.split("/");
       if (providerId && modelId) {
-        const model = (modelRuntime as { getModels: (id?: string) => readonly { id: string; provider?: string }[] }).getModels(providerId).find((m) => m.id === modelId);
-        if (model) await session.setModel(model as never);
+        model = (modelRuntime as { getModels: (id?: string) => readonly { id: string; provider?: string }[] }).getModels(providerId).find((m) => m.id === modelId);
       }
-    }
-    // 设置默认思考等级
-    if (cfg.thinkingLevel) {
-      (session as unknown as { setThinkingLevel: (l: string) => void }).setThinkingLevel(cfg.thinkingLevel);
     }
   } catch {
     // 静默失败,用 pi 默认模型
   }
+
+  const { session } = await createAgentSession({
+    sessionManager: SessionManager.create(cwd, sessionDir),
+    modelRuntime: modelRuntime as never,
+    resourceLoader: resourceLoader as never,
+    settingsManager: SettingsManager.create(cwd, lxcodeDir) as never,
+    model: model as never,
+    thinkingLevel: thinkingLevel as never,
+    cwd,
+  });
 
   const unsubscribe = session.subscribe((event) => {
     onEvent(serializeEvent(event));
@@ -312,7 +314,6 @@ export async function getMessages(sessionPath: string): Promise<HistoryMessage[]
 
 /** 创建新持久化会话(返回 session id + name,并缓存进 Map)。 */
 export async function createSession(cwd: string, name?: string) {
-  console.log("[createSession] cwd=", cwd, "name=", name);
   // 复用 getOrCreateSession(传 undefined sessionId → 新建)
   // 用空 onEvent,真正发消息时 getOrCreateSession 复用已缓存的 session
   const { sessionId } = await getOrCreateSession(undefined, cwd, () => {});
