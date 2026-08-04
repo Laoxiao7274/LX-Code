@@ -41,12 +41,12 @@ export function ChatMain() {
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
-  // textarea 自动增高(按内容)
+  // textarea 自动增高(按内容,单行保持 h-10=40px)
   useEffect(() => {
     const ta = taRef.current;
     if (!ta) return;
-    ta.style.height = "auto";
-    ta.style.height = Math.min(ta.scrollHeight, 160) + "px";
+    ta.style.height = "40px";
+    if (ta.scrollHeight > 40) ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
   }, [input]);
   const [lightbox, setLightbox] = useState<Attachment | null>(null);
 
@@ -156,8 +156,8 @@ export function ChatMain() {
                 }
               }}
               rows={1}
-              className="block min-h-0 w-full resize-none bg-transparent px-1 text-[13px] leading-10 text-foreground outline-none placeholder:text-muted-foreground/60 disabled:opacity-60"
-              style={{ height: "auto", maxHeight: 120 }}
+              className="block h-10 w-full resize-none bg-transparent px-1 text-[13px] leading-10 text-foreground outline-none placeholder:text-muted-foreground/60 disabled:opacity-60"
+              style={{ maxHeight: 120 }}
             />
             {isGenerating ? (
               <button
