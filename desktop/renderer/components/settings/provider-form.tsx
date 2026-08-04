@@ -255,7 +255,7 @@ function ProviderFormModal({ form, isAdding, body, handleSave }: {
   }, { scope: rootRef });
 
   return (
-    <div ref={rootRef} className="pf-overlay absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm" onClick={closeForm}>
+    <div ref={rootRef} className="pf-overlay fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm" onClick={closeForm}>
       <div className="pf-card surface flex h-[78%] w-[80%] max-w-2xl max-h-[600px] min-w-[560px] overflow-hidden rounded-lg shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex h-12 items-center justify-between border-b border-border/60 px-5">
           <h2 className="text-[15px] font-semibold tracking-tight">{isAdding ? "新增提供商" : `编辑 ${form.name}`}</h2>
