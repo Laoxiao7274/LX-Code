@@ -15,6 +15,7 @@ import { ToolCallRow } from "./tool-call-row";
 import { AttachmentView } from "./attachment-view";
 import { ImageLightbox } from "./image-lightbox";
 import { SlashMenu } from "./slash-menu";
+import { ChatToolbar } from "./chat-toolbar";
 import type { Attachment, MessagePart } from "./chat-store";
 
 gsap.registerPlugin(useGSAP);
@@ -207,6 +208,8 @@ export function ChatPrototype() {
           onSelect={(insert) => setInput(insert)}
           onClose={() => setInput(input.replace(/^\/[a-z]*/, ""))}
         />
+        {/* 会话工具条:模型下拉 + 思考等级 + 上下文用量 */}
+        <ChatToolbar />
         <AttachmentView attachments={pending} view="pending" onRemove={removeAttachment} />
         <div className="flex gap-2">
           <Input
