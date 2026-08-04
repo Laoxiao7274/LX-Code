@@ -89,14 +89,22 @@ export function SessionSidebar() {
   const archiveSession = useSessionStore((s) => s.archiveSession);
   const openSettings = useSettingsStore((s) => s.setOpen);
 
-  const handleRenameProject = (id: string, cur: string) => {
-    const name = window.prompt("项目名称", cur);
-    if (name && name.trim()) renameProject(id, name.trim());
+  // 内联编辑状态(项目名/会话名改名,Electron 禁用 window.prompt)
+  const [editing, setEditing] = useState<{ kind: "project" | "session"; id: string; value: string } | null>(null);
+  const editRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (editing) editRef.current?.select(); }, [editing]);
+  const commitEdit = () => {
+    if (!editing) return;
+    const v = editing.value.trim();
+    if (v) {
+      if (editing.kind === "project") renameProject(editing.id, v);
+      else rename(editing.id, v);
+    }
+    setEditing(null);
   };
-  const handleRenameSession = (id: string, cur: string) => {
-    const title = window.prompt("会话名称", cur);
-    if (title && title.trim()) rename(id, title.trim());
-  };
+
+  const handleRenameProject = (id: string, cur: string) => setEditing({ kind: "project", id, value: cur });
+  const handleRenameSession = (id: string, cur: string) => setEditing({ kind: "session", id, value: cur });
 
   return (
     <div className="flex h-full flex-col bg-muted/25">
@@ -147,9 +155,21 @@ export function SessionSidebar() {
                       )}
                     />
                     <Folder className={cn("h-3.5 w-3.5 shrink-0", p.archived ? "text-muted-foreground/40" : "text-muted-foreground")} />
-                    <span className={cn("truncate text-[12px] font-medium", p.archived && "text-muted-foreground/60 line-through")}>
-                      {p.name}
-                    </span>
+                    {editing?.kind === "project" && editing.id === p.id ? (
+                      <input
+                        ref={editRef}
+                        value={editing.value}
+                        onChange={(e) => setEditing({ ...editing, value: e.target.value })}
+                        onBlur={commitEdit}
+                        onKeyDown={(e) => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") setEditing(null); }}
+                        className="min-w-0 flex-1 rounded border border-accent/50 bg-background px-1 py-0.5 text-[12px] font-medium outline-none"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <span className={cn("truncate text-[12px] font-medium", p.archived && "text-muted-foreground/60 line-through")}>
+                        {p.name}
+                      </span>
+                    )}
                     <span className="shrink-0 text-[10px] text-muted-foreground/50">
                       {visibleSessions.length}
                     </span>
@@ -201,9 +221,21 @@ export function SessionSidebar() {
                             ) : null}
                             <MessageSquare className={cn("h-3 w-3 shrink-0", active ? "text-accent" : "text-muted-foreground")} />
                             <div className="min-w-0 flex-1">
-                              <div className={cn("truncate text-[12px]", active ? "font-medium text-foreground" : "text-foreground/85")}>
-                                {s.title}
-                              </div>
+                              {editing?.kind === "session" && editing.id === s.id ? (
+                                <input
+                                  ref={editRef}
+                                  value={editing.value}
+                                  onChange={(e) => setEditing({ ...editing, value: e.target.value })}
+                                  onBlur={commitEdit}
+                                  onKeyDown={(e) => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") setEditing(null); }}
+                                  className="w-full rounded border border-accent/50 bg-background px-1 py-0.5 text-[12px] outline-none"
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              ) : (
+                                <div className={cn("truncate text-[12px]", active ? "font-medium text-foreground" : "text-foreground/85")}>
+                                  {s.title}
+                                </div>
+                              )}
                               <div className="text-[10px] text-muted-foreground/70">{relTime(s.updatedAt)}</div>
                             </div>
                           </button>
