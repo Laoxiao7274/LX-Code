@@ -54,6 +54,8 @@ interface ModelStore {
   saveForm: (p: Provider) => void;
   /** 删除提供商。 */
   removeProvider: (providerId: string) => void;
+  /** 持久化当前状态到 ~/.lxcode/models.json。 */
+  persist: () => void;
   /** 模拟自动获取模型(根据 baseURL + key)。 */
   fetchModels: (providerId: string) => void;
   /** 从 pi-core 重新加载真实 providers + models。 */
@@ -101,8 +103,37 @@ export const useModelStore = create<ModelStore>((set, get) => ({
   editing: null,
   isAdding: false,
 
+  /** 持久化到 ~/.lxcode/models.json。 */
+  persist: () => {
+    if (typeof window === "undefined" || !window.lxcode?.data) return;
+    const { providers, defaultModel } = get();
+    const cfg = {
+      defaultModel,
+      thinkingLevel: "medium",
+      providers: providers.map((p) => ({
+        id: p.id,
+        name: p.name,
+        api: "openai" as const,
+        baseUrl: p.baseURL,
+        apiKey: p.apiKey,
+        headers: p.headers,
+        models: p.models.map((m) => ({
+          id: m.id,
+          name: m.name,
+          reasoning: false,
+          vision: false,
+          contextWindow: 128000,
+          maxTokens: 8192,
+          enabled: m.enabled,
+        })),
+      })),
+    };
+    void window.lxcode.data.writeModels(cfg);
+  },
+
   setDefault: (key) => {
     set({ defaultModel: key });
+    get().persist();
     // 真实切换会话模型(key = "providerId/modelId")
     if (typeof window !== "undefined" && window.lxcode?.agent) {
       const [providerId, modelId] = key.split("/");
@@ -112,14 +143,16 @@ export const useModelStore = create<ModelStore>((set, get) => ({
       }
     }
   },
-  toggleModel: (providerId, modelId) =>
+  toggleModel: (providerId, modelId) => {
     set({
       providers: get().providers.map((p) =>
         p.id === providerId
           ? { ...p, models: p.models.map((m) => (m.id === modelId ? { ...m, enabled: !m.enabled } : m)) }
           : p,
       ),
-    }),
+    });
+    get().persist();
+  },
 
   openAdd: () => set({
     isAdding: true,
@@ -150,9 +183,12 @@ export const useModelStore = create<ModelStore>((set, get) => ({
       editing: null,
       isAdding: false,
     });
+    get().persist();
   },
-  removeProvider: (providerId) =>
-    set({ providers: get().providers.filter((p) => p.id !== providerId) }),
+  removeProvider: (providerId) => {
+    set({ providers: get().providers.filter((p) => p.id !== providerId) });
+    get().persist();
+  },
 
   fetchModels: (providerId) => {
     // 模拟自动获取:根据 providerId 给一些示例模型
