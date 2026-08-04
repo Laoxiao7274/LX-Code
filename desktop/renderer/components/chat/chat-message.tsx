@@ -6,6 +6,7 @@ import { ThinkingBlock } from "./thinking-block";
 import { ToolCallRow } from "./tool-call-row";
 import { AttachmentView } from "./attachment-view";
 import { MarkdownText } from "./markdown-text";
+import { StreamingText } from "./streaming-text";
 
 interface ChatMessageProps {
   message: Message;
@@ -62,9 +63,9 @@ export const ChatMessage = memo(function ChatMessage({ message, onImageClick }: 
             }
             return (
               <div key={part.id} className="py-1">
-                {/* 流式时纯文本(快),结束后 MarkdownText(解析 markdown) */}
+                {/* 流式时逐字显示(丝滑),结束后 MarkdownText(解析 markdown) */}
                 {part.streaming ? (
-                  <div className="whitespace-pre-wrap text-[13px] leading-relaxed text-foreground">{part.text}</div>
+                  <StreamingText content={part.text} streaming />
                 ) : (
                   <MarkdownText content={part.text} />
                 )}
