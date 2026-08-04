@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useSessionStore } from "../../stores/session-store";
+import { useChatStore } from "../../stores/chat-store";
 import { useSettingsStore } from "../../stores/settings-store";
 import { ScrollArea } from "../ui/scroll-area";
 import { Separator } from "../ui/separator";
@@ -87,6 +88,7 @@ function ActionMenu({ items }: { items: { icon: typeof Pencil; label: string; on
 export function SessionSidebar() {
   const projects = useSessionStore((s) => s.projects);
   const activeId = useSessionStore((s) => s.activeId);
+  const generatingBySession = useChatStore((s) => s.generatingBySession);
   const create = useSessionStore((s) => s.create);
   const addProject = useSessionStore((s) => s.addProject);
   const select = useSessionStore((s) => s.select);
@@ -148,6 +150,7 @@ export function SessionSidebar() {
           ) : projects.map((p) => {
             const collapsed = p.collapsed;
             const visibleSessions = p.sessions.filter((s) => !s.archived);
+            const projectRunning = visibleSessions.some((s) => generatingBySession[s.id]);
             return (
               <div key={p.id} className="mb-1">
                 {/* 项目头 */}
@@ -163,7 +166,13 @@ export function SessionSidebar() {
                         !collapsed && "rotate-90",
                       )}
                     />
-                    <Folder className={cn("h-3.5 w-3.5 shrink-0", p.archived ? "text-muted-foreground/40" : "text-muted-foreground")} />
+                    {projectRunning ? (
+                      <span className="relative flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+                        <span className="signal-dot signal-dot-live" aria-hidden />
+                      </span>
+                    ) : (
+                      <Folder className={cn("h-3.5 w-3.5 shrink-0", p.archived ? "text-muted-foreground/40" : "text-muted-foreground")} />
+                    )}
                     {editing?.kind === "project" && editing.id === p.id ? (
                       <input
                         ref={editRef}
@@ -228,7 +237,11 @@ export function SessionSidebar() {
                             {active ? (
                               <span className="absolute -left-[5px] top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-accent" />
                             ) : null}
-                            <MessageSquare className={cn("h-3 w-3 shrink-0", active ? "text-accent" : "text-muted-foreground")} />
+                            {generatingBySession[s.id] ? (
+                              <span className="signal-dot signal-dot-live shrink-0" aria-hidden />
+                            ) : (
+                              <MessageSquare className={cn("h-3 w-3 shrink-0", active ? "text-accent" : "text-muted-foreground")} />
+                            )}
                             <div className="min-w-0 flex-1">
                               {editing?.kind === "session" && editing.id === s.id ? (
                                 <input

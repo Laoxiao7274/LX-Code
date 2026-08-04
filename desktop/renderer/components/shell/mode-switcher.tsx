@@ -1,4 +1,5 @@
 import { useModeStore, type AppMode } from "../../stores/mode-store";
+import { useChatStore } from "../../stores/chat-store";
 import { cn } from "../../lib/utils";
 import { Bot, Code2 } from "lucide-react";
 
@@ -14,6 +15,7 @@ const MODES: { id: AppMode; label: string; icon: typeof Bot }[] = [
 export function ModeSwitcher() {
   const mode = useModeStore((s) => s.mode);
   const setMode = useModeStore((s) => s.setMode);
+  const generating = useChatStore((s) => Object.values(s.generatingBySession).some(Boolean));
 
   return (
     <div className="inline-flex h-7 items-center rounded-lg border border-border/60 bg-muted/40 p-0.5">
@@ -32,7 +34,11 @@ export function ModeSwitcher() {
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
-            <Icon className="h-3.5 w-3.5" />
+            {active && generating ? (
+              <span className="signal-dot signal-dot-live" aria-hidden />
+            ) : (
+              <Icon className="h-3.5 w-3.5" />
+            )}
             {m.label}
           </button>
         );
