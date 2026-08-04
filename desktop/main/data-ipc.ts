@@ -18,7 +18,6 @@ import {
   type SettingsData,
   type UseCaseData,
 } from "./data-store";
-
 export function initDataIpc() {
   // 确保数据目录
   ensureDataDir().catch(console.error);
@@ -70,5 +69,36 @@ export function initDataIpc() {
   ipcMain.handle("data:writeUseCases", async (_e, args: { cases: UseCaseData[] }) => {
     await writeUseCases(args.cases);
     return { ok: true };
+  });
+
+  // ─── 自动获取模型列表(调 provider 的 /v1/models) ────
+  ipcMain.handle("data:fetchModels", async (_e, args: { baseUrl: string; apiKey: string; api: string }) => {
+    try {
+      let url = args.baseUrl?.replace(/\/+$/, "") ?? "";
+      // OpenAI 兼容:GET /v1/models 或 /models
+      // Anthropic:GET /v1/models
+      if (!/\/v1$/.test(url) && !/\/models/.test(url)) url = `${url}/v1`;
+      const endpoint = `${url}/models`;
+      const res = await fetch(endpoint, {
+        method: "GET",
+        headers: {
+          ...(args.apiKey ? { Authorization: `Bearer ${args.apiKey}` } : {}),
+          // Anthropic 需要 anthropic-version 头
+          ...(args.api === "anthropic-messages" ? { "anthropic-version": "2023-06-01" } : {}),
+        },
+      });
+      if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+      const json = (await res.json()) as { data?: { id: string; display_name?: string; name?: string }[]; models?: { id: string; display_name?: string; name?: string }[] };
+      // OpenAI 兼容:json.data = [{id, ...}]
+      // Anthropic:json.data = [{id, display_name, ...}]
+      const list = (json.data ?? json.models ?? []) as { id: string; display_name?: string; name?: string }[];
+      const models = list.map((m) => ({
+        id: m.id,
+        name: m.display_name ?? m.name ?? m.id,
+      }));
+      return { ok: true, models };
+    } catch (e) {
+      return { ok: false, error: String(e) };
+    }
   });
 }

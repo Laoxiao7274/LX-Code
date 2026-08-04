@@ -22,6 +22,7 @@ export interface LxcodeAPI {
     writeSettings: (settings: unknown) => Promise<{ ok: boolean }>;
     readUseCases: () => Promise<{ ok: boolean; cases: unknown[] }>;
     writeUseCases: (cases: unknown[]) => Promise<{ ok: boolean }>;
+    fetchModels: (baseUrl: string, apiKey: string, api: string) => Promise<{ ok: boolean; models?: { id: string; name: string }[]; error?: string }>;
   };
 }
 

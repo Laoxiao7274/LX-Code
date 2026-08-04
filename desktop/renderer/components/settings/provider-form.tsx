@@ -174,9 +174,13 @@ export function ProviderForm({ provider, isAdding, embedded }: ProviderFormProps
   const updateHeader = (i: number, patch: Partial<CustomHeader>) => update({ headers: form.headers.map((h, idx) => (idx === i ? { ...h, ...patch } : h)) });
   const removeHeader = (i: number) => update({ headers: form.headers.filter((_, idx) => idx !== i) });
 
-  const handleFetch = () => {
+  const handleFetch = async () => {
     setFetching(true);
-    setTimeout(() => { fetchModels(form.id || "custom"); setFetching(false); }, 800);
+    try {
+      await fetchModels(form.id || "custom", form.baseURL, form.apiKey, form.api);
+    } finally {
+      setFetching(false);
+    }
   };
   const handleSave = () => {
     const apiFromKind = KINDS.find((k) => k.id === kind)?.api ?? "openai-completions";

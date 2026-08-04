@@ -61,7 +61,7 @@ interface ModelStore {
   /** 持久化当前状态到 ~/.lxcode/models.json。 */
   persist: () => void;
   /** 模拟自动获取模型(根据 baseURL + key)。 */
-  fetchModels: (providerId: string) => void;
+  fetchModels: (providerId: string, baseUrl?: string, apiKey?: string, api?: string) => Promise<void>;
   /** 从 pi-core 重新加载真实 providers + models。 */
   reloadFromPi: () => Promise<void>;
 }
@@ -197,30 +197,34 @@ export const useModelStore = create<ModelStore>((set, get) => ({
     get().persist();
   },
 
-  fetchModels: (providerId) => {
-    // 模拟自动获取:根据 providerId 给一些示例模型
-    const sample: Record<string, Model[]> = {
-      anthropic: [
-        { id: "claude-3.5-sonnet", name: "Claude 3.5 Sonnet", enabled: true },
-        { id: "claude-3-opus", name: "Claude 3 Opus", enabled: false },
-      ],
-      openai: [
-        { id: "gpt-4-turbo", name: "GPT-4 Turbo", enabled: true },
-        { id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo", enabled: false },
-      ],
-    };
-    set({
-      providers: get().providers.map((p) =>
-        p.id === providerId
-          ? {
-              ...p,
-              models: [...p.models, ...(sample[p.id] ?? [{ id: "custom-model", name: "自定义模型", enabled: true }])].filter(
-                (m, i, arr) => arr.findIndex((x) => x.id === m.id) === i,
-              ),
-            }
-          : p,
-      ),
-    });
+  fetchModels: async (providerId, baseUrl, apiKey, api) => {
+    // 调真实 provider 的 /v1/models 拿模型列表
+    const p = get().providers.find((x) => x.id === providerId) ?? get().editing;
+    const url = baseUrl ?? p?.baseURL ?? "";
+    const key = apiKey ?? p?.apiKey ?? "";
+    const proto = api ?? p?.api ?? "openai-completions";
+    if (!url) return;
+    try {
+      const res = await window.lxcode?.data?.fetchModels?.(url, key, proto);
+      if (!res?.ok || !res.models?.length) return;
+      const fetched: Model[] = res.models.map((m) => ({ id: m.id, name: m.name, enabled: true }));
+      // 合并到对应 provider(去重)
+      const cur = get().editing;
+      set({
+        providers: get().providers.map((x) =>
+          x.id === providerId
+            ? { ...x, models: [...fetched, ...x.models.filter((m) => !fetched.some((f) => f.id === m.id))] }
+            : x,
+        ),
+        // 如果正在编辑这个 provider,同步到 editing
+        editing: cur && cur.id === providerId
+          ? { ...cur, models: [...fetched, ...cur.models.filter((m) => !fetched.some((f) => f.id === m.id))] }
+          : cur,
+      });
+      get().persist();
+    } catch {
+      // 静默失败
+    }
   },
 
   /** 从 pi-core 重新加载真实 providers + models(替换 mock)。 */

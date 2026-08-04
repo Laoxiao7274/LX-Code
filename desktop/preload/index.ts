@@ -17,6 +17,8 @@ const dataApi = {
   writeSettings: (settings: unknown) => ipcRenderer.invoke("data:writeSettings", { settings }),
   readUseCases: () => ipcRenderer.invoke("data:readUseCases"),
   writeUseCases: (cases: unknown[]) => ipcRenderer.invoke("data:writeUseCases", { cases }),
+  fetchModels: (baseUrl: string, apiKey: string, api: string) =>
+    ipcRenderer.invoke("data:fetchModels", { baseUrl, apiKey, api }),
 };
 
 const agentApi = {
