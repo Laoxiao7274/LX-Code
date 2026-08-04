@@ -7,6 +7,18 @@ import { contextBridge, ipcRenderer } from "electron";
 /** 事件监听器类型。 */
 type AgentEventListener = (event: unknown) => void;
 
+const dataApi = {
+  listProjects: () => ipcRenderer.invoke("data:listProjects"),
+  saveProjects: (projects: unknown[]) => ipcRenderer.invoke("data:saveProjects", { projects }),
+  openProject: () => ipcRenderer.invoke("data:openProject"),
+  readModels: () => ipcRenderer.invoke("data:readModels"),
+  writeModels: (config: unknown) => ipcRenderer.invoke("data:writeModels", { config }),
+  readSettings: () => ipcRenderer.invoke("data:readSettings"),
+  writeSettings: (settings: unknown) => ipcRenderer.invoke("data:writeSettings", { settings }),
+  readUseCases: () => ipcRenderer.invoke("data:readUseCases"),
+  writeUseCases: (cases: unknown[]) => ipcRenderer.invoke("data:writeUseCases", { cases }),
+};
+
 const agentApi = {
   /** 发送 prompt,返回 {ok, error?}。事件流通过 onEvent 推送。 */
   prompt: (cwd: string, text: string) =>
@@ -44,4 +56,5 @@ contextBridge.exposeInMainWorld("lxcode", {
   version: "0.1.0",
   platform: process.platform,
   agent: agentApi,
+  data: dataApi,
 });

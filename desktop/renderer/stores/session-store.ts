@@ -166,33 +166,20 @@ export const useSessionStore = create<SessionListState>((set, get) => ({
       })),
     })),
 
-  reloadFromPi: async (cwd) => {
-    if (typeof window === "undefined" || !window.lxcode?.agent) return;
+  reloadFromPi: async (_cwd) => {
+    if (typeof window === "undefined" || !window.lxcode?.data) return;
     try {
-      const res = await window.lxcode.agent.listSessions(cwd);
+      // 从 LXCode 自己的 projects.json 读项目列表
+      const res = await window.lxcode.data.listProjects();
       if (!res.ok) return;
-      const real: SessionMeta[] = res.sessions.map((si) => ({
-        id: si.id,
-        title: si.name ?? "未命名会话",
-        updatedAt: 0,
-      }));
-      // 把该 cwd 的会话挂到一个项目下(用 cwd 的文件夹名做项目名)
-      const projectName = cwd.split(/[\\/]/).filter(Boolean).pop() ?? "项目";
-      const projectId = cwd.replace(/[\\/:]/g, "_");
-      const existing = get().projects.find((p) => p.id === projectId);
-      if (existing) {
-        // 更新该项目的会话(合并,保留本地新建)
-        set((st) => ({
-          projects: st.projects.map((p) =>
-            p.id === projectId ? { ...p, sessions: [...real, ...p.sessions.filter((s) => !real.some((r) => r.id === s.id))] } : p,
-          ),
-        }));
-      } else {
-        // 新建项目
-        const proj: Project = { id: projectId, name: projectName, path: cwd, sessions: real, collapsed: false };
-        set((st) => ({ projects: [proj, ...st.projects] }));
-      }
-      if (real.length && !get().activeId) set({ activeId: real[0].id });
+      const real = (res.projects as { id: string; name: string; path: string }[]).map((p) => ({
+        id: p.id,
+        name: p.name,
+        path: p.path,
+        sessions: [] as SessionMeta[],
+        collapsed: false,
+      } as Project));
+      if (real.length) set({ projects: real });
     } catch {
       // 静默失败保留 mock
     }

@@ -6,23 +6,22 @@ export interface LxcodeAPI {
     prompt: (cwd: string, text: string) => Promise<{ ok: boolean; error?: string }>;
     abort: (cwd: string) => Promise<{ ok: boolean }>;
     dispose: (cwd: string) => Promise<{ ok: boolean }>;
-    /** 列出真实 providers + models。 */
-    listProviders: () => Promise<{
-      ok: boolean;
-      error?: string;
-      providers: { id: string; name: string; models: { id: string; name: string; provider: string; reasoning: boolean }[] }[];
-    }>;
-    /** 列出某工作目录的已有会话。 */
-    listSessions: (cwd: string) => Promise<{
-      ok: boolean;
-      error?: string;
-      sessions: { path: string; id: string; cwd: string; name?: string }[];
-    }>;
-    /** 创建新持久化会话。 */
+    listProviders: () => Promise<{ ok: boolean; error?: string; providers: unknown[] }>;
+    listSessions: (cwd: string) => Promise<{ ok: boolean; error?: string; sessions: unknown[] }>;
     createSession: (cwd: string, name?: string) => Promise<{ ok: boolean; error?: string; id?: string; name?: string; cwd?: string }>;
-    /** 设置某会话的默认模型。 */
     setModel: (cwd: string, providerId: string, modelId: string) => Promise<{ ok: boolean; error?: string }>;
     onEvent: (listener: AgentEventListener) => () => void;
+  };
+  data: {
+    listProjects: () => Promise<{ ok: boolean; projects: unknown[] }>;
+    saveProjects: (projects: unknown[]) => Promise<{ ok: boolean }>;
+    openProject: () => Promise<{ ok: boolean; name?: string; path?: string }>;
+    readModels: () => Promise<{ ok: boolean; config: unknown }>;
+    writeModels: (config: unknown) => Promise<{ ok: boolean }>;
+    readSettings: () => Promise<{ ok: boolean; settings: unknown }>;
+    writeSettings: (settings: unknown) => Promise<{ ok: boolean }>;
+    readUseCases: () => Promise<{ ok: boolean; cases: unknown[] }>;
+    writeUseCases: (cases: unknown[]) => Promise<{ ok: boolean }>;
   };
 }
 

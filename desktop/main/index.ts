@@ -4,9 +4,11 @@
  */
 import { ipcMain, BrowserWindow } from "electron";
 import { prompt, abort, disposeSession, disposeAll, listProviders, listSessions, createSession, setModel } from "./agent-service";
+import { initDataIpc } from "./data-ipc";
 
 /** 初始化所有 IPC handler。 */
 export function initAgentIpc() {
+  initDataIpc();
   // 发送 prompt。事件通过 onEvent 推给调用方的 sender。
   ipcMain.handle(
     "agent:prompt",

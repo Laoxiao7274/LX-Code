@@ -7,6 +7,8 @@ import type {
   AgentSession,
   AgentSessionEvent,
 } from "@earendil-works/pi-coding-agent";
+import { app } from "electron";
+import path from "node:path";
 
 type ModelRuntimeType = {
   getProviders: () => readonly { id: string; name?: string }[];
@@ -44,13 +46,17 @@ interface SessionEntry {
 
 const sessions = new Map<string, SessionEntry>();
 
-/** 共享的 model runtime(读 ~/.pi/agent 的 auth/models)。 */
+/** 共享的 model runtime(读 LXCode 自己的 ~/.lxcode/ 数据,非 pi 的)。 */
 let sharedModelRuntime: ModelRuntimeType | null = null;
 
 async function getModelRuntime() {
   if (!sharedModelRuntime) {
     const { ModelRuntime } = await loadPi();
-    sharedModelRuntime = (await ModelRuntime.create()) as unknown as ModelRuntimeType;
+    const lxcodeDir = path.join(app.getPath("home"), ".lxcode");
+    sharedModelRuntime = (await ModelRuntime.create({
+      authPath: path.join(lxcodeDir, "auth.json"),
+      modelsPath: path.join(lxcodeDir, "models.json"),
+    } as never)) as unknown as ModelRuntimeType;
   }
   return sharedModelRuntime;
 }

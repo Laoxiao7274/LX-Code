@@ -182,26 +182,29 @@ export const useModelStore = create<ModelStore>((set, get) => ({
 
   /** 从 pi-core 重新加载真实 providers + models(替换 mock)。 */
   reloadFromPi: async () => {
-    if (typeof window === "undefined" || !window.lxcode?.agent) return;
+    if (typeof window === "undefined" || !window.lxcode?.data) return;
     try {
-      const res = await window.lxcode.agent.listProviders();
-      if (!res.ok || !res.providers?.length) return;
-      const real: Provider[] = res.providers.map((p) => ({
-        id: p.id,
-        name: p.name,
+      const res = await window.lxcode.data.readModels();
+      if (!res.ok || !res.config) return;
+      const cfg = res.config as { defaultModel: string; thinkingLevel: string; providers: unknown[] };
+      if (!cfg.providers?.length) return;
+      const real: Provider[] = (cfg.providers as Record<string, unknown>[]).map((p) => ({
+        id: String(p.id),
+        name: String(p.name),
         kind: "preset",
-        icon: p.name.slice(0, 1).toUpperCase(),
+        icon: String(p.name).slice(0, 1).toUpperCase(),
         color: "text-accent",
-        baseURL: "",
-        apiKey: "",
-        headers: [],
-        connected: true,
-        models: p.models.map((m) => ({ id: m.id, name: m.name, enabled: true })),
+        baseURL: String(p.baseUrl ?? ""),
+        apiKey: String(p.apiKey ?? ""),
+        headers: (p.headers as { key: string; value: string }[]) ?? [],
+        connected: !!p.apiKey,
+        models: ((p.models as Record<string, unknown>[]) ?? []).map((m) => ({
+          id: String(m.id),
+          name: String(m.name),
+          enabled: m.enabled !== false,
+        })),
       }));
-      set({ providers: real });
-      if (real.length && real[0].models.length) {
-        set({ defaultModel: `${real[0].id}/${real[0].models[0].id}` });
-      }
+      set({ providers: real, defaultModel: cfg.defaultModel || (real.length && real[0].models.length ? `${real[0].id}/${real[0].models[0].id}` : "") });
     } catch {
       // 非 Electron 环境静默失败,保留 mock
     }
