@@ -45,6 +45,8 @@ async function loadPi(): Promise<PiModule> {
 interface SessionEntry {
   session: AgentSession;
   unsubscribe: () => void;
+  /** 是否已订阅事件流(createSession 时 win=null 不订阅,prompt 时补)。 */
+  subscribed: boolean;
 }
 
 const sessions = new Map<string, SessionEntry>();
@@ -146,12 +148,28 @@ function serializeEvent(event: AgentSessionEvent): unknown {
   }
 }
 
+/** 订阅 session 事件,推到 win 的 agent:event:<sid> 频道。 */
+function subscribeSession(session: AgentSession, sid: string, win: { webContents: { send: (ch: string, ...a: unknown[]) => void } } | null) {
+  if (!win) return () => {};
+  return session.subscribe((event) => {
+    const evt = serializeEvent(event) as Record<string, unknown>;
+    win.webContents.send(`agent:event:${sid}`, { ...evt, __sid: sid });
+  });
+}
+
 /** 获取或创建某工作目录的 agent 会话(持久化到磁盘)。 */
 export async function getOrCreateSession(sessionId: string | undefined, cwd: string, win: { webContents: { send: (ch: string, ...a: unknown[]) => void } } | null) {
   // 按 sessionId 找已缓存的会话(同一项目多个会话互不干扰)
   if (sessionId) {
     const existing = sessions.get(sessionId);
-    if (existing) return { session: existing.session, sessionId };
+    if (existing) {
+      // createSession 时 win=null 没 subscribe,这里 prompt 用真实 win 补上
+      if (!existing.subscribed && win) {
+        existing.unsubscribe = subscribeSession(existing.session, sessionId, win);
+        existing.subscribed = true;
+      }
+      return { session: existing.session, sessionId };
+    }
   }
 
   const { createAgentSession, SessionManager, DefaultResourceLoader, SettingsManager } = await loadPi();
@@ -200,14 +218,11 @@ export async function getOrCreateSession(sessionId: string | undefined, cwd: str
     cwd,
   });
 
-  const unsubscribe = session.subscribe((event) => {
-    // 事件带 sessionId 推到独立频道(会话隔离),前端按 sessionId 订阅
-    const evt = serializeEvent(event) as Record<string, unknown>;
-    win?.webContents.send(`agent:event:${sid}`, { ...evt, __sid: sid });
-  });
-
-  const entry: SessionEntry = { session, unsubscribe };
   const sid = sessionId ?? session.sessionId;
+  // 创建时若 win 真实则订阅,win=null(createSession)则延迟到 prompt 时订阅
+  const subscribed = !!win;
+  const unsubscribe = subscribeSession(session, sid, win);
+  const entry: SessionEntry = { session, unsubscribe, subscribed };
   sessions.set(sid, entry);
   return { session, sessionId: sid };
 }
