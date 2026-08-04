@@ -138,3 +138,22 @@
     .signal-dot-live::after { animation: none; }
   }
 }
+
+/* 弹窗动画兄底(CSS):GSAP 失效/未加载时也能有过渡 */
+@keyframes lx-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes lx-card-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.92); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.sp-overlay, .pf-overlay {
+  animation: lx-overlay-in 0.2s ease-out both;
+}
+.sp-card, .pf-card {
+  animation: lx-card-in 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sp-overlay, .pf-overlay, .sp-card, .pf-card { animation: none; }
+}

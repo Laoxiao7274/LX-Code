@@ -1,10 +1,14 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
+import { gsap } from "gsap";
+import { useGSAP } from "@gsap/react";
 import { X, Plus, Trash2, Key, Server, Globe, RefreshCw, Check } from "lucide-react";
 import type { Provider, Model, CustomHeader } from "../../stores/model-store";
 import { useModelStore } from "../../stores/model-store";
 import { cn } from "../../lib/utils";
+
+gsap.registerPlugin(useGSAP);
 
 interface ProviderFormProps {
   provider: Provider;
@@ -228,19 +232,42 @@ export function ProviderForm({ provider, isAdding, embedded }: ProviderFormProps
     );
   }
 
-  // 覆盖层模式(独立新增)
+  // 覆盖层模式(独立新增):居中弹窗 + 遮罩 + GSAP 入场/退出动画
+  return <ProviderFormModal form={form} isAdding={isAdding} body={body} handleSave={handleSave} />;
+}
+
+/** 供应商弹窗:居中 + 遮罩 + GSAP 入场动画。 */
+function ProviderFormModal({ form, isAdding, body, handleSave }: {
+  form: Provider;
+  isAdding: boolean;
+  body: React.ReactNode;
+  handleSave: () => void;
+}) {
+  const closeForm = useModelStore((s) => s.closeForm);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // 入场动画(挂载时)
+  useGSAP(() => {
+    if (!rootRef.current) return;
+    gsap.fromTo(rootRef.current, { opacity: 0 }, { opacity: 1, duration: 0.2, ease: "power2.out", overwrite: true });
+    const card = rootRef.current.querySelector(".pf-card");
+    if (card) gsap.fromTo(card, { opacity: 0, scale: 0.92, y: 16 }, { opacity: 1, scale: 1, y: 0, duration: 0.26, ease: "power3.out", overwrite: true });
+  }, { scope: rootRef });
+
   return (
-    <div className="surface absolute inset-2 z-50 flex flex-col overflow-hidden rounded-lg">
-      <div className="flex h-12 items-center justify-between border-b border-border/60 px-4">
-        <h2 className="text-[15px] font-semibold tracking-tight">{isAdding ? "新增提供商" : `编辑 ${form.name}`}</h2>
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={closeForm}><X className="h-4 w-4" /></Button>
-      </div>
-      <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-2xl space-y-5 px-6 py-5">{body}</div>
-      </div>
-      <div className="flex h-12 items-center justify-end gap-2 border-t border-border/60 px-4">
-        <Button variant="ghost" onClick={closeForm}>取消</Button>
-        <Button onClick={handleSave} disabled={!form.id || !form.name}><Check className="h-4 w-4" /> 保存</Button>
+    <div ref={rootRef} className="pf-overlay absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm" onClick={closeForm}>
+      <div className="pf-card surface flex h-[78%] w-[80%] max-w-2xl max-h-[600px] min-w-[560px] overflow-hidden rounded-lg shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex h-12 items-center justify-between border-b border-border/60 px-5">
+          <h2 className="text-[15px] font-semibold tracking-tight">{isAdding ? "新增提供商" : `编辑 ${form.name}`}</h2>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={closeForm}><X className="h-4 w-4" /></Button>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-2xl space-y-5 px-6 py-5">{body}</div>
+        </div>
+        <div className="flex h-12 items-center justify-end gap-2 border-t border-border/60 px-5">
+          <Button variant="ghost" onClick={closeForm}>取消</Button>
+          <Button onClick={handleSave} disabled={!form.id || !form.name}><Check className="h-4 w-4" /> 保存</Button>
+        </div>
       </div>
     </div>
   );

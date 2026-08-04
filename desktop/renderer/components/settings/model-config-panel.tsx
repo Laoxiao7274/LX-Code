@@ -147,8 +147,8 @@ export function ModelConfigPanel() {
         <Plus className="h-3.5 w-3.5" /> 添加提供商
       </button>
 
-      {/* 配置表单(覆盖层,编辑/新增共用) */}
-      {editing ? <ProviderForm provider={editing} isAdding={isAdding} /> : null}
+      {/* 配置表单(居中弹窗 + 遮罩 + 入场动画) */}
+      {editing ? <ProviderForm key={editing.id || "new"} provider={editing} isAdding={isAdding} /> : null}
     </div>
   );
 }

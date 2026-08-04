@@ -331,9 +331,10 @@ export function SettingsPanel() {
   useGSAP(
     () => {
       if (!open || !rootRef.current) return;
-      gsap.fromTo(rootRef.current, { opacity: 0 }, { opacity: 1, duration: 0.18, ease: "power2.out", overwrite: true });
+      console.log("[SettingsPanel] 入场动画触发");
+      gsap.fromTo(rootRef.current, { opacity: 0 }, { opacity: 1, duration: 0.28, ease: "power2.out", overwrite: true });
       const card = rootRef.current.querySelector(".sp-card");
-      if (card) gsap.fromTo(card, { opacity: 0, scale: 0.97, y: 6 }, { opacity: 1, scale: 1, y: 0, duration: 0.22, ease: "power3.out", overwrite: true });
+      if (card) gsap.fromTo(card, { opacity: 0, scale: 0.9, y: 20 }, { opacity: 1, scale: 1, y: 0, duration: 0.32, ease: "power3.out", overwrite: true });
     },
     { scope: rootRef, dependencies: [open] },
   );
@@ -341,12 +342,12 @@ export function SettingsPanel() {
   // 关闭:播退出动画后卸载(open 变 false)
   useEffect(() => {
     if (open || !rootRef.current) return;
+    console.log("[SettingsPanel] 退出动画触发");
     const card = rootRef.current.querySelector(".sp-card");
-    // 卡片缩放淡出 + 遮罩淡出
-    if (card) gsap.to(card, { opacity: 0, scale: 0.97, y: -6, duration: 0.16, ease: "power2.in", overwrite: true });
+    if (card) gsap.to(card, { opacity: 0, scale: 0.9, y: -20, duration: 0.24, ease: "power2.in", overwrite: true });
     gsap.to(rootRef.current, {
       opacity: 0,
-      duration: 0.16,
+      duration: 0.24,
       ease: "power2.in",
       overwrite: true,
       onComplete: () => setMounted(false),
