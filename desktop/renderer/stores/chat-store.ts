@@ -154,8 +154,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       await window.lxcode?.agent?.abort(sessionId);
     } finally {
-      // 中断后等 agent_end 事件来再清理,这里先标记
-      set((s) => ({ isGenerating: false, generatingBySession: { ...s.generatingBySession, [sessionId]: false } }));
+      // 中断:清该会话流 + 结束最后 assistant message 的 streaming
+      const stream = streams.get(sessionId);
+      streams.delete(sessionId);
+      set((s) => ({
+        isGenerating: false,
+        generatingBySession: { ...s.generatingBySession, [sessionId]: false },
+        messagesBySession: stream
+          ? {
+              ...s.messagesBySession,
+              [sessionId]: (s.messagesBySession[sessionId] ?? []).map((m) =>
+                m.id === stream.msgId
+                  ? { ...m, streaming: false, parts: (m.parts ?? []).map((p) => ("streaming" in p && p.streaming ? { ...p, streaming: false } : p)) }
+                  : m,
+              ),
+            }
+          : s.messagesBySession,
+      }));
     }
   },
 
