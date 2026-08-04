@@ -164,6 +164,12 @@ export function ProviderForm({ provider, isAdding, embedded }: ProviderFormProps
   const [kind, setKind] = useState<FormKind>(
     provider.kind === "preset" ? (provider.id === "anthropic" ? "anthropic" : "openai") : "custom",
   );
+  const handleKindChange = (k: FormKind) => {
+    setKind(k);
+    // 同步更新 form.api,这样切换 kind 后 api 立即变,不必等保存
+    const apiFromKind = KINDS.find((x) => x.id === k)?.api ?? "openai-completions";
+    update({ api: apiFromKind });
+  };
   const [fetching, setFetching] = useState(false);
 
   const update = (patch: Partial<Provider>) => setForm((f) => ({ ...f, ...patch }));
@@ -184,7 +190,8 @@ export function ProviderForm({ provider, isAdding, embedded }: ProviderFormProps
   };
   const handleSave = () => {
     const apiFromKind = KINDS.find((k) => k.id === kind)?.api ?? "openai-completions";
-    saveForm({ ...form, api: form.api || apiFromKind, kind: isAdding ? (kind === "custom" ? "custom" : "preset") : form.kind, connected: !!form.apiKey });
+    // 始终用当前 kind 对应的 api(切换 kind 后立即生效)
+    saveForm({ ...form, api: apiFromKind, kind: isAdding ? (kind === "custom" ? "custom" : "preset") : form.kind, connected: !!form.apiKey });
   };
 
   const body = (
@@ -193,7 +200,7 @@ export function ProviderForm({ provider, isAdding, embedded }: ProviderFormProps
       kind={kind}
       isAdding={isAdding}
       update={update}
-      onKindChange={setKind}
+      onKindChange={handleKindChange}
       addModel={addModel}
       updateModel={updateModel}
       removeModel={removeModel}
