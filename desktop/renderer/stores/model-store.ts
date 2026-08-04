@@ -66,46 +66,9 @@ interface ModelStore {
   reloadFromPi: () => Promise<void>;
 }
 
-const PRESETS: Provider[] = [
-  {
-    id: "anthropic",
-    name: "Anthropic",
-    kind: "preset",
-    api: "anthropic-messages",
-    icon: "A",
-    color: "text-amber-600",
-    baseURL: "https://api.anthropic.com",
-    apiKey: "sk-ant-••••••••",
-    headers: [],
-    connected: true,
-    models: [
-      { id: "claude-sonnet-4", name: "Claude Sonnet 4", enabled: true },
-      { id: "claude-opus-4", name: "Claude Opus 4", enabled: true },
-      { id: "claude-haiku-3.5", name: "Claude Haiku 3.5", enabled: false },
-    ],
-  },
-  {
-    id: "openai",
-    name: "OpenAI",
-    kind: "preset",
-    api: "openai-completions",
-    icon: "O",
-    color: "text-emerald-600",
-    baseURL: "https://api.openai.com/v1",
-    apiKey: "sk-••••••••",
-    headers: [],
-    connected: true,
-    models: [
-      { id: "gpt-4o", name: "GPT-4o", enabled: true },
-      { id: "gpt-4o-mini", name: "GPT-4o mini", enabled: true },
-      { id: "o3-mini", name: "o3-mini", enabled: false },
-    ],
-  },
-];
-
 export const useModelStore = create<ModelStore>((set, get) => ({
-  providers: PRESETS,
-  defaultModel: "anthropic/claude-sonnet-4",
+  providers: [],
+  defaultModel: "",
   editing: null,
   isAdding: false,
 
@@ -140,14 +103,8 @@ export const useModelStore = create<ModelStore>((set, get) => ({
   setDefault: (key) => {
     set({ defaultModel: key });
     get().persist();
-    // 真实切换会话模型(key = "providerId/modelId")
-    if (typeof window !== "undefined" && window.lxcode?.agent) {
-      const [providerId, modelId] = key.split("/");
-      if (providerId && modelId) {
-        // 应用到所有活跃会话(简化:取项目根 cwd)
-        void window.lxcode.agent.setModel("C:/Users/xzy/Desktop/my/lx-code", providerId, modelId);
-      }
-    }
+    // 默认模型已持久化到 ~/.lxcode/models.json,
+    // 新建会话时 getOrCreateSession 会读取并 setModel
   },
   toggleModel: (providerId, modelId) => {
     set({

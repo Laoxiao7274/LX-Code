@@ -70,7 +70,7 @@ function ModelSelect() {
 }
 
 /** 思考等级直接下拉(不跳设置)。 */
-function ThinkingLevelSelect() {
+function ThinkingLevelSelect({ sessionId }: { sessionId: string }) {
   const [level, setLevel] = useState<ThinkingLevel>("medium");
   const [open, setOpen] = useState(false);
   const cur = THINKING_LEVELS.find((l) => l.id === level)?.label ?? "中";
@@ -95,7 +95,7 @@ function ThinkingLevelSelect() {
               <button
                 key={l.id}
                 type="button"
-                onClick={() => { setLevel(l.id); setOpen(false); }}
+                onClick={() => { setLevel(l.id); setOpen(false); if (sessionId) void window.lxcode?.agent?.setThinkingLevel?.(sessionId, l.id); }}
                 className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-[12px] hover:bg-muted/60"
               >
                 <span>{l.label}</span>
@@ -136,12 +136,12 @@ function ContextUsage() {
  * 会话工具条:输入框下方一行,模型下拉 + 思考等级下拉 + 上下文展示。
  * 全部直接操作/展示,不跳设置。
  */
-export function ChatToolbar() {
+export function ChatToolbar({ sessionId }: { sessionId: string }) {
   return (
     <div className="mt-1.5 flex items-center gap-0.5 px-1">
       <ModelSelect />
       <span className="h-3 w-px bg-border/40" />
-      <ThinkingLevelSelect />
+      <ThinkingLevelSelect sessionId={sessionId} />
       <div className="flex-1" />
       <ContextUsage />
     </div>

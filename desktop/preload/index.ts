@@ -11,6 +11,7 @@ const dataApi = {
   listProjects: () => ipcRenderer.invoke("data:listProjects"),
   saveProjects: (projects: unknown[]) => ipcRenderer.invoke("data:saveProjects", { projects }),
   openProject: () => ipcRenderer.invoke("data:openProject"),
+  selectFiles: () => ipcRenderer.invoke("data:selectFiles"),
   readModels: () => ipcRenderer.invoke("data:readModels"),
   writeModels: (config: unknown) => ipcRenderer.invoke("data:writeModels", { config }),
   readSettings: () => ipcRenderer.invoke("data:readSettings"),
@@ -23,14 +24,14 @@ const dataApi = {
 
 const agentApi = {
   /** 发送 prompt,返回 {ok, error?}。事件流通过 onEvent 推送。 */
-  prompt: (cwd: string, text: string) =>
-    ipcRenderer.invoke("agent:prompt", { cwd, text }),
+  prompt: (sessionId: string, cwd: string, text: string) =>
+    ipcRenderer.invoke("agent:prompt", { sessionId, cwd, text }),
 
-  /** 中断当前会话。 */
-  abort: (cwd: string) => ipcRenderer.invoke("agent:abort", { cwd }),
+  /** 中断某会话。 */
+  abort: (sessionId: string) => ipcRenderer.invoke("agent:abort", { sessionId }),
 
   /** 关闭会话。 */
-  dispose: (cwd: string) => ipcRenderer.invoke("agent:dispose", { cwd }),
+  dispose: (sessionId: string) => ipcRenderer.invoke("agent:dispose", { sessionId }),
 
   /** 列出真实 providers + models。 */
   listProviders: () => ipcRenderer.invoke("agent:listProviders"),
@@ -42,9 +43,13 @@ const agentApi = {
   createSession: (cwd: string, name?: string) =>
     ipcRenderer.invoke("agent:createSession", { cwd, name }),
 
-  /** 设置某会话的默认模型。 */
-  setModel: (cwd: string, providerId: string, modelId: string) =>
-    ipcRenderer.invoke("agent:setModel", { cwd, providerId, modelId }),
+  /** 设置某会话的模型。 */
+  setModel: (sessionId: string, providerId: string, modelId: string) =>
+    ipcRenderer.invoke("agent:setModel", { sessionId, providerId, modelId }),
+
+  /** 设置某会话的思考等级。 */
+  setThinkingLevel: (sessionId: string, level: string) =>
+    ipcRenderer.invoke("agent:setThinkingLevel", { sessionId, level }),
 
   /** 订阅 agent 事件流,返回取消订阅函数。 */
   onEvent: (listener: AgentEventListener) => {

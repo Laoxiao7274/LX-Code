@@ -41,6 +41,25 @@ export function initDataIpc() {
     return { ok: true, name, path: p };
   });
 
+  // 选择附件文件(图片/文档),返回路径+类型
+  ipcMain.handle("data:selectFiles", async () => {
+    const res = await dialog.showOpenDialog({
+      properties: ["openFile", "multiSelections"],
+      filters: [
+        { name: "图片", extensions: ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"] },
+        { name: "所有文件", extensions: ["*"] },
+      ],
+    });
+    if (res.canceled || !res.filePaths.length) return { ok: false };
+    const imgExt = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"];
+    const files = res.filePaths.map((p) => {
+      const ext = p.split(".").pop()?.toLowerCase() ?? "";
+      const name = p.split(/[\\/]/).filter(Boolean).pop() ?? p;
+      return { path: p, name, kind: imgExt.includes(ext) ? ("image" as const) : ("file" as const) };
+    });
+    return { ok: true, files };
+  });
+
   // ─── 模型配置 ──────────────────────────────────
   ipcMain.handle("data:readModels", async () => {
     return { ok: true, config: await readModels() };

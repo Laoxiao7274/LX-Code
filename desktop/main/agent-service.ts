@@ -110,9 +110,12 @@ function serializeEvent(event: AgentSessionEvent): unknown {
 }
 
 /** 获取或创建某工作目录的 agent 会话(持久化到磁盘)。 */
-export async function getSession(cwd: string, onEvent: (e: unknown) => void) {
-  const existing = sessions.get(cwd);
-  if (existing) return existing.session;
+export async function getOrCreateSession(sessionId: string | undefined, cwd: string, onEvent: (e: unknown) => void) {
+  // 按 sessionId 找已缓存的会话(同一项目多个会话互不干扰)
+  if (sessionId) {
+    const existing = sessions.get(sessionId);
+    if (existing) return { session: existing.session, sessionId };
+  }
 
   const { createAgentSession, SessionManager, DefaultResourceLoader } = await loadPi();
   const modelRuntime = await getModelRuntime();
@@ -150,6 +153,10 @@ export async function getSession(cwd: string, onEvent: (e: unknown) => void) {
         if (model) await session.setModel(model as never);
       }
     }
+    // 设置默认思考等级
+    if (cfg.thinkingLevel) {
+      (session as unknown as { setThinkingLevel: (l: string) => void }).setThinkingLevel(cfg.thinkingLevel);
+    }
   } catch {
     // 静默失败,用 pi 默认模型
   }
@@ -159,29 +166,30 @@ export async function getSession(cwd: string, onEvent: (e: unknown) => void) {
   });
 
   const entry: SessionEntry = { session, unsubscribe };
-  sessions.set(cwd, entry);
-  return session;
+  const sid = sessionId ?? session.sessionId;
+  sessions.set(sid, entry);
+  return { session, sessionId: sid };
 }
 
-/** 发送 prompt。 */
-export async function prompt(cwd: string, text: string, onEvent: (e: unknown) => void) {
-  const session = await getSession(cwd, onEvent);
+/** 发送 prompt。按 sessionId 找会话(没缓存则创建)。 */
+export async function prompt(sessionId: string, cwd: string, text: string, onEvent: (e: unknown) => void) {
+  const { session } = await getOrCreateSession(sessionId, cwd, onEvent);
   await session.prompt(text);
 }
 
-/** 中断当前会话。 */
-export async function abort(cwd: string) {
-  const entry = sessions.get(cwd);
+/** 中断某会话。 */
+export async function abort(sessionId: string) {
+  const entry = sessions.get(sessionId);
   if (entry) await entry.session.abort();
 }
 
 /** 关闭某会话(清理)。 */
-export function disposeSession(cwd: string) {
-  const entry = sessions.get(cwd);
+export function disposeSession(sessionId: string) {
+  const entry = sessions.get(sessionId);
   if (entry) {
     entry.unsubscribe();
     entry.session.dispose();
-    sessions.delete(cwd);
+    sessions.delete(sessionId);
   }
 }
 
@@ -213,33 +221,32 @@ export async function listSessions(cwd: string): Promise<SessionInfoType[]> {
   }
 }
 
-/** 创建新持久化会话(返回 session id + name)。 */
+/** 创建新持久化会话(返回 session id + name,并缓存进 Map)。 */
 export async function createSession(cwd: string, name?: string) {
-  const { createAgentSession, SessionManager, DefaultResourceLoader } = await loadPi();
-  const modelRuntime = await getModelRuntime();
-  const lxcodeDir = path.join(app.getPath("home"), ".lxcode");
-  const sessionDir = path.join(lxcodeDir, "sessions", cwd.replace(/[\\/:]/g, "_"));
-  const { session } = await createAgentSession({
-    sessionManager: SessionManager.create(cwd, sessionDir),
-    modelRuntime: modelRuntime as never,
-    cwd,
-  });
-  const sid = session.sessionId;
-  session.dispose();
-  return { id: sid, name: name ?? "新会话", cwd };
+  // 复用 getOrCreateSession(传 undefined sessionId → 新建)
+  // 用空 onEvent,真正发消息时 getOrCreateSession 复用已缓存的 session
+  const { sessionId } = await getOrCreateSession(undefined, cwd, () => {});
+  return { id: sessionId, name: name ?? "新会话", cwd };
 }
 
-/** 设置某会话的默认模型。 */
-export async function setModel(cwd: string, providerId: string, modelId: string) {
-  const entry = sessions.get(cwd);
+/** 设置某会话的模型。 */
+export async function setModel(sessionId: string, providerId: string, modelId: string) {
+  const entry = sessions.get(sessionId);
   if (!entry) return;
   const rt = await getModelRuntime();
   const model = rt.getModels(providerId).find((m) => m.id === modelId) as never;
   if (model) await entry.session.setModel(model);
 }
 
+/** 设置某会话的思考等级。 */
+export async function setThinkingLevel(sessionId: string, level: string) {
+  const entry = sessions.get(sessionId);
+  if (!entry) return;
+  (entry.session as unknown as { setThinkingLevel: (l: string) => void }).setThinkingLevel(level);
+}
+
 /** 销毁所有会话(应用退出时)。 */
 export function disposeAll() {
-  for (const cwd of [...sessions.keys()]) disposeSession(cwd);
+  for (const sid of [...sessions.keys()]) disposeSession(sid);
   sharedModelRuntime = null;
 }

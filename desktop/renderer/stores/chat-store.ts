@@ -65,7 +65,7 @@ interface ChatState {
   /** 发送消息(调真实 agent)。 */
   send: (sessionId: string, cwd: string) => Promise<void>;
   /** 中断。 */
-  abort: (cwd: string) => Promise<void>;
+  abort: (sessionId: string) => Promise<void>;
   clear: (sessionId: string) => void;
 }
 
@@ -132,15 +132,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
 
     try {
-      await window.lxcode?.agent?.prompt(cwd, userMsg.text!);
+      await window.lxcode?.agent?.prompt(sessionId, cwd, userMsg.text!);
     } catch (e) {
       console.error("agent prompt 失败", e);
     }
   },
 
-  abort: async (cwd) => {
+  abort: async (sessionId) => {
     try {
-      await window.lxcode?.agent?.abort(cwd);
+      await window.lxcode?.agent?.abort(sessionId);
     } finally {
       set({ isGenerating: false });
       activeStream = null;

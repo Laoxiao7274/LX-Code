@@ -46,6 +46,21 @@ export function ChatMain() {
   const slashOpen = input.startsWith("/") && !isGenerating;
   const slashQuery = input.slice(1).split(" ")[0] ?? "";
 
+  // 真实选择附件文件(系统对话框,区分图片/文件)
+  const selectAndAdd = async () => {
+    if (typeof window === "undefined" || !window.lxcode?.data) return;
+    const res = await window.lxcode.data.selectFiles();
+    if (!res.ok || !res.files) return;
+    for (const f of res.files) {
+      addAttachment({
+        id: `att${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        kind: f.kind,
+        name: f.name,
+        ...(f.kind === "image" ? { url: `file://${f.path}` } : { size: "" }),
+      });
+    }
+  };
+
   // 新消息滚到底
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
@@ -114,7 +129,7 @@ export function ChatMain() {
             <div className="absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
               <button
                 type="button"
-                onClick={() => addAttachment({ id: `att${Date.now()}`, kind: "image", name: "截图.svg", url: "/img/ide-screenshot.svg" })}
+                onClick={selectAndAdd}
                 className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
                 title="添加图片"
               >
@@ -122,7 +137,7 @@ export function ChatMain() {
               </button>
               <button
                 type="button"
-                onClick={() => addAttachment({ id: `att${Date.now()}`, kind: "file", name: "requirements.md", size: "4.2 KB" })}
+                onClick={selectAndAdd}
                 className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
                 title="添加文件"
               >
@@ -131,7 +146,7 @@ export function ChatMain() {
             </div>
           </div>
           {isGenerating ? (
-            <Button variant="destructive" className="h-10 shrink-0" onClick={() => void abort(cwd)}>
+            <Button variant="destructive" className="h-10 shrink-0" onClick={() => void abort(sessionId)}>
               中断
             </Button>
           ) : (
@@ -147,7 +162,7 @@ export function ChatMain() {
 
         {/* 会话工具条:输入框下方,模型/思考/上下文 */}
         <div className="mx-auto mt-1.5 max-w-3xl">
-          <ChatToolbar />
+          <ChatToolbar sessionId={sessionId} />
         </div>
       </div>
 
