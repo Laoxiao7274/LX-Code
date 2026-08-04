@@ -39,9 +39,14 @@ export function ModelConfigPanel() {
   const [expanded, setExpanded] = useState<string | null>(providers[0]?.id ?? null);
   const [fetching, setFetching] = useState<string | null>(null);
 
-  const handleFetch = (providerId: string) => {
+  const handleFetch = async (providerId: string) => {
     setFetching(providerId);
-    setTimeout(() => { fetchModels(providerId); setFetching(null); }, 800);
+    try {
+      const p = providers.find((x) => x.id === providerId);
+      await fetchModels(providerId, p?.baseURL, p?.apiKey, p?.api);
+    } finally {
+      setFetching(null);
+    }
   };
 
   return (
