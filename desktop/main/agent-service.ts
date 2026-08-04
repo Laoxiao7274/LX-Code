@@ -141,7 +141,7 @@ function serializeEvent(event: AgentSessionEvent): unknown {
 }
 
 /** 获取或创建某工作目录的 agent 会话(持久化到磁盘)。 */
-export async function getOrCreateSession(sessionId: string | undefined, cwd: string, onEvent: (e: unknown) => void) {
+export async function getOrCreateSession(sessionId: string | undefined, cwd: string, win: { webContents: { send: (ch: string, ...a: unknown[]) => void } } | null) {
   // 按 sessionId 找已缓存的会话(同一项目多个会话互不干扰)
   if (sessionId) {
     const existing = sessions.get(sessionId);
@@ -195,7 +195,9 @@ export async function getOrCreateSession(sessionId: string | undefined, cwd: str
   });
 
   const unsubscribe = session.subscribe((event) => {
-    onEvent(serializeEvent(event));
+    // 事件带 sessionId 推到独立频道(会话隔离),前端按 sessionId 订阅
+    const evt = serializeEvent(event) as Record<string, unknown>;
+    win?.webContents.send(`agent:event:${sid}`, { ...evt, __sid: sid });
   });
 
   const entry: SessionEntry = { session, unsubscribe };
@@ -205,8 +207,8 @@ export async function getOrCreateSession(sessionId: string | undefined, cwd: str
 }
 
 /** 发送 prompt。按 sessionId 找会话(没缓存则创建)。 */
-export async function prompt(sessionId: string, cwd: string, text: string, onEvent: (e: unknown) => void) {
-  const { session } = await getOrCreateSession(sessionId, cwd, onEvent);
+export async function prompt(sessionId: string, cwd: string, text: string, win: { webContents: { send: (ch: string, ...a: unknown[]) => void } } | null) {
+  const { session } = await getOrCreateSession(sessionId, cwd, win);
   await session.prompt(text);
 }
 
@@ -316,7 +318,7 @@ export async function getMessages(sessionPath: string): Promise<HistoryMessage[]
 export async function createSession(cwd: string, name?: string) {
   // 复用 getOrCreateSession(传 undefined sessionId → 新建)
   // 用空 onEvent,真正发消息时 getOrCreateSession 复用已缓存的 session
-  const { sessionId } = await getOrCreateSession(undefined, cwd, () => {});
+  const { sessionId } = await getOrCreateSession(undefined, cwd, null);
   return { id: sessionId, name: name ?? "新会话", cwd };
 }
 

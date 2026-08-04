@@ -54,11 +54,12 @@ const agentApi = {
   setThinkingLevel: (sessionId: string, level: string) =>
     ipcRenderer.invoke("agent:setThinkingLevel", { sessionId, level }),
 
-  /** 订阅 agent 事件流,返回取消订阅函数。 */
-  onEvent: (listener: AgentEventListener) => {
+  /** 订阅某会话的事件流(按 sessionId 隔离),返回取消订阅函数。 */
+  onEvent: (sessionId: string, listener: AgentEventListener) => {
+    const channel = `agent:event:${sessionId}`;
     const handler = (_e: unknown, event: unknown) => listener(event);
-    ipcRenderer.on("agent:event", handler);
-    return () => ipcRenderer.off("agent:event", handler);
+    ipcRenderer.on(channel, handler);
+    return () => ipcRenderer.off(channel, handler);
   },
 };;
 

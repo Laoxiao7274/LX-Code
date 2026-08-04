@@ -14,11 +14,8 @@ export function initAgentIpc() {
     "agent:prompt",
     async (evt, args: { sessionId: string; cwd: string; text: string }) => {
       const win = BrowserWindow.fromWebContents(evt.sender);
-      const onEvent = (e: unknown) => {
-        win?.webContents.send("agent:event", e);
-      };
       try {
-        await prompt(args.sessionId, args.cwd, args.text, onEvent);
+        await prompt(args.sessionId, args.cwd, args.text, win);
         return { ok: true };
       } catch (err) {
         return { ok: false, error: (err as Error).message };

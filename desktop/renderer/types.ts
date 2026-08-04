@@ -12,7 +12,7 @@ export interface LxcodeAPI {
     createSession: (cwd: string, name?: string) => Promise<{ ok: boolean; error?: string; id?: string; name?: string; cwd?: string }>;
     setModel: (sessionId: string, providerId: string, modelId: string) => Promise<{ ok: boolean; error?: string }>;
     setThinkingLevel: (sessionId: string, level: string) => Promise<{ ok: boolean; error?: string }>;
-    onEvent: (listener: AgentEventListener) => () => void;
+    onEvent: (sessionId: string, listener: AgentEventListener) => () => void;
   };
   data: {
     listProjects: () => Promise<{ ok: boolean; projects: unknown[] }>;

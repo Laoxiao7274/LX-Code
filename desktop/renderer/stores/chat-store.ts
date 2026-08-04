@@ -81,11 +81,8 @@ interface ChatState {
 let seed = 0;
 const nid = () => `m${++seed}`;
 
-/** 全局事件取消订阅。 */
-let unsubEvent: (() => void) | null = null;
-
-/** 当前正在接收事件的会话 id + 消息 id(用于把事件归位)。 */
-let activeStream: { sessionId: string; msgId: string } | null = null;
+/** 每个会话的活跃流:{msgId, 取消订阅}。事件按 sessionId 路由,会话隔离。 */
+const streams = new Map<string, { msgId: string; unsub: () => void }>();
 
 export const useChatStore = create<ChatState>((set, get) => ({
   messagesBySession: {},
@@ -131,19 +128,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
       },
     }));
 
-    activeStream = { sessionId, msgId: assistantId };
-
-    // 订阅事件流(首次)
-    if (!unsubEvent && window.lxcode?.agent) {
-      unsubEvent = window.lxcode.agent.onEvent((event) => {
-        handleAgentEvent(event as AgentEvent, set, get);
-      });
-    }
+    // 订阅该会话的事件流(按 sessionId 隔离)
+    const unsub = window.lxcode?.agent?.onEvent(sessionId, (event) => {
+      handleAgentEvent(sessionId, assistantId, event as AgentEvent, set, get);
+    });
+    if (typeof unsub === "function") streams.set(sessionId, { msgId: assistantId, unsub });
 
     try {
       await window.lxcode?.agent?.prompt(sessionId, cwd, userMsg.text!);
     } catch (e) {
       console.error("agent prompt 失败", e);
+      // 失败:清理流 + 停止生成
+      streams.get(sessionId)?.unsub();
+      streams.delete(sessionId);
+      set({ isGenerating: false });
     }
   },
 
@@ -151,8 +149,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       await window.lxcode?.agent?.abort(sessionId);
     } finally {
+      // 中断后等 agent_end 事件来再清理,这里先标记
       set({ isGenerating: false });
-      activeStream = null;
     }
   },
 
@@ -176,10 +174,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  clear: (sessionId) =>
+  clear: (sessionId) => {
+    streams.get(sessionId)?.unsub();
+    streams.delete(sessionId);
     set((s) => ({
       messagesBySession: { ...s.messagesBySession, [sessionId]: [] },
-    })),
+    }));
+  },
 }));
 
 /** 真实 agent 事件类型(与 desktop/main 的 serializeEvent 对应)。 */
@@ -205,14 +206,14 @@ type AgentEvent = {
   delta?: string;
 };
 
-/** 把事件应用到当前活跃流的 assistant 消息。 */
+/** 把事件应用到指定会话的 assistant 消息(按 sessionId 路由,会话隔离)。 */
 function handleAgentEvent(
+  sessionId: string,
+  msgId: string,
   event: AgentEvent,
   set: (fn: (s: ChatState) => Partial<ChatState>) => void,
   get: () => ChatState,
 ) {
-  if (!activeStream) return;
-  const { sessionId, msgId } = activeStream;
   const msgs = get().messagesBySession[sessionId] ?? [];
 
   const updateAssistant = (patch: (m: Message) => Message) =>
@@ -321,7 +322,8 @@ function handleAgentEvent(
           ),
         }));
         set(() => ({ isGenerating: false }));
-        activeStream = null;
+        streams.get(sessionId)?.unsub();
+        streams.delete(sessionId);
       } else if (ae.type === "done") {
         // 消息完成:结束当前 streaming part
         updateAssistant((m) => ({
@@ -411,7 +413,8 @@ function handleAgentEvent(
         }),
       }));
       set(() => ({ isGenerating: false }));
-      activeStream = null;
+      streams.get(sessionId)?.unsub();
+      streams.delete(sessionId);
       break;
     }
     case "thinking_level_changed": {
