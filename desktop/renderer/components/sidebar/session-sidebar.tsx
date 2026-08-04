@@ -1,57 +1,197 @@
-import { Plus, MessageSquare, Settings } from "lucide-react";
-import { Button } from "../../components/ui/button";
-import { ScrollArea } from "../../components/ui/scroll-area";
-import { Separator } from "../../components/ui/separator";
-import { cn } from "../../lib/utils";
+import { useEffect, useRef, useState } from "react";
 import { useSessionStore } from "../../stores/session-store";
 import { useSettingsStore } from "../../stores/settings-store";
+import { ScrollArea } from "../ui/scroll-area";
+import { Separator } from "../ui/separator";
+import { cn } from "../../lib/utils";
+import {
+  Plus, MessageSquare, Settings, ChevronRight, Folder,
+  MoreHorizontal, Pencil, Trash2, Archive,
+} from "lucide-react";
 
-/** 会话侧栏:新建 + 会话列表。照抄设计原型样式。 */
+/** 相对时间格式化。 */
+function relTime(ts: number): string {
+  const diff = Date.now() - ts;
+  const m = Math.floor(diff / 60_000);
+  if (m < 1) return "刚刚";
+  if (m < 60) return `${m} 分钟前`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} 小时前`;
+  return `${Math.floor(h / 24)} 天前`;
+}
+
+/** 操作菜单项。 */
+function MenuItem({ icon: Icon, label, onClick, danger }: { icon: typeof Pencil; label: string; onClick: () => void; danger?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] transition-colors hover:bg-muted/60",
+        danger && "text-destructive hover:bg-destructive/10",
+      )}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {label}
+    </button>
+  );
+}
+
+/** 操作菜单(hover ⋯ 触发,点外侧关闭)。 */
+function ActionMenu({ items }: { items: { icon: typeof Pencil; label: string; onClick: () => void; danger?: boolean }[] }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+        className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/60 transition hover:bg-muted/60 hover:text-foreground"
+      >
+        <MoreHorizontal className="h-3.5 w-3.5" />
+      </button>
+      {open ? (
+        <div className="absolute right-0 z-30 mt-1 w-36 rounded-lg border border-border/60 bg-popover p-1 shadow-lg">
+          {items.map((it, i) => (
+            <MenuItem key={i} {...it} onClick={() => { it.onClick(); setOpen(false); }} />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * 左侧会话栏:按项目(文件夹)分组,项目下挂会话。
+ * 项目和会话都支持改名/删除/归档(⋯ 菜单)。
+ */
 export function SessionSidebar() {
-  const sessions = useSessionStore((s) => s.sessions);
+  const projects = useSessionStore((s) => s.projects);
   const activeId = useSessionStore((s) => s.activeId);
   const create = useSessionStore((s) => s.create);
   const select = useSessionStore((s) => s.select);
+  const toggleProject = useSessionStore((s) => s.toggleProject);
+  const renameProject = useSessionStore((s) => s.renameProject);
+  const removeProject = useSessionStore((s) => s.removeProject);
+  const archiveProject = useSessionStore((s) => s.archiveProject);
+  const rename = useSessionStore((s) => s.rename);
+  const archiveSession = useSessionStore((s) => s.archiveSession);
   const openSettings = useSettingsStore((s) => s.setOpen);
+
+  const handleRenameProject = (id: string, cur: string) => {
+    const name = window.prompt("项目名称", cur);
+    if (name && name.trim()) renameProject(id, name.trim());
+  };
+  const handleRenameSession = (id: string, cur: string) => {
+    const title = window.prompt("会话名称", cur);
+    if (title && title.trim()) rename(id, title.trim());
+  };
 
   return (
     <div className="flex h-full flex-col bg-muted/25">
-      <div className="p-2.5">
-        <Button variant="outline" className="h-8 w-full justify-start gap-2 rounded-full px-3 text-[13px] font-normal" onClick={() => create()}>
-          <Plus className="h-4 w-4" />
-          新建会话
-        </Button>
-      </div>
-
-      <div className="px-3.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-        会话
-      </div>
-
+      {/* 项目列表 */}
       <ScrollArea className="flex-1">
-        <div className="space-y-0.5 px-1.5 pb-2">
-          {sessions.map((s) => {
-            const active = s.id === activeId;
+        <div className="px-1.5 pb-2 pt-2.5">
+          {projects.map((p) => {
+            const collapsed = p.collapsed;
+            const visibleSessions = p.sessions.filter((s) => !s.archived);
             return (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => select(s.id)}
-                className={cn(
-                  "group relative flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors",
-                  active ? "bg-background shadow-sm" : "hover:bg-background/60",
-                )}
-              >
-                {active ? <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-accent" /> : null}
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted">
-                  <MessageSquare className={cn("h-3.5 w-3.5", active ? "text-accent" : "text-muted-foreground")} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className={cn("truncate text-[13px]", active ? "font-medium text-foreground" : "text-foreground/85")}>
-                    {s.title}
+              <div key={p.id} className="mb-1">
+                {/* 项目头 */}
+                <div className="group flex items-center gap-1 rounded-md px-1.5 py-1 hover:bg-background/40">
+                  <button
+                    type="button"
+                    onClick={() => toggleProject(p.id)}
+                    className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+                  >
+                    <ChevronRight
+                      className={cn(
+                        "h-3.5 w-3.5 shrink-0 text-muted-foreground/60 transition-transform",
+                        !collapsed && "rotate-90",
+                      )}
+                    />
+                    <Folder className={cn("h-3.5 w-3.5 shrink-0", p.archived ? "text-muted-foreground/40" : "text-muted-foreground")} />
+                    <span className={cn("truncate text-[12px] font-medium", p.archived && "text-muted-foreground/60 line-through")}>
+                      {p.name}
+                    </span>
+                    <span className="shrink-0 text-[10px] text-muted-foreground/50">
+                      {visibleSessions.length}
+                    </span>
+                  </button>
+                  {/* 项目级新建 + 操作菜单 */}
+                  <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                    <button
+                      type="button"
+                      onClick={() => create(p.id)}
+                      className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/60 hover:bg-muted/60 hover:text-foreground"
+                      title="新建会话"
+                    >
+                      <Plus className="h-3 w-3" />
+                    </button>
+                    <ActionMenu
+                      items={[
+                        { icon: Pencil, label: "改名", onClick: () => handleRenameProject(p.id, p.name) },
+                        { icon: Archive, label: p.archived ? "取消归档" : "归档", onClick: () => archiveProject(p.id) },
+                        { icon: Trash2, label: "删除", onClick: () => removeProject(p.id), danger: true },
+                      ]}
+                    />
                   </div>
-                  <div className="mt-0.5 truncate text-[11px] text-muted-foreground/70 font-mono">{s.cwd}</div>
                 </div>
-              </button>
+
+                {/* 会话列表(折叠时隐藏) */}
+                {!collapsed ? (
+                  <div className="ml-3 space-y-0.5 border-l border-border/40 pl-1">
+                    {visibleSessions.map((s) => {
+                      const active = s.id === activeId;
+                      return (
+                        <div
+                          key={s.id}
+                          className={cn(
+                            "group relative flex items-center rounded-lg px-2 py-1.5 transition-colors",
+                            active ? "bg-background shadow-sm" : "hover:bg-background/60",
+                          )}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => select(s.id)}
+                            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                          >
+                            {active ? (
+                              <span className="absolute -left-[5px] top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-accent" />
+                            ) : null}
+                            <MessageSquare className={cn("h-3 w-3 shrink-0", active ? "text-accent" : "text-muted-foreground")} />
+                            <div className="min-w-0 flex-1">
+                              <div className={cn("truncate text-[12px]", active ? "font-medium text-foreground" : "text-foreground/85")}>
+                                {s.title}
+                              </div>
+                              <div className="text-[10px] text-muted-foreground/70">{relTime(s.updatedAt)}</div>
+                            </div>
+                          </button>
+                          {/* 会话操作菜单 */}
+                          <div className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100">
+                            <ActionMenu
+                              items={[
+                                { icon: Pencil, label: "改名", onClick: () => handleRenameSession(s.id, s.title) },
+                                { icon: Archive, label: "归档", onClick: () => archiveSession(s.id) },
+                              ]}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
             );
           })}
         </div>
@@ -61,10 +201,16 @@ export function SessionSidebar() {
 
       {/* 底部:设置入口 */}
       <div className="p-1.5">
-        <Button variant="ghost" className="w-full justify-start gap-2.5 text-muted-foreground" onClick={() => openSettings(true)}>
-          <div className="flex h-5 w-5 items-center justify-center"><Settings className="h-4 w-4" /></div>
+        <button
+          type="button"
+          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[13px] text-muted-foreground transition-colors hover:bg-background/60"
+          onClick={() => openSettings(true)}
+        >
+          <div className="flex h-5 w-5 items-center justify-center">
+            <Settings className="h-4 w-4" />
+          </div>
           设置
-        </Button>
+        </button>
       </div>
     </div>
   );

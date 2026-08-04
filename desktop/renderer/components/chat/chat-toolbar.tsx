@@ -1,0 +1,149 @@
+import { useState } from "react";
+import { useModelStore } from "../../stores/model-store";
+import { cn } from "../../lib/utils";
+import { ChevronDown, Check, Brain, Activity } from "lucide-react";
+
+/** 思考等级。 */
+type ThinkingLevel = "off" | "low" | "medium" | "high" | "xhigh" | "max";
+const THINKING_LEVELS: { id: ThinkingLevel; label: string }[] = [
+  { id: "off", label: "关闭" },
+  { id: "low", label: "低" },
+  { id: "medium", label: "中" },
+  { id: "high", label: "高" },
+  { id: "xhigh", label: "极高" },
+  { id: "max", label: "最大" },
+];
+
+/** 模型下拉(只选模型,不配置)。 */
+function ModelSelect() {
+  const providers = useModelStore((s) => s.providers);
+  const defaultModel = useModelStore((s) => s.defaultModel);
+  const setDefault = useModelStore((s) => s.setDefault);
+  const [open, setOpen] = useState(false);
+
+  const [curProvider, curModel] = defaultModel.split("/");
+  const cur = providers.find((p) => p.id === curProvider)?.models.find((m) => m.id === curModel);
+  const curLabel = cur?.name ?? defaultModel;
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex h-6 items-center gap-1.5 rounded-md px-2 text-[11px] text-muted-foreground transition-colors hover:bg-muted/60"
+      >
+        <span className="signal-dot scale-[0.7]" aria-hidden />
+        <span className="max-w-[120px] truncate font-medium text-foreground">{curLabel}</span>
+        <ChevronDown className={cn("h-3 w-3 text-muted-foreground/60 transition-transform", open && "rotate-180")} />
+      </button>
+      {open ? (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute bottom-full left-0 z-20 mb-1 max-h-72 w-60 overflow-y-auto rounded-lg border border-border/60 bg-popover p-1 shadow-lg">
+            {providers.map((p) => (
+              <div key={p.id}>
+                <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                  {p.name}
+                </div>
+                {p.models.filter((m) => m.enabled).map((m) => {
+                  const key = `${p.id}/${m.id}`;
+                  const active = defaultModel === key;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => { setDefault(key); setOpen(false); }}
+                      className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-[12px] hover:bg-muted/60"
+                    >
+                      <span className="truncate">{m.name}</span>
+                      {active ? <Check className="h-3.5 w-3.5 shrink-0 text-accent" /> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+/** 思考等级直接下拉(不跳设置)。 */
+function ThinkingLevelSelect() {
+  const [level, setLevel] = useState<ThinkingLevel>("medium");
+  const [open, setOpen] = useState(false);
+  const cur = THINKING_LEVELS.find((l) => l.id === level)?.label ?? "中";
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex h-6 items-center gap-1.5 rounded-md px-2 text-[11px] text-muted-foreground transition-colors hover:bg-muted/60"
+      >
+        <Brain className="h-3.5 w-3.5" />
+        <span>思考</span>
+        <span className="font-medium text-foreground">{cur}</span>
+        <ChevronDown className={cn("h-3 w-3 text-muted-foreground/60 transition-transform", open && "rotate-180")} />
+      </button>
+      {open ? (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute bottom-full left-0 z-20 mb-1 w-36 rounded-lg border border-border/60 bg-popover p-1 shadow-lg">
+            {THINKING_LEVELS.map((l) => (
+              <button
+                key={l.id}
+                type="button"
+                onClick={() => { setLevel(l.id); setOpen(false); }}
+                className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-[12px] hover:bg-muted/60"
+              >
+                <span>{l.label}</span>
+                {level === l.id ? <Check className="h-3.5 w-3.5 shrink-0 text-accent" /> : null}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+/** 上下文用量纯展示(不点击)。 */
+function ContextUsage() {
+  // 模拟(真实接 session 上下文用量)
+  const used = 24576;
+  const total = 200000;
+  const pct = Math.round((used / total) * 100);
+  return (
+    <div className="flex h-6 items-center gap-1.5 px-2 text-[11px] text-muted-foreground" title={`${used.toLocaleString()} / ${total.toLocaleString()} tokens`}>
+      <Activity className="h-3.5 w-3.5" />
+      <div className="h-1.5 w-14 overflow-hidden rounded-full bg-muted">
+        <div
+          className={cn(
+            "h-full rounded-full transition-all",
+            pct > 80 ? "bg-destructive" : pct > 50 ? "bg-amber-500" : "bg-accent",
+          )}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className="font-mono tabular-nums">{pct}%</span>
+    </div>
+  );
+}
+
+/**
+ * 会话工具条:输入框下方一行,模型下拉 + 思考等级下拉 + 上下文展示。
+ * 全部直接操作/展示,不跳设置。
+ */
+export function ChatToolbar() {
+  return (
+    <div className="mt-1.5 flex items-center gap-0.5 px-1">
+      <ModelSelect />
+      <span className="h-3 w-px bg-border/40" />
+      <ThinkingLevelSelect />
+      <div className="flex-1" />
+      <ContextUsage />
+    </div>
+  );
+}

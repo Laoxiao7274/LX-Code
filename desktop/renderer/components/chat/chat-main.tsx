@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ScrollArea } from "../../components/ui/scroll-area";
 import { Input } from "../../components/ui/input";
 import { Button } from "../../components/ui/button";
+import { Badge } from "../../components/ui/badge";
 import { cn } from "../../lib/utils";
 import { useChatStore } from "../../stores/chat-store";
 import type { Attachment } from "../../stores/chat-store";
@@ -10,13 +11,20 @@ import { ChatMessage } from "./chat-message";
 import { AttachmentView } from "./attachment-view";
 import { ImageLightbox } from "./image-lightbox";
 import { SlashMenu } from "./slash-menu";
+import { ChatToolbar } from "./chat-toolbar";
 import { FileText, ImageIcon } from "lucide-react";
 
-/** 对话主区:消息流 + 输入区(附件/斜杠/放大)。对接真实 agent。 */
+/** 对话主区:消息流 + 输入区(附件/斜杠/放大/工具条)。对接真实 agent。 */
 export function ChatMain() {
-  const sessions = useSessionStore((s) => s.sessions);
+  const projects = useSessionStore((s) => s.projects);
   const activeId = useSessionStore((s) => s.activeId);
-  const active = sessions.find((x) => x.id === activeId) ?? sessions[0];
+
+  // 从 projects 找当前会话 + 所属项目(拿 cwd)
+  let active: { id: string; title: string; cwd: string; projectName: string } | undefined;
+  for (const p of projects) {
+    const s = p.sessions.find((x) => x.id === activeId && !x.archived);
+    if (s) { active = { id: s.id, title: s.title, cwd: p.path, projectName: p.name }; break; }
+  }
 
   const sessionId = active?.id ?? "";
   const cwd = active?.cwd ?? ".";
@@ -45,6 +53,18 @@ export function ChatMain() {
 
   return (
     <div className="flex h-full flex-col bg-background">
+      {/* 顶栏:会话标题 + 项目名 */}
+      <div className="flex h-11 items-center gap-2.5 border-b border-border/60 px-3">
+        <span className="text-[13px] font-medium tracking-tight">
+          {active?.title ?? "未选择会话"}
+        </span>
+        {active ? (
+          <Badge variant="outline" className="h-4 px-1.5 text-[10px] font-normal text-muted-foreground">
+            {active.projectName}
+          </Badge>
+        ) : null}
+      </div>
+
       {/* 消息流 */}
       <ScrollArea className="flex-1">
         <div className="mx-auto max-w-3xl space-y-4 p-4">
@@ -74,43 +94,49 @@ export function ChatMain() {
           <AttachmentView attachments={pending} view="pending" onRemove={removeAttachment} />
         </div>
 
-        <div className="mx-auto flex max-w-3xl gap-2">
-          <Input
-            placeholder={isGenerating ? "生成中…" : "输入消息,回车发送(/ 唤出命令)"}
-            value={input}
-            disabled={isGenerating}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                void send(sessionId, cwd);
-              }
-            }}
-            className="h-10 shadow-sm"
-          />
-          <Button
-            variant="outline"
-            className="h-10 w-10 shrink-0 px-0"
-            onClick={() => addAttachment({ id: `att${Date.now()}`, kind: "image", name: "截图.svg", url: "/img/ide-screenshot.svg" })}
-            title="添加图片"
-          >
-            <ImageIcon className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            className="h-10 w-10 shrink-0 px-0"
-            onClick={() => addAttachment({ id: `att${Date.now()}`, kind: "file", name: "requirements.md", size: "4.2 KB" })}
-            title="添加文件"
-          >
-            <FileText className="h-4 w-4" />
-          </Button>
+        {/* 输入框 + 内嵌上传按钮 + 发送 */}
+        <div className="mx-auto flex max-w-3xl items-center gap-2">
+          <div className="relative flex-1">
+            <Input
+              placeholder={isGenerating ? "生成中…" : "输入消息,回车发送(/ 唤出命令)"}
+              value={input}
+              disabled={isGenerating}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  void send(sessionId, cwd);
+                }
+              }}
+              className="h-10 shadow-sm"
+            />
+            {/* 内嵌上传按钮组(输入框右侧) */}
+            <div className="absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
+              <button
+                type="button"
+                onClick={() => addAttachment({ id: `att${Date.now()}`, kind: "image", name: "截图.svg", url: "/img/ide-screenshot.svg" })}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+                title="添加图片"
+              >
+                <ImageIcon className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => addAttachment({ id: `att${Date.now()}`, kind: "file", name: "requirements.md", size: "4.2 KB" })}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+                title="添加文件"
+              >
+                <FileText className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
           {isGenerating ? (
-            <Button variant="destructive" className="h-10" onClick={() => void abort(cwd)}>
+            <Button variant="destructive" className="h-10 shrink-0" onClick={() => void abort(cwd)}>
               中断
             </Button>
           ) : (
             <Button
-              className="h-10 px-5 shadow-sm"
+              className="h-10 shrink-0 px-5 shadow-sm"
               disabled={!input.trim() && pending.length === 0}
               onClick={() => void send(sessionId, cwd)}
             >
@@ -118,8 +144,10 @@ export function ChatMain() {
             </Button>
           )}
         </div>
-        <div className="mx-auto mt-1.5 max-w-3xl text-center text-[10px] text-muted-foreground/50">
-          {cwd} · {isGenerating ? "agent 运行中" : "就绪"}
+
+        {/* 会话工具条:输入框下方,模型/思考/上下文 */}
+        <div className="mx-auto mt-1.5 max-w-3xl">
+          <ChatToolbar />
         </div>
       </div>
 
