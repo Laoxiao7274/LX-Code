@@ -56,7 +56,7 @@ export function ThinkingBlock({ part }: ThinkingBlockProps) {
         ) : (
           <>
             {!open ? (
-              <span className="min-w-0 flex-1 break-words font-mono text-[11px] leading-snug text-muted-foreground/70 line-clamp-2">
+              <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground/70">
                 {teaser}
               </span>
             ) : null}
