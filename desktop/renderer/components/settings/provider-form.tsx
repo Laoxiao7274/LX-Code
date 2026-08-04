@@ -56,11 +56,10 @@ function FormBody({
 }) {
   return (
     <div className="space-y-5">
-      {/* 格式类型(仅新增时选) */}
-      {isAdding ? (
-        <div>
-          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">接口格式</div>
-          <div className="grid grid-cols-3 gap-2">
+      {/* 格式类型(新增和编辑都可选) */}
+      <div>
+        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">接口格式</div>
+        <div className="grid grid-cols-3 gap-2">
             {KINDS.map((k) => (
               <button
                 key={k.id}
@@ -76,8 +75,7 @@ function FormBody({
               </button>
             ))}
           </div>
-        </div>
-      ) : null}
+      </div>
 
       {/* 基本信息 */}
       <div className="space-y-3">
@@ -162,7 +160,10 @@ export function ProviderForm({ provider, isAdding, embedded }: ProviderFormProps
 
   const [form, setForm] = useState<Provider>(provider);
   const [kind, setKind] = useState<FormKind>(
-    provider.kind === "preset" ? (provider.id === "anthropic" ? "anthropic" : "openai") : "custom",
+    // 根据 provider.api 推断初始 kind(anthropic-messages → anthropic,否则看 kind/id)
+    provider.api === "anthropic-messages" ? "anthropic"
+      : provider.kind === "custom" ? "custom"
+      : "openai",
   );
   const handleKindChange = (k: FormKind) => {
     setKind(k);
