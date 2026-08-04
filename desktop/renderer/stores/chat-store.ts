@@ -364,15 +364,22 @@ function handleAgentEvent(
       break;
     }
     case "tool_execution_start": {
-      // 已有同 id 的占位 tool part(toolcall_end 建的)则复用更新,否则新建
+      // 已有同 id 的占位 tool part(toolcall_end 建的)则复用;否则找最后一个
+      // running 且 name 空的占位(toolcall_start 建但 toolcall_end 未到)复用;都没有才新建
       const existId = event.toolCallId;
       updateAssistant((m) => {
         const parts = m.parts ?? [];
-        const idx = parts.findIndex((p) => p.type === "tool" && p.id === existId);
+        // 1. 按 id 找
+        let idx = parts.findIndex((p) => p.type === "tool" && p.id === existId);
+        // 2. 找不到则找最后一个 running 且 name 空的占位
+        if (idx === -1) {
+          const ridx = [...parts].reverse().findIndex((p) => p.type === "tool" && p.status === "running" && !p.name);
+          if (ridx !== -1) idx = parts.length - 1 - ridx;
+        }
         if (idx !== -1) {
           const tp = parts[idx];
           if (tp.type === "tool") {
-            return { ...m, parts: [...parts.slice(0, idx), { ...tp, name: event.toolName ?? tp.name, arg: summarizeArgs(event.args) ?? tp.arg, status: "running" as ToolStatus }, ...parts.slice(idx + 1)] };
+            return { ...m, parts: [...parts.slice(0, idx), { ...tp, id: existId ?? tp.id, name: event.toolName ?? tp.name, arg: summarizeArgs(event.args) ?? tp.arg, status: "running" as ToolStatus }, ...parts.slice(idx + 1)] };
           }
         }
         return { ...m, parts: [...parts, { type: "tool" as const, id: existId ?? nid(), name: event.toolName ?? "tool", arg: summarizeArgs(event.args), status: "running" as ToolStatus }] };
@@ -432,9 +439,26 @@ function handleAgentEvent(
       updateAssistant((m) => ({ ...m, streaming: true }));
       break;
     }
-    case "agent_end":
+    case "agent_end": {
+      // agent_end 带 willRetry:若 true 还要重试,不结束
+      const willRetry = (event as { willRetry?: boolean }).willRetry;
+      if (willRetry) break;
+      updateAssistant((m) => ({
+        ...m,
+        streaming: false,
+        parts: (m.parts ?? []).map((p) => {
+          if ("streaming" in p && p.streaming) return { ...p, streaming: false };
+          if (p.type === "tool" && p.status === "running") return { ...p, status: "ok" as ToolStatus };
+          return p;
+        }),
+      }));
+      set((s) => ({ isGenerating: false, generatingBySession: { ...s.generatingBySession, [sessionId]: false } }));
+      streams.get(sessionId)?.unsub();
+      streams.delete(sessionId);
+      break;
+    }
     case "agent_settled": {
-      // agent 真正结束:停止生成 + 清 streams + 结束所有 part
+      // agent 完全结束(无重试):停止生成 + 清 streams + 结束所有 part
       updateAssistant((m) => ({
         ...m,
         streaming: false,

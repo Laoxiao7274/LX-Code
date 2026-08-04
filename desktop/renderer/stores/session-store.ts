@@ -87,7 +87,10 @@ export const useSessionStore = create<SessionListState>((set, get) => ({
     }));
   },
 
-  select: (id) => set({ activeId: id }),
+  select: (id) => {
+    set({ activeId: id });
+    if (typeof window !== "undefined") try { localStorage.setItem("lxcode:activeId", id); } catch {}
+  },
 
   remove: (id) =>
     set((st) => ({
@@ -191,10 +194,12 @@ export const useSessionStore = create<SessionListState>((set, get) => ({
         }),
       );
       set({ projects: withSessions });
-      // 默认选第一个项目的第一个会话
-      if (withSessions[0]?.sessions.length && !get().activeId) {
-        set({ activeId: withSessions[0].sessions[0].id });
-      }
+      // 恢复上次选中的会话(持久化在 localStorage),否则选第一个
+      let savedActiveId = "";
+      try { savedActiveId = localStorage.getItem("lxcode:activeId") ?? ""; } catch {}
+      const exists = withSessions.some((p) => p.sessions.some((s) => s.id === savedActiveId && !s.archived));
+      if (exists) set({ activeId: savedActiveId });
+      else if (withSessions[0]?.sessions.length) set({ activeId: withSessions[0].sessions[0].id });
     } catch {
       // 静默失败
     }

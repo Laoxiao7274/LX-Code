@@ -72,7 +72,6 @@ function serializeEvent(event: AgentSessionEvent): unknown {
   // 大部分事件已是 plain 结构,只挑需要的字段,避免循环引用/大对象
   switch (event.type) {
     case "agent_start":
-    case "agent_end":
     case "agent_settled":
     case "turn_start":
     case "turn_end":
@@ -82,6 +81,10 @@ function serializeEvent(event: AgentSessionEvent): unknown {
     case "auto_retry_start":
     case "auto_retry_end":
       return { type: event.type };
+    case "agent_end": {
+      // 传 willRetry:若 true 表示还要重试,前端不应结束
+      return { type: "agent_end", willRetry: (event as { willRetry?: boolean }).willRetry ?? false };
+    }
     case "message_end": {
       // 传 usage(上下文用量统计):message_end 的 message 是 AssistantMessage
       const msg = (event as { message?: { usage?: { input?: number; output?: number; totalTokens?: number } } }).message;
