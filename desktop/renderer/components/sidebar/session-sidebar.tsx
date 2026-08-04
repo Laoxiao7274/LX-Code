@@ -116,7 +116,19 @@ export function SessionSidebar() {
       {/* 项目列表 */}
       <ScrollArea className="flex-1">
         <div className="px-1.5 pb-2 pt-2.5">
-          {projects.map((p) => {
+          {projects.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 px-3 py-12 text-center text-muted-foreground">
+              <Folder className="h-8 w-8 opacity-30" />
+              <div className="text-[12px]">还没有项目</div>
+              <button
+                type="button"
+                onClick={() => void addProject()}
+                className="flex items-center gap-1 rounded-md border border-border/60 px-2.5 py-1 text-[12px] text-foreground transition-colors hover:bg-muted/60"
+              >
+                <FolderPlus className="h-3.5 w-3.5" /> 新建项目
+              </button>
+            </div>
+          ) : projects.map((p) => {
             const collapsed = p.collapsed;
             const visibleSessions = p.sessions.filter((s) => !s.archived);
             return (

@@ -53,43 +53,9 @@ interface SessionListState {
 
 let seed = 0;
 const nextId = () => `s${++seed}`;
-const now = Date.now();
-
-const DEMO_PROJECTS: Project[] = [
-  {
-    id: "lx-code",
-    name: "lx-code",
-    path: "C:/Users/xzy/Desktop/my/lx-code",
-    collapsed: false,
-    sessions: [
-      { id: nextId(), title: "重构认证模块", updatedAt: now - 60_000 },
-      { id: nextId(), title: "修复滚动抖动 bug", updatedAt: now - 3_600_000 },
-      { id: nextId(), title: "调研 pi-core 集成", updatedAt: now - 86_400_000 },
-    ],
-  },
-  {
-    id: "mimo",
-    name: "mimo-server",
-    path: "C:/Users/xzy/Desktop/my/mimo-server",
-    collapsed: true,
-    sessions: [
-      { id: nextId(), title: "部署脚本优化", updatedAt: now - 7_200_000 },
-      { id: nextId(), title: "数据库迁移", updatedAt: now - 172_800_000 },
-    ],
-  },
-  {
-    id: "blog",
-    name: "blog",
-    path: "C:/Users/xzy/Desktop/my/blog",
-    collapsed: true,
-    sessions: [
-      { id: nextId(), title: "新文章草稿", updatedAt: now - 43_200_000 },
-    ],
-  },
-];
 
 export const useSessionStore = create<SessionListState>((set, get) => ({
-  projects: DEMO_PROJECTS,
+  projects: [],
   activeId: "",
 
   create: async (projectId) => {
@@ -187,7 +153,7 @@ export const useSessionStore = create<SessionListState>((set, get) => ({
       const res = await window.lxcode.data.listProjects();
       if (!res.ok) return;
       const projs = res.projects as { id: string; name: string; path: string }[];
-      if (!projs.length) return;
+      if (!projs.length) { set({ projects: [] }); return; }
       // 2. 并行加载每个项目的真实会话(agent.listSessions)
       const withSessions = await Promise.all(
         projs.map(async (p) => {
