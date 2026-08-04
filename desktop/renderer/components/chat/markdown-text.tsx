@@ -1,3 +1,4 @@
+import { memo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "../../lib/utils";
@@ -7,7 +8,7 @@ import { cn } from "../../lib/utils";
  * 支持 GFM:表格/任务列表/删除线/链接。
  * 代码块用终端样式,行内代码用 chip 样式。
  */
-export function MarkdownText({ content, className }: { content: string; className?: string }) {
+export const MarkdownText = memo(function MarkdownText({ content, className }: { content: string; className?: string }) {
   return (
     <div
       className={cn(
@@ -53,4 +54,4 @@ export function MarkdownText({ content, className }: { content: string; classNam
       </ReactMarkdown>
     </div>
   );
-}
+});
