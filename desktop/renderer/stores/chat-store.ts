@@ -268,16 +268,18 @@ function handleAgentEvent(
           ),
         }));
       } else if (ae.type === "toolcall_end") {
-        // 工具调用结束:用完整 toolCall 填补 name/arg
+        // 工具调用结束:用完整 toolCall 填补 name/arg/id(后续 tool_execution 用同 id)
         const tc = ae.toolCall;
-        updateAssistant((m) => ({
-          ...m,
-          parts: (m.parts ?? []).map((p, i) =>
-            p.type === "tool" && i === (m.parts ?? []).length - 1
-              ? { ...p, name: tc?.name ?? p.name, arg: summarizeArgs(tc?.arguments) ?? p.arg }
-              : p,
-          ),
-        }));
+        updateAssistant((m) => {
+          const parts = m.parts ?? [];
+          // 找最后一个 running 且 name 空的占位 tool part(来自 toolcall_start)
+          const idx = [...parts].reverse().findIndex((p) => p.type === "tool" && p.status === "running" && !p.name);
+          if (idx === -1) return m;
+          const realIdx = parts.length - 1 - idx;
+          const tp = parts[realIdx];
+          if (tp.type !== "tool") return m;
+          return { ...m, parts: [...parts.slice(0, realIdx), { ...tp, id: tc?.id ?? tp.id, name: tc?.name ?? tp.name, arg: summarizeArgs(tc?.arguments) ?? tp.arg }, ...parts.slice(realIdx + 1)] };
+        });
       } else if (ae.type === "image") {
         // 图片输出(多模态)
         updateAssistant((m) => ({
@@ -310,19 +312,19 @@ function handleAgentEvent(
       break;
     }
     case "tool_execution_start": {
-      updateAssistant((m) => ({
-        ...m,
-        parts: [
-          ...(m.parts ?? []),
-          {
-            type: "tool",
-            id: event.toolCallId ?? nid(),
-            name: event.toolName ?? "tool",
-            arg: summarizeArgs(event.args),
-            status: "running",
-          },
-        ],
-      }));
+      // 已有同 id 的占位 tool part(toolcall_end 建的)则复用更新,否则新建
+      const existId = event.toolCallId;
+      updateAssistant((m) => {
+        const parts = m.parts ?? [];
+        const idx = parts.findIndex((p) => p.type === "tool" && p.id === existId);
+        if (idx !== -1) {
+          const tp = parts[idx];
+          if (tp.type === "tool") {
+            return { ...m, parts: [...parts.slice(0, idx), { ...tp, name: event.toolName ?? tp.name, arg: summarizeArgs(event.args) ?? tp.arg, status: "running" as ToolStatus }, ...parts.slice(idx + 1)] };
+          }
+        }
+        return { ...m, parts: [...parts, { type: "tool" as const, id: existId ?? nid(), name: event.toolName ?? "tool", arg: summarizeArgs(event.args), status: "running" as ToolStatus }] };
+      });
       break;
     }
     case "tool_execution_end": {
@@ -417,11 +419,12 @@ function handleAgentEvent(
       updateAssistant((m) => ({
         ...m,
         streaming: false,
-        parts: (m.parts ?? []).map((p) =>
-          (p.type === "thinking" || p.type === "text") && p.streaming
-            ? { ...p, streaming: false }
-            : p,
-        ),
+        parts: (m.parts ?? []).map((p) => {
+          if ((p.type === "thinking" || p.type === "text") && p.streaming) return { ...p, streaming: false };
+          // 残留 running 的 tool part(占位未匹配)标记完成
+          if (p.type === "tool" && p.status === "running") return { ...p, status: "ok" as ToolStatus };
+          return p;
+        }),
       }));
       set(() => ({ isGenerating: false }));
       activeStream = null;
