@@ -188,7 +188,15 @@ function handleAgentEvent(
     case "message_update": {
       const ae = event.assistantMessageEvent;
       if (!ae) break;
-      if (ae.type === "text_delta") {
+      if (ae.type === "text_start") {
+        // 新文本块开始:结束上个 thinking part(若有),准备接收 text_delta
+        updateAssistant((m) => ({
+          ...m,
+          parts: (m.parts ?? []).map((p) =>
+            p.type === "thinking" && p.streaming ? { ...p, streaming: false } : p,
+          ),
+        }));
+      } else if (ae.type === "text_delta") {
         updateAssistant((m) => ({
           ...m,
           parts: appendText(m, ae.delta ?? "", "text"),
@@ -242,6 +250,18 @@ function handleAgentEvent(
                 status: event.isError ? "error" : "ok",
                 output: summarizeResult(event.result),
               }
+            : p,
+        ),
+      }));
+      break;
+    }
+    case "message_end": {
+      // 单条消息结束(思考或回复):结束当前 streaming part
+      updateAssistant((m) => ({
+        ...m,
+        parts: (m.parts ?? []).map((p) =>
+          (p.type === "thinking" || p.type === "text") && p.streaming
+            ? { ...p, streaming: false }
             : p,
         ),
       }));

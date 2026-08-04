@@ -76,6 +76,7 @@ function serializeEvent(event: AgentSessionEvent): unknown {
         assistantMessageEvent: {
           type: ae.type,
           delta: "delta" in ae ? ae.delta : undefined,
+          content: "content" in ae ? (ae as { content?: string }).content : undefined,
         },
       };
     }
@@ -111,6 +112,7 @@ function serializeEvent(event: AgentSessionEvent): unknown {
 
 /** 获取或创建某工作目录的 agent 会话(持久化到磁盘)。 */
 export async function getOrCreateSession(sessionId: string | undefined, cwd: string, onEvent: (e: unknown) => void) {
+  console.log("[getOrCreateSession] sessionId=", sessionId, "cwd=", cwd);
   // 按 sessionId 找已缓存的会话(同一项目多个会话互不干扰)
   if (sessionId) {
     const existing = sessions.get(sessionId);
@@ -223,6 +225,7 @@ export async function listSessions(cwd: string): Promise<SessionInfoType[]> {
 
 /** 创建新持久化会话(返回 session id + name,并缓存进 Map)。 */
 export async function createSession(cwd: string, name?: string) {
+  console.log("[createSession] cwd=", cwd, "name=", name);
   // 复用 getOrCreateSession(传 undefined sessionId → 新建)
   // 用空 onEvent,真正发消息时 getOrCreateSession 复用已缓存的 session
   const { sessionId } = await getOrCreateSession(undefined, cwd, () => {});
