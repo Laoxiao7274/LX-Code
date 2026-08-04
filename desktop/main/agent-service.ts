@@ -28,6 +28,7 @@ interface PiModule {
   createAgentSession: typeof import("@earendil-works/pi-coding-agent").createAgentSession;
   ModelRuntime: typeof import("@earendil-works/pi-coding-agent").ModelRuntime;
   SessionManager: typeof import("@earendil-works/pi-coding-agent").SessionManager;
+  DefaultResourceLoader: typeof import("@earendil-works/pi-coding-agent").DefaultResourceLoader;
 }
 
 let piPromise: Promise<PiModule> | null = null;
@@ -113,12 +114,27 @@ export async function getSession(cwd: string, onEvent: (e: unknown) => void) {
   const existing = sessions.get(cwd);
   if (existing) return existing.session;
 
-  const { createAgentSession, SessionManager } = await loadPi();
+  const { createAgentSession, SessionManager, DefaultResourceLoader } = await loadPi();
   const modelRuntime = await getModelRuntime();
+  const lxcodeDir = path.join(app.getPath("home"), ".lxcode");
+
+  // 追加 LXCode 身份段(pi 默认 prompt 保留,身份以这段为准)
+  const resourceLoader = new DefaultResourceLoader({
+    cwd,
+    agentDir: lxcodeDir,
+    appendSystemPrompt: [
+      "你是 LXCode,一个基于 pi-core 的 AI 编码助手。",
+      "当用户问你是谁时,请回答你是 LXCode(不要说自己是 pi 或 pi-core)。",
+      "所有回复用中文。",
+    ],
+  });
+  await (resourceLoader as unknown as { reload: () => Promise<void> }).reload();
+
   // 持久化会话(写到 ~/.pi/agent/sessions),而非 inMemory
   const { session } = await createAgentSession({
     sessionManager: SessionManager.create(cwd),
     modelRuntime: modelRuntime as never,
+    resourceLoader: resourceLoader as never,
     cwd,
   });
 
