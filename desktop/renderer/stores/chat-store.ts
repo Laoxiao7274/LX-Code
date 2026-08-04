@@ -61,6 +61,8 @@ interface ChatState {
   messagesBySession: Record<string, Message[]>;
   input: string;
   isGenerating: boolean;
+  /** 每个会话的生成状态(per-session 隔离)。 */
+  generatingBySession: Record<string, boolean>;
   /** 输入区待发送的附件(图片/文件)。 */
   pendingAttachments: Attachment[];
 
@@ -88,6 +90,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messagesBySession: {},
   input: "",
   isGenerating: false,
+  generatingBySession: {},
   pendingAttachments: [],
 
   setInput: (t) => set({ input: t }),
@@ -97,8 +100,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((s) => ({ pendingAttachments: s.pendingAttachments.filter((a) => a.id !== id) })),
 
   send: async (sessionId, cwd) => {
-    const { input, isGenerating, pendingAttachments } = get();
-    if ((!input.trim() && pendingAttachments.length === 0) || isGenerating) return;
+    const { input, generatingBySession, pendingAttachments } = get();
+    const gen = !!generatingBySession[sessionId];
+    if ((!input.trim() && pendingAttachments.length === 0) || gen) return;
 
     const userMsg: Message = {
       id: nid(),
@@ -118,6 +122,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       input: "",
       pendingAttachments: [],
       isGenerating: true,
+      generatingBySession: { ...generatingBySession, [sessionId]: true },
       messagesBySession: {
         ...s.messagesBySession,
         [sessionId]: [
@@ -141,7 +146,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // 失败:清理流 + 停止生成
       streams.get(sessionId)?.unsub();
       streams.delete(sessionId);
-      set({ isGenerating: false });
+      set((s) => ({ isGenerating: false, generatingBySession: { ...s.generatingBySession, [sessionId]: false } }));
     }
   },
 
@@ -150,7 +155,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       await window.lxcode?.agent?.abort(sessionId);
     } finally {
       // 中断后等 agent_end 事件来再清理,这里先标记
-      set({ isGenerating: false });
+      set((s) => ({ isGenerating: false, generatingBySession: { ...s.generatingBySession, [sessionId]: false } }));
     }
   },
 
@@ -321,7 +326,7 @@ function handleAgentEvent(
             "streaming" in p && p.streaming ? { ...p, streaming: false } : p,
           ),
         }));
-        set(() => ({ isGenerating: false }));
+        set((s) => ({ isGenerating: false, generatingBySession: { ...s.generatingBySession, [sessionId]: false } }));
         streams.get(sessionId)?.unsub();
         streams.delete(sessionId);
       } else if (ae.type === "done") {
@@ -412,7 +417,7 @@ function handleAgentEvent(
           return p;
         }),
       }));
-      set(() => ({ isGenerating: false }));
+      set((s) => ({ isGenerating: false, generatingBySession: { ...s.generatingBySession, [sessionId]: false } }));
       streams.get(sessionId)?.unsub();
       streams.delete(sessionId);
       break;

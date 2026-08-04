@@ -33,7 +33,7 @@ export function ChatMain() {
   const loadHistory = useChatStore((s) => s.loadHistory);
   const messages = allMessages[sessionId] ?? [];
   const input = useChatStore((s) => s.input);
-  const isGenerating = useChatStore((s) => s.isGenerating);
+  const isGenerating = useChatStore((s) => !!s.generatingBySession[sessionId]);
   const setInput = useChatStore((s) => s.setInput);
   const send = useChatStore((s) => s.send);
   const abort = useChatStore((s) => s.abort);
