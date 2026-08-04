@@ -239,3 +239,12 @@ export async function readUseCases(): Promise<UseCaseData[]> {
 export async function writeUseCases(cases: UseCaseData[]): Promise<void> {
   await writeJson(path.join(dataDir(), "usecases.json"), cases);
 }
+
+// ─── 归档的会话 id 列表(持久化归档状态) ────────────
+export async function readArchived(): Promise<string[]> {
+  return readJson<string[]>(path.join(dataDir(), "archived.json"), []);
+}
+
+export async function writeArchived(ids: string[]): Promise<void> {
+  await writeJson(path.join(dataDir(), "archived.json"), ids);
+}

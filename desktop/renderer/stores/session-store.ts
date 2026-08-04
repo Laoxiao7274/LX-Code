@@ -131,14 +131,19 @@ export const useSessionStore = create<SessionListState>((set, get) => ({
       projects: st.projects.map((p) => (p.id === projectId ? { ...p, archived: !p.archived } : p)),
     })),
 
-  archiveSession: (id) =>
+  archiveSession: (id) => {
     set((st) => ({
       projects: st.projects.map((p) => ({
         ...p,
         sessions: p.sessions.map((x) => (x.id === id ? { ...x, archived: !x.archived } : x)),
       })),
       activeId: st.activeId === id ? "" : st.activeId,
-    })),
+    }));
+    // 持久化归档状态
+    const archivedIds: string[] = [];
+    for (const p of get().projects) for (const s of p.sessions) if (s.archived) archivedIds.push(s.id);
+    if (typeof window !== "undefined" && window.lxcode?.data) void window.lxcode.data.writeArchived(archivedIds);
+  },
 
   unarchiveSession: (id) =>
     set((st) => ({
@@ -151,6 +156,12 @@ export const useSessionStore = create<SessionListState>((set, get) => ({
   reloadFromPi: async () => {
     if (typeof window === "undefined" || !window.lxcode?.data || !window.lxcode?.agent) return;
     try {
+      // 0. 读归档的会话 id 列表(持久化归档状态)
+      const archivedIds = new Set<string>();
+      try {
+        const ar = await window.lxcode.data.readArchived();
+        if (ar.ok) for (const id of ar.ids) archivedIds.add(id);
+      } catch { /* 静默 */ }
       // 1. 从 LXCode 自己的 projects.json 读项目列表
       const res = await window.lxcode.data.listProjects();
       if (!res.ok) return;
@@ -163,11 +174,12 @@ export const useSessionStore = create<SessionListState>((set, get) => ({
           try {
             const sr = await window.lxcode!.agent.listSessions(p.path);
             if (sr.ok) {
-              sessions = (sr.sessions as { id: string; name?: string; path?: string }[]).map((s) => ({
+              sessions = (sr.sessions as { id: string; name?: string; path?: string; modified?: string; firstMessage?: string }[]).map((s) => ({
                 id: s.id,
-                title: s.name ?? "未命名会话",
-                updatedAt: 0,
+                title: s.name ?? (s.firstMessage ? s.firstMessage.slice(0, 40) : "未命名会话"),
+                updatedAt: s.modified ? new Date(s.modified).getTime() : Date.now(),
                 path: s.path,
+                archived: archivedIds.has(s.id),
               }));
             }
           } catch {

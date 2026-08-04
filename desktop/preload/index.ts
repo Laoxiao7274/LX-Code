@@ -18,6 +18,8 @@ const dataApi = {
   writeSettings: (settings: unknown) => ipcRenderer.invoke("data:writeSettings", { settings }),
   readUseCases: () => ipcRenderer.invoke("data:readUseCases"),
   writeUseCases: (cases: unknown[]) => ipcRenderer.invoke("data:writeUseCases", { cases }),
+  readArchived: () => ipcRenderer.invoke("data:readArchived"),
+  writeArchived: (ids: string[]) => ipcRenderer.invoke("data:writeArchived", { ids }),
   fetchModels: (baseUrl: string, apiKey: string, api: string) =>
     ipcRenderer.invoke("data:fetchModels", { baseUrl, apiKey, api }),
 };

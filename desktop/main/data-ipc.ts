@@ -13,6 +13,8 @@ import {
   writeSettings,
   readUseCases,
   writeUseCases,
+  readArchived,
+  writeArchived,
   type ProjectData,
   type ModelsConfig,
   type SettingsData,
@@ -87,6 +89,16 @@ export function initDataIpc() {
 
   ipcMain.handle("data:writeUseCases", async (_e, args: { cases: UseCaseData[] }) => {
     await writeUseCases(args.cases);
+    return { ok: true };
+  });
+
+  // 归档的会话 id 列表(持久化)
+  ipcMain.handle("data:readArchived", async () => {
+    return { ok: true, ids: await readArchived() };
+  });
+
+  ipcMain.handle("data:writeArchived", async (_e, args: { ids: string[] }) => {
+    await writeArchived(args.ids);
     return { ok: true };
   });
 
