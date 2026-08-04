@@ -9,7 +9,6 @@ export interface AppSettings {
   showToolDetails: boolean;
   streaming: boolean;
   autoThinking: boolean;
-  showStatusBar: boolean;
   animations: boolean;
 }
 
@@ -21,7 +20,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   showToolDetails: true,
   streaming: true,
   autoThinking: true,
-  showStatusBar: true,
   animations: true,
 };
 

@@ -219,8 +219,6 @@ function SectionContent({ id }: { id: string }) {
           </div>
         </div>
         <Separator className="bg-border/40" />
-        <ToggleRow label="显示状态栏" value={settings.showStatusBar} onChange={(v) => update({ showStatusBar: v })} />
-        <Separator className="bg-border/40" />
         <ToggleRow label="动画效果" desc="启用界面过渡与微交互" value={settings.animations} onChange={(v) => update({ animations: v })} />
       </div>
     );
