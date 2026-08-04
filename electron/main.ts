@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, ipcMain } from "electron";
+import { app, BrowserWindow, shell, ipcMain, Menu } from "electron";
 import path from "node:path";
 import { initAgentIpc, shutdownAgent } from "../desktop/main/index";
 
@@ -50,6 +50,8 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // 彻底去掉应用菜单栏(自定义标题栏已替代)
+  Menu.setApplicationMenu(null);
   initAgentIpc();
 
   // 窗口控制(无边框窗口自定义标题栏用)
