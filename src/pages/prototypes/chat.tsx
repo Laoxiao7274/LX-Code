@@ -101,18 +101,6 @@ export function ChatPrototype() {
 
   return (
     <div ref={rootRef} className="flex h-full flex-col">
-      {/* 顶部状态条 */}
-      <div className="flex items-center gap-2 px-1 pb-3 text-xs text-muted-foreground">
-        {isGenerating ? (
-          <>
-            <span className="signal-dot" aria-hidden />
-            <span>正在生成回复…</span>
-          </>
-        ) : (
-          <span className="opacity-70">{messages.length} 条消息</span>
-        )}
-      </div>
-
       {/* 消息流 */}
       <ScrollArea className="flex-1 rounded-xl border border-border/50 bg-card/30">
         <div className="space-y-4 p-4">
