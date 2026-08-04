@@ -40,6 +40,7 @@ function MenuItem({ icon: Icon, label, onClick, danger }: { icon: typeof Pencil;
 /** 操作菜单(hover ⋯ 触发,点外侧关闭)。 */
 function ActionMenu({ items }: { items: { icon: typeof Pencil; label: string; onClick: () => void; danger?: boolean }[] }) {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -55,13 +56,21 @@ function ActionMenu({ items }: { items: { icon: typeof Pencil; label: string; on
     <div ref={ref} className="relative">
       <button
         type="button"
-        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+        onClick={(e) => {
+          e.stopPropagation();
+          const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+          setPos({ top: r.bottom + 2, left: r.right - 144 });
+          setOpen(!open);
+        }}
         className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/60 transition hover:bg-muted/60 hover:text-foreground"
       >
         <MoreHorizontal className="h-3.5 w-3.5" />
       </button>
       {open ? (
-        <div className="absolute right-0 z-30 mt-1 w-36 rounded-lg border border-border/60 bg-popover p-1 shadow-lg">
+        <div
+          style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 50 }}
+          className="w-36 rounded-lg border border-border/60 bg-popover p-1 shadow-lg"
+        >
           {items.map((it, i) => (
             <MenuItem key={i} {...it} onClick={() => { it.onClick(); setOpen(false); }} />
           ))}

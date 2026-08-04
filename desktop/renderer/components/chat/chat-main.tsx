@@ -64,10 +64,11 @@ export function ChatMain() {
     }
   };
 
-  // 新消息滚到底
+  // 流式回复时持续滚到底(依赖最后一条消息的文本长度,不只消息数量)
+  const lastTextLen = messages.length ? (messages[messages.length - 1].parts ?? []).reduce((n, p) => n + (p.type === "text" || p.type === "thinking" ? (p.text?.length ?? 0) : 0), 0) + (messages[messages.length - 1].text?.length ?? 0) : 0;
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [messages.length]);
+  }, [messages.length, lastTextLen]);
 
   // 选中会话时加载历史消息(首次 + 路径有效)
   useEffect(() => {
