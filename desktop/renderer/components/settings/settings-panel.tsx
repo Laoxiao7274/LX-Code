@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { useSettingsStore } from "../../stores/settings-store";
@@ -319,8 +319,15 @@ export function SettingsPanel() {
 
   const rootRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  // mounted:真正挂载(打开时立刻 true,关闭时播完退出动画才 false)
+  const [mounted, setMounted] = useState(open);
 
-  // 面板打开:淡入 + 轻微缩放(fromTo 明确起止,overwrite 防叠加)
+  // 打开:挂载 + 入场动画
+  useEffect(() => {
+    if (open) setMounted(true);
+  }, [open]);
+
+  // 入场动画(open 变 true)
   useGSAP(
     () => {
       if (!open || !rootRef.current) return;
@@ -330,6 +337,21 @@ export function SettingsPanel() {
     },
     { scope: rootRef, dependencies: [open] },
   );
+
+  // 关闭:播退出动画后卸载(open 变 false)
+  useEffect(() => {
+    if (open || !rootRef.current) return;
+    const card = rootRef.current.querySelector(".sp-card");
+    // 卡片缩放淡出 + 遮罩淡出
+    if (card) gsap.to(card, { opacity: 0, scale: 0.97, y: -6, duration: 0.16, ease: "power2.in", overwrite: true });
+    gsap.to(rootRef.current, {
+      opacity: 0,
+      duration: 0.16,
+      ease: "power2.in",
+      overwrite: true,
+      onComplete: () => setMounted(false),
+    });
+  }, [open]);
 
   // 分类切换:内容淡入上移 + 左条弹出
   useGSAP(
@@ -342,7 +364,7 @@ export function SettingsPanel() {
     { scope: rootRef, dependencies: [active, open] },
   );
 
-  if (!open) return null;
+  if (!mounted) return null;
 
   return (
     <div ref={rootRef} className="sp-overlay absolute inset-0 z-40 flex items-center justify-center rounded-xl bg-background/80 backdrop-blur-sm" onClick={() => setOpen(false)}>
