@@ -208,53 +208,55 @@ export function ChatPrototype() {
           onSelect={(insert) => setInput(insert)}
           onClose={() => setInput(input.replace(/^\/[a-z]*/, ""))}
         />
-        {/* 会话工具条:模型下拉 + 思考等级 + 上下文用量 */}
-        <ChatToolbar />
         <AttachmentView attachments={pending} view="pending" onRemove={removeAttachment} />
-        <div className="flex gap-2">
-          <Input
-            placeholder={isGenerating ? "生成中…" : "输入消息,回车发送"}
-            value={input}
-            disabled={isGenerating}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                send();
-              }
-            }}
-            className="h-10 shadow-sm"
-          />
-          <Button
-            variant="outline"
-            className="h-10 w-10 shrink-0 px-0"
-            onClick={() =>
-              addAttachment({ id: `att${Date.now()}`, kind: "image", name: "截图_20250101.png", url: "#" })
-            }
-            title="添加图片"
-          >
-            <ImageIcon className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            className="h-10 w-10 shrink-0 px-0"
-            onClick={() =>
-              addAttachment({ id: `att${Date.now()}`, kind: "file", name: "requirements.md", size: "4.2 KB" })
-            }
-            title="添加文件"
-          >
-            <FileText className="h-4 w-4" />
-          </Button>
+        <div className="flex items-center gap-2">
+          {/* 一体化输入框:输入 + 内嵌上传按钮 */}
+          <div className="relative flex-1">
+            <Input
+              placeholder={isGenerating ? "生成中…" : "输入消息,回车发送"}
+              value={input}
+              disabled={isGenerating}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  send();
+                }
+              }}
+              className="h-10 shadow-sm"
+            />
+            {/* 内嵌上传按钮组(输入框右侧) */}
+            <div className="absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
+              <button
+                type="button"
+                onClick={() => addAttachment({ id: `att${Date.now()}`, kind: "image", name: "截图.svg", url: "/img/ide-screenshot.svg" })}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+                title="添加图片"
+              >
+                <ImageIcon className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => addAttachment({ id: `att${Date.now()}`, kind: "file", name: "requirements.md", size: "4.2 KB" })}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+                title="添加文件"
+              >
+                <FileText className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
           {isGenerating ? (
-            <Button variant="destructive" className="h-10" onClick={abort}>
+            <Button variant="destructive" className="h-10 shrink-0" onClick={abort}>
               中断
             </Button>
           ) : (
-            <Button className="h-10 px-5 shadow-sm" disabled={!input.trim() && pending.length === 0} onClick={send}>
+            <Button className="h-10 shrink-0 px-5 shadow-sm" disabled={!input.trim() && pending.length === 0} onClick={send}>
               发送
             </Button>
           )}
         </div>
+        {/* 会话工具条:输入框下方,模型/思考/上下文 */}
+        <ChatToolbar />
       </div>
 
       {/* 图片放大预览 */}
