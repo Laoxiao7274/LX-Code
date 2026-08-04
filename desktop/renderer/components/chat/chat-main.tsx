@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { ScrollArea } from "../../components/ui/scroll-area";
-import { Input } from "../../components/ui/input";
-import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { cn } from "../../lib/utils";
 import { useChatStore } from "../../stores/chat-store";
@@ -42,6 +40,14 @@ export function ChatMain() {
   const removeAttachment = useChatStore((s) => s.removeAttachment);
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  const taRef = useRef<HTMLTextAreaElement>(null);
+  // textarea 自动增高(按内容)
+  useEffect(() => {
+    const ta = taRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = Math.min(ta.scrollHeight, 160) + "px";
+  }, [input]);
   const [lightbox, setLightbox] = useState<Attachment | null>(null);
 
   // 斜杠命令:输入以 / 开头且非生成中时显示
@@ -118,11 +124,12 @@ export function ChatMain() {
           <AttachmentView attachments={pending} view="pending" onRemove={removeAttachment} />
         </div>
 
-        {/* 输入框 + 内嵌上传按钮 + 发送 */}
-        <div className="mx-auto flex max-w-3xl items-center gap-2">
-          <div className="relative flex-1">
-            <Input
-              placeholder={isGenerating ? "生成中…" : "输入消息,回车发送(/ 唤出命令)"}
+        {/* Codex 风格输入区:圆角卡片,多行 textarea + 底部按钮行 */}
+        <div className="mx-auto max-w-3xl">
+          <div className="rounded-2xl border border-border/60 bg-card shadow-sm focus-within:border-accent/40 transition-colors">
+            <textarea
+              ref={taRef}
+              placeholder={isGenerating ? "生成中…" : "输入消息,回车发送(Shift+Enter 换行,/ 唤出命令)"}
               value={input}
               disabled={isGenerating}
               onChange={(e) => setInput(e.target.value)}
@@ -132,41 +139,46 @@ export function ChatMain() {
                   void send(sessionId, cwd);
                 }
               }}
-              className="h-10 shadow-sm"
+              rows={1}
+              className="block max-h-40 min-h-[44px] w-full resize-none bg-transparent px-3.5 py-3 text-[13px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/60 disabled:opacity-60"
+              style={{ height: "auto" }}
             />
-            {/* 内嵌上传按钮组(输入框右侧) */}
-            <div className="absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
-              <button
-                type="button"
-                onClick={selectAndAdd}
-                className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
-                title="添加图片"
-              >
-                <ImageIcon className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={selectAndAdd}
-                className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
-                title="添加文件"
-              >
-                <FileText className="h-4 w-4" />
-              </button>
+            {/* 底部按钮行:左侧上传,右侧发送/中断 */}
+            <div className="flex items-center justify-between px-2 pb-2">
+              <div className="flex items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={selectAndAdd}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  title="添加图片"
+                >
+                  <ImageIcon className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={selectAndAdd}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  title="添加文件"
+                >
+                  <FileText className="h-4 w-4" />
+                </button>
+              </div>
+              {isGenerating ? (
+                <button
+                  type="button"
+                  onClick={() => void abort(sessionId)}
+                  className="flex h-7 items-center gap-1 rounded-lg bg-destructive px-3 text-[12px] font-medium text-destructive-foreground transition-opacity hover:opacity-90"
+                >中断</button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={!input.trim() && pending.length === 0}
+                  onClick={() => void send(sessionId, cwd)}
+                  className="flex h-7 items-center gap-1 rounded-lg bg-accent px-3 text-[12px] font-medium text-accent-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+                >发送 ↵</button>
+              )}
             </div>
           </div>
-          {isGenerating ? (
-            <Button variant="destructive" className="h-10 shrink-0" onClick={() => void abort(sessionId)}>
-              中断
-            </Button>
-          ) : (
-            <Button
-              className="h-10 shrink-0 px-5 shadow-sm"
-              disabled={!input.trim() && pending.length === 0}
-              onClick={() => void send(sessionId, cwd)}
-            >
-              发送
-            </Button>
-          )}
         </div>
 
         {/* 会话工具条:输入框下方,模型/思考/上下文 */}
