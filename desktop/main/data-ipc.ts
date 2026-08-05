@@ -22,6 +22,7 @@ import {
 } from "./data-store";
 import path from "node:path";
 import fs from "node:fs/promises";
+import { getCodegraphStatus, indexProjectCodegraph } from "./codegraph";
 export function initDataIpc() {
   // 确保数据目录
   ensureDataDir().catch(console.error);
@@ -132,6 +133,30 @@ export function initDataIpc() {
       return { ok: true, models };
     } catch (e) {
       return { ok: false, error: String(e) };
+    }
+  });
+
+  // ─── codegraph 索引(纯后端,加项目时触发 + 查状态) ──────────
+
+  // 查某项目索引状态(不建索引,只读)
+  ipcMain.handle("data:codegraphStatus", async (_e, args: { path: string }) => {
+    if (!args?.path) return { ok: false, error: "缺 path" };
+    try {
+      const status = await getCodegraphStatus(args.path);
+      return { ok: true, status };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  });
+
+  // 触发/重建某项目索引(加项目时调,后台不阻塞对话)
+  ipcMain.handle("data:codegraphIndex", async (_e, args: { path: string }) => {
+    if (!args?.path) return { ok: false, error: "缺 path" };
+    try {
+      const r = await indexProjectCodegraph(args.path);
+      return { ok: r.ok, message: r.message };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
     }
   });
 }

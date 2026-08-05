@@ -220,6 +220,8 @@ export const useSessionStore = create<SessionListState>((set, get) => ({
       // 持久化到 ~/.lxcode/projects.json
       const all = get().projects.map((p) => ({ id: p.id, name: p.name, path: p.path, createdAt: Date.now(), lastUsedAt: Date.now() }));
       void window.lxcode.data.saveProjects(all);
+      // 加项目后后台先建 codegraph 索引(不阻塞,失败静默)
+      void window.lxcode.data.codegraphIndex(path).catch(() => {});
     } catch {
       // 静默失败
     }

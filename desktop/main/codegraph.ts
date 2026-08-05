@@ -74,6 +74,101 @@ export function isCodegraphIndexed(cwd: string): boolean {
   return cgIsInitialized(cwd);
 }
 
+/** 索引状态摘要(给前端/IPC 看)。 */
+export interface CodegraphStatus {
+  /** 是否已建索引。 */
+  initialized: boolean;
+  /** 索引完整度: complete=完整, indexing=建中/被中断, partial=部分, failed=失败, null=无。 */
+  state: "indexing" | "complete" | "partial" | "failed" | null;
+  /** 节点数。 */
+  nodeCount: number;
+  /** 边数。 */
+  edgeCount: number;
+  /** 已索引文件数。 */
+  fileCount: number;
+  /** 上次索引时间(ms),null=无。 */
+  lastIndexedAt: number | null;
+}
+
+/** 查某项目的索引状态(不建索引,只读)。未索引返回 initialized:false。 */
+export async function getCodegraphStatus(cwd: string): Promise<CodegraphStatus> {
+  if (!cgIsInitialized(cwd)) {
+    return { initialized: false, state: null, nodeCount: 0, edgeCount: 0, fileCount: 0, lastIndexedAt: null };
+  }
+  try {
+    const cg = await getInstance(cwd);
+    const stats = cg.getStats();
+    return {
+      initialized: true,
+      state: cg.getIndexState(),
+      nodeCount: stats.nodeCount,
+      edgeCount: stats.edgeCount,
+      fileCount: stats.fileCount,
+      lastIndexedAt: cg.getLastIndexedAt(),
+    };
+  } catch (e) {
+    return { initialized: false, state: "failed", nodeCount: 0, edgeCount: 0, fileCount: 0, lastIndexedAt: null };
+  }
+}
+
+/**
+ * 常见第三方/生成目录,默认不索引(治本 litellm 这类第三方库偏移)。
+ * gitignore 风格,匹配项目根相对路径。
+ */
+const DEFAULT_EXCLUDE = [
+  "**/node_modules/**",
+  "**/.venv/**",
+  "**/venv/**",
+  "**/site-packages/**",
+  "**/__pycache__/**",
+  "**/dist/**",
+  "**/build/**",
+  "**/.git/**",
+  "**/.next/**",
+  "**/.cache/**",
+];
+
+/**
+ * 首次索引前自动生成 codegraph.json 排除常见第三方目录(治本第三方库偏移)。
+ * 已存在且有效的 codegraph.json 不覆盖(尊重用户自定义);空/无效的会被覆盖。
+ * 返回是否写了新文件。
+ */
+export async function ensureCodegraphConfig(cwd: string): Promise<boolean> {
+  const fs = await import("node:fs/promises");
+  const configPath = `${cwd}/codegraph.json`;
+  try {
+    const txt = await fs.readFile(configPath, "utf8");
+    // 已存在且是有效 JSON:不覆盖
+    try { JSON.parse(txt); return false; } catch { /* 无效,继续覆盖 */ }
+  } catch {
+    // 不存在,继续写
+  }
+  try {
+    await fs.writeFile(configPath, JSON.stringify({ exclude: DEFAULT_EXCLUDE }, null, 2) + "\n", "utf8");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** 索引项目(首次 init / 重建 index)。加项目时调。返回状态摘要。 */
+export async function indexProjectCodegraph(cwd: string): Promise<{ ok: boolean; message: string }> {
+  try {
+    // 首次索引前确保排除配置(治本第三方库偏移)
+    await ensureCodegraphConfig(cwd);
+    // 强制重建:关旧实例,删 .codegraph,重新 init(index:true 真扫文件)
+    closeCodegraph(cwd);
+    const fs = await import("node:fs/promises");
+    try { await fs.rm(`${cwd}/.codegraph`, { recursive: true, force: true }); } catch { /* 可能不存在 */ }
+    const cg = await CodeGraph.init(cwd, { index: true });
+    try { cg.watch(); } catch { /* watch 失败不致命 */ }
+    instances.set(cwd, cg);
+    return { ok: true, message: "索引完成" };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 /** 确保某项目已索引(后台,会话开始时调)。返回状态摘要。 */
 export async function ensureCodegraphIndexed(cwd: string): Promise<{ ok: boolean; message: string }> {
   try {

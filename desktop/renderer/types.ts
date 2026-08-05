@@ -28,6 +28,9 @@ export interface LxcodeAPI {
     readArchived: () => Promise<{ ok: boolean; ids: string[] }>;
     writeArchived: (ids: string[]) => Promise<{ ok: boolean }>;
     fetchModels: (baseUrl: string, apiKey: string, api: string) => Promise<{ ok: boolean; models?: { id: string; name: string }[]; error?: string }>;
+    // codegraph 索引(纯后端)
+    codegraphStatus: (path: string) => Promise<{ ok: boolean; status?: unknown; error?: string }>;
+    codegraphIndex: (path: string) => Promise<{ ok: boolean; message?: string; error?: string }>;
   };
   win: {
     minimize: () => Promise<void>;

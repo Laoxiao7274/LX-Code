@@ -22,6 +22,9 @@ const dataApi = {
   writeArchived: (ids: string[]) => ipcRenderer.invoke("data:writeArchived", { ids }),
   fetchModels: (baseUrl: string, apiKey: string, api: string) =>
     ipcRenderer.invoke("data:fetchModels", { baseUrl, apiKey, api }),
+  // codegraph 索引(纯后端):查状态、触发/重建索引
+  codegraphStatus: (path: string) => ipcRenderer.invoke("data:codegraphStatus", { path }),
+  codegraphIndex: (path: string) => ipcRenderer.invoke("data:codegraphIndex", { path }),
 };
 
 const agentApi = {
