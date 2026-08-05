@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { ScrollArea } from "../ui/scroll-area";
@@ -96,11 +96,19 @@ function FunctionCard({ fn }: { fn: FunctionSummary }) {
   );
 }
 
-/** 单个文件的函数组(折叠)。 */
+/** 函数 level 优先级(排序用)。 */
+const LEVEL_ORDER: Record<string, number> = { core: 0, util: 1, ui: 2, glue: 3 };
+
+/** 单个文件的函数组(默认折叠,函数按重要性排序+限量)。 */
 function FileGroup({ file, fns }: { file: string; fns: FunctionSummary[] }) {
   const coreCount = fns.filter((f) => f.level === "core").length;
+  // 按重要性排序:core > util > ui > glue,同级按行号
+  const sorted = [...fns].sort((a, b) => LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level] || a.startLine - b.startLine);
+  // 默认只显示前 8 个,多的折叠在'更多'
+  const visible = sorted.slice(0, 8);
+  const rest = sorted.slice(8);
   return (
-    <details className="group rounded-md border border-border/40" open={coreCount > 0}>
+    <details className="group rounded-md border border-border/40">
       <summary className="flex w-full cursor-pointer list-none items-center gap-1.5 px-2.5 py-1.5 hover:bg-muted/30">
         <ChevronRight className="h-3 w-3 text-muted-foreground group-open:rotate-90 group-open:transition-transform" />
         <FileCode2 className="h-3 w-3 text-muted-foreground" />
@@ -110,7 +118,18 @@ function FileGroup({ file, fns }: { file: string; fns: FunctionSummary[] }) {
         </span>
       </summary>
       <div className="space-y-1 border-t border-border/40 p-1.5">
-        {fns.map((f) => <FunctionCard key={f.fn} fn={f} />)}
+        {visible.map((f) => <FunctionCard key={f.fn} fn={f} />)}
+        {rest.length > 0 ? (
+          <details className="group/rest rounded border border-border/30 bg-muted/20">
+            <summary className="flex cursor-pointer list-none items-center gap-1 px-2 py-1 text-[10.5px] text-muted-foreground hover:bg-muted/40">
+              <ChevronRight className="h-2.5 w-2.5 group-rest:open:rotate-90" />
+              还有 {rest.length} 个函数
+            </summary>
+            <div className="space-y-1 border-t border-border/30 p-1.5">
+              {rest.map((f) => <FunctionCard key={f.fn} fn={f} />)}
+            </div>
+          </details>
+        ) : null}
       </div>
     </details>
   );
@@ -128,6 +147,7 @@ export function DigestView({ cwd }: { cwd: string }) {
   const refresh = useDigestStore((s) => s.refresh);
   const reload = useDigestStore((s) => s.reload);
   const curCwd = useDigestStore((s) => s.cwd);
+  const [search, setSearch] = useState("");
 
   // 切换项目时重新加载
   useEffect(() => {
@@ -140,6 +160,20 @@ export function DigestView({ cwd }: { cwd: string }) {
   }, [cwd, curCwd, digest, loading, reload]);
 
   const fnCount = digest ? Object.values(digest.functions).reduce((n, fns) => n + fns.length, 0) : 0;
+
+  // 函数清单:搜索过滤 + 按 core 函数数排序 + 限量(防大项目卡顿)
+  const allFiles = digest ? Object.entries(digest.functions).filter(([, fns]) => fns.length > 0) : [];
+  const q = search.trim().toLowerCase();
+  const matched = q
+    ? allFiles.filter(([file, fns]) =>
+        file.toLowerCase().includes(q) || fns.some((f) => f.fn.toLowerCase().includes(q) || (f.what ?? "").toLowerCase().includes(q)),
+      )
+    : allFiles.sort((a, b) => {
+        const ca = a[1].filter((f) => f.level === "core").length;
+        const cb = b[1].filter((f) => f.level === "core").length;
+        return cb - ca;
+      });
+  const filteredFiles = q ? matched : matched.slice(0, 30);
 
   return (
     <div className="flex h-full flex-col">
@@ -208,15 +242,29 @@ export function DigestView({ cwd }: { cwd: string }) {
                 </div>
               </section>
 
-              {/* ② 函数清单(按文件折叠) */}
+              {/* ② 函数清单(按文件折叠,搜索过滤+限量) */}
               <section>
-                <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-                  函数级摘要
+                <div className="mb-1.5 flex items-center gap-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                    函数级摘要
+                  </span>
                 </div>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="搜索文件或函数…"
+                  className="mb-2 w-full rounded border border-border/40 bg-background/60 px-2 py-1 text-[11px] outline-none placeholder:text-muted-foreground/50 focus:border-accent/40"
+                />
                 <div className="space-y-1">
-                  {Object.entries(digest.functions).map(([file, fns]) =>
+                  {filteredFiles.map(([file, fns]) =>
                     fns.length > 0 ? <FileGroup key={file} file={file} fns={fns} /> : null,
                   )}
+                  {filteredFiles.length === 0 ? (
+                    <div className="py-4 text-center text-[11px] text-muted-foreground/60">
+                      {search ? `无匹配“${search}”` : "无函数"}
+                    </div>
+                  ) : null}
                 </div>
               </section>
             </div>

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import type { PanelImperativeHandle } from "react-resizable-panels";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -16,12 +17,19 @@ type SideTab = "map" | "files" | "plan";
 
 /**
  * 对话页右侧折叠面板(Tab:项目地图/文件/任务规划)。
- * 对齐原型 coding-view:展开是 Tab 栏 + 内容,折叠是图标竖栏。
- * 项目地图 Tab 接真实 digest;文件/任务规划暂占位(后续接入)。
+ * 用 collapsible + panelRef 控制折叠(和左侧侧栏一致机制),拖拽自动折叠/展开。
  */
 export function RightPanel({ children }: { children: React.ReactNode }) {
-  const [open, setOpen] = useState(true);
+  const panelRef = useRef<PanelImperativeHandle>(null);
+  const [collapsed, setCollapsed] = useState(false);
   const [tab, setTab] = useState<SideTab>("map");
+
+  const toggle = () => {
+    const ref = panelRef.current;
+    if (!ref) return;
+    if (collapsed) ref.expand();
+    else ref.collapse();
+  };
 
   // 当前会话所属项目 cwd(给 digest 用)
   const projects = useSessionStore((s) => s.projects);
@@ -40,14 +48,51 @@ export function RightPanel({ children }: { children: React.ReactNode }) {
   return (
     <ResizablePanelGroup orientation="horizontal" className="h-full">
       {/* 左:对话主体 */}
-      <ResizablePanel defaultSize={open ? "76" : "96"} minSize="50">
+      <ResizablePanel defaultSize="76" minSize="50">
         {children}
       </ResizablePanel>
 
       {/* 右:折叠面板 */}
       <ResizableHandle withHandle />
-      <ResizablePanel defaultSize={open ? "24" : "4"} minSize={open ? "16" : "4"} maxSize="34">
-        {open ? (
+      <ResizablePanel
+        panelRef={panelRef}
+        defaultSize="24"
+        minSize="16"
+        maxSize="34"
+        collapsible
+        collapsedSize="4"
+        onResize={() => {
+          setCollapsed(!!panelRef.current?.isCollapsed());
+        }}
+      >
+        {collapsed ? (
+          // 折叠态:图标竖栏
+          <div className="flex h-full flex-col items-center gap-1 border-l border-border/60 bg-muted/20 py-1.5">
+            {tabs.map((t) => {
+              const Icon = t.Icon;
+              return (
+                <Button
+                  key={t.id}
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    "h-7 w-7 hover:bg-muted",
+                    tab === t.id ? "text-accent" : "text-muted-foreground",
+                  )}
+                  onClick={() => { setTab(t.id); toggle(); }}
+                  title={t.label}
+                >
+                  <Icon className="h-4 w-4" />
+                </Button>
+              );
+            })}
+            <div className="mt-auto">
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:bg-muted" onClick={toggle} title="展开侧栏">
+                <PanelRightOpen className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        ) : (
           <div className="flex h-full flex-col border-l border-border/60 bg-muted/15">
             {/* Tab 栏 */}
             <div className="flex h-8 shrink-0 items-center gap-0.5 border-b border-border/60 bg-muted/20 px-1.5">
@@ -70,7 +115,7 @@ export function RightPanel({ children }: { children: React.ReactNode }) {
                 );
               })}
               <div className="flex-1" />
-              <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground" onClick={() => setOpen(false)} title="收起侧栏">
+              <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground" onClick={toggle} title="收起侧栏">
                 <PanelRightClose className="h-3.5 w-3.5" />
               </Button>
             </div>
@@ -91,30 +136,6 @@ export function RightPanel({ children }: { children: React.ReactNode }) {
                   任务规划(待接入)
                 </div>
               )}
-            </div>
-          </div>
-        ) : (
-          // 折叠态:图标竖栏
-          <div className="flex h-full flex-col items-center gap-1 border-l border-border/60 bg-muted/20 py-1.5">
-            {tabs.map((t) => {
-              const Icon = t.Icon;
-              return (
-                <Button
-                  key={t.id}
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:bg-muted"
-                  onClick={() => { setOpen(true); setTab(t.id); }}
-                  title={t.label}
-                >
-                  <Icon className="h-4 w-4" />
-                </Button>
-              );
-            })}
-            <div className="mt-auto">
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:bg-muted" onClick={() => setOpen(true)} title="展开侧栏">
-                <PanelRightOpen className="h-4 w-4" />
-              </Button>
             </div>
           </div>
         )}

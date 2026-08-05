@@ -50,10 +50,9 @@ export function AppShell() {
             maxSize="28"
             collapsible
             collapsedSize="4"
-            onResize={(size) => {
-              // size.percentage <= collapsedSize 视为折叠(同步给 SessionSidebar 渲染)
-              const pct = typeof size.percentage === "number" ? size.percentage : 0;
-              setLeftCollapsed(pct <= 5);
+            onResize={() => {
+              // 用 isCollapsed() 准确判断折叠状态(避免百分比阈值抖动)
+              setLeftCollapsed(!!leftPanelRef.current?.isCollapsed());
             }}
           >
             <SessionSidebar collapsed={leftCollapsed} onToggleCollapse={toggleLeft} />
