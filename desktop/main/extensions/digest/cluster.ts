@@ -1,159 +1,167 @@
 /**
- * 功能聚类 —— 标签传播算法(Label Propagation),纯 JS,不引库。
+ * 功能聚类 —— 文件级标签传播(对齐 Glue 的文件聚类做法)。
  *
- * 用 calls/calledBy 关系建无向图,把互相调用的函数聚成功能簇。
- * 比连通分量好:会切大簇(入口函数能调到所有,连通分量会聚成一个巨型);
- * 比 Leiden 简单:几十行,无需图数据库,效果接近。
+ * 节点=文件,边=文件间依赖(import + 跨文件函数调用)。
+ * 文件依赖图比函数调用图稳定,聚成 20-40 个功能簇(不像函数级聚出 178 碎簇)。
  *
- * 参考:pi-code-graph 用 Leiden(图数据库),fallback 按目录;我们用标签传播。
- * minSize<2 的碎簇归"其他"(对齐 pi-code-graph minSize=2 共识)。
+ * 参考 Glue:Louvain 聚 4000 文件成 23 功能;我们用标签传播(纯JS,效果接近)。
+ * 命名:启发式(入口文件名+高频术语→中文),LLM 只给大簇命名(降成本)。
  */
 
-/** 一个函数节点(全局唯一标识 = file:fn)。 */
-export interface FnNode {
-  /** 唯一 id: `${file}:${fn}`。 */
-  id: string;
+/** 一个文件节点。 */
+export interface FileNode {
   file: string;
-  fn: string;
-  level: "core" | "util" | "ui" | "glue";
-  /** 被调用次数(全局,用于选簇种子)。 */
+  /** 被多少文件依赖(import/调用),用于选簇种子。 */
   inDegree: number;
 }
 
-/** 一个功能簇。 */
-export interface FeatureCluster {
-  /** 簇 id(标签传播收敛后的标签)。 */
-  id: string;
-  /** 簇名(LLM 生成,如"会话管理";无 LLM 时用种子函数名)。 */
-  name: string;
-  /** 簇内函数。 */
-  members: FnNode[];
-  /** 内聚度 = 簇内调用数 / 函数数(越高越内聚)。 */
-  cohesion: number;
+/** 文件间依赖边(fileA 依赖 fileB)。 */
+export interface FileEdge {
+  from: string;
+  to: string;
+  /** 边权重:import=1.0, 跨文件调用=0.8。 */
+  weight: number;
 }
 
-/** 大簇拆分阈值。 */
-const MAX_CLUSTER_SIZE = 20;
+/** 一个功能簇(按文件聚类)。 */
+export interface FeatureCluster {
+  id: string;
+  name: string;
+  /** 簇内文件。 */
+  files: string[];
+  /** 簇内函数(从 files 展开,由调用方填充)。 */
+  members: { file: string; fn: string }[];
+  cohesion: number;
+  what?: string;
+}
+
 /** 小簇归"其他"阈值。 */
 const MIN_CLUSTER_SIZE = 2;
 
-/** 标签传播聚类。输入函数节点 + 调用边(calls),输出功能簇。 */
-export function clusterByCallGraph(
-  nodes: FnNode[],
-  /** 调用边:from 调用 to(from/to 都是 fn 名,非 file:fn)。 */
-  callEdges: Array<{ from: FnNode; to: FnNode }>,
+/** 文件级标签传播聚类。 */
+export function clusterByFiles(
+  files: FileNode[],
+  edges: FileEdge[],
+  /** 文件→该文件的函数名列表(用于展开簇成员)。 */
+  fnsByFile: Record<string, string[]>,
 ): FeatureCluster[] {
-  // 1. 建邻接表(无向图:from-to 互连)
-  const adj = new Map<string, Set<string>>();
-  for (const n of nodes) adj.set(n.id, new Set());
-  for (const e of callEdges) {
-    adj.get(e.from.id)?.add(e.to.id);
-    adj.get(e.to.id)?.add(e.from.id);
+  // 1. 建邻接表(无向,带权重)
+  const adj = new Map<string, Map<string, number>>();
+  for (const f of files) adj.set(f.file, new Map());
+  for (const e of edges) {
+    if (e.from === e.to) continue;
+    const a = adj.get(e.from);
+    const b = adj.get(e.to);
+    if (a) a.set(e.to, (a.get(e.to) ?? 0) + e.weight);
+    if (b) b.set(e.from, (b.get(e.from) ?? 0) + e.weight);
   }
 
-  // 2. 标签传播:初始标签=节点自身 id,迭代取邻居最多标签
+  // 2. 标签传播
   let labels = new Map<string, string>();
-  for (const n of nodes) labels.set(n.id, n.id);
-  const nodeById = new Map(nodes.map((n) => [n.id, n]));
-
-  const MAX_ITER = 10;
+  for (const f of files) labels.set(f.file, f.file);
+  const MAX_ITER = 15;
   for (let iter = 0; iter < MAX_ITER; iter++) {
     let changed = false;
-    // 随机顺序遍历(用 id 哈希扰动,避免顺序偏差)
     const order = [...labels.keys()].sort(() => Math.random() - 0.5);
     for (const id of order) {
       const neighbors = adj.get(id);
       if (!neighbors || neighbors.size === 0) continue;
-      // 统计邻居标签出现次数
+      // 加权统计邻居标签
       const counts = new Map<string, number>();
-      for (const nb of neighbors) {
+      for (const [nb, w] of neighbors) {
         const l = labels.get(nb);
-        if (l) counts.set(l, (counts.get(l) ?? 0) + 1);
+        if (l) counts.set(l, (counts.get(l) ?? 0) + w);
       }
       if (counts.size === 0) continue;
-      // 取最多(平局取标签字符串最小,保证确定收敛)
       let best = "";
-      let bestCount = -1;
-      for (const [l, c] of counts) {
-        if (c > bestCount || (c === bestCount && l < best)) {
-          best = l;
-          bestCount = c;
-        }
+      let bestW = -1;
+      for (const [l, w] of counts) {
+        if (w > bestW || (w === bestW && l < best)) { best = l; bestW = w; }
       }
-      if (best && labels.get(id) !== best) {
-        labels.set(id, best);
-        changed = true;
-      }
+      if (best && labels.get(id) !== best) { labels.set(id, best); changed = true; }
     }
     if (!changed) break;
   }
 
-  // 3. 按标签分组
-  const groups = new Map<string, FnNode[]>();
-  for (const [id, label] of labels) {
-    const n = nodeById.get(id);
-    if (!n) continue;
+  // 3. 按标签分组文件
+  const groups = new Map<string, string[]>();
+  for (const [file, label] of labels) {
     let arr = groups.get(label);
-    if (!arr) {
-      arr = [];
-      groups.set(label, arr);
-    }
-    arr.push(n);
+    if (!arr) { arr = []; groups.set(label, arr); }
+    arr.push(file);
   }
 
-  // 4. 后处理:大簇拆分、小簇归"其他"、算 cohesion
+  // 4. 构造簇 + 小簇归"其他" + 启发式命名
+  const fileInDegree = new Map(files.map((f) => [f.file, f.inDegree]));
   const clusters: FeatureCluster[] = [];
-  const leftovers: FnNode[] = [];
+  const leftovers: string[] = [];
 
-  for (const [label, members] of groups) {
-    if (members.length < MIN_CLUSTER_SIZE) {
-      leftovers.push(...members);
+  for (const [label, fileList] of groups) {
+    if (fileList.length < MIN_CLUSTER_SIZE) {
+      leftovers.push(...fileList);
       continue;
     }
-    if (members.length > MAX_CLUSTER_SIZE) {
-      // 大簇按 level 拆:core 一组,其余一组
-      const coreGrp = members.filter((m) => m.level === "core");
-      const otherGrp = members.filter((m) => m.level !== "core");
-      if (coreGrp.length >= MIN_CLUSTER_SIZE) clusters.push(makeCluster(`${label}:core`, coreGrp, callEdges));
-      else leftovers.push(...coreGrp);
-      if (otherGrp.length >= MIN_CLUSTER_SIZE) clusters.push(makeCluster(`${label}:other`, otherGrp, callEdges));
-      else leftovers.push(...otherGrp);
+    // 大簇(>8文件)按一级目录二次拆分,避免 UI 组件密集互连聚成巨型簇
+    if (fileList.length > 8) {
+      const byDir = new Map<string, string[]>();
+      for (const file of fileList) {
+        const dir = file.includes("/") ? file.split("/")[0] : "(root)";
+        if (!byDir.has(dir)) byDir.set(dir, []);
+        byDir.get(dir)!.push(file);
+      }
+      for (const [dir, dirFiles] of byDir) {
+        if (dirFiles.length >= MIN_CLUSTER_SIZE) {
+          clusters.push(makeFileCluster(`${label}:${dir}`, dirFiles, edges, fnsByFile, fileInDegree));
+        } else {
+          leftovers.push(...dirFiles);
+        }
+      }
     } else {
-      clusters.push(makeCluster(label, members, callEdges));
+      clusters.push(makeFileCluster(label, fileList, edges, fnsByFile, fileInDegree));
     }
   }
-
-  // 碎簇归"其他"
   if (leftovers.length > 0) {
-    clusters.push(makeCluster("__other__", leftovers, callEdges));
+    const c = makeFileCluster("__other__", leftovers, edges, fnsByFile, fileInDegree);
+    c.name = "其他功能";
+    clusters.push(c);
   }
 
-  // 5. 簇名:无 LLM 时用更白话的兑底(核心函数的 what 或 '含 N 个函数')
-  for (const c of clusters) {
-    if (c.id === "__other__") {
-      c.name = "其他函数";
-      continue;
-    }
-    const seed = [...c.members].sort((a, b) => b.inDegree - a.inDegree)[0];
-    c.name = seed ? `${seed.fn} 相关功能` : `功能组(${c.members.length})`;
-  }
-
-  // 按成员数降序
-  clusters.sort((a, b) => b.members.length - a.members.length);
+  clusters.sort((a, b) => b.files.length - a.files.length);
   return clusters;
 }
 
-/** 算一个簇的内聚度 = 簇内调用边数 / 成员数。 */
-function makeCluster(id: string, members: FnNode[], callEdges: Array<{ from: FnNode; to: FnNode }>): FeatureCluster {
-  const memberIds = new Set(members.map((m) => m.id));
-  let internal = 0;
-  for (const e of callEdges) {
-    if (memberIds.has(e.from.id) && memberIds.has(e.to.id)) internal++;
+/** 构造一个文件簇 + 启发式命名。 */
+function makeFileCluster(
+  id: string,
+  fileList: string[],
+  edges: FileEdge[],
+  fnsByFile: Record<string, string[]>,
+  fileInDegree: Map<string, number>,
+): FeatureCluster {
+  const fileSet = new Set(fileList);
+  // 簇内函数
+  const members: { file: string; fn: string }[] = [];
+  for (const file of fileList) {
+    for (const fn of fnsByFile[file] ?? []) members.push({ file, fn });
   }
-  return {
-    id,
-    name: "",
-    members,
-    cohesion: members.length > 0 ? internal / members.length : 0,
-  };
+  // 内聚度 = 簇内边权重和 / 文件数
+  let internalW = 0;
+  for (const e of edges) {
+    if (fileSet.has(e.from) && fileSet.has(e.to)) internalW += e.weight;
+  }
+  const cohesion = fileList.length > 0 ? internalW / fileList.length : 0;
+
+  // 启发式命名:入口文件(被依赖最多)+ 高频文件名术语
+  let name = "";
+  if (id !== "__other__") {
+    const entry = [...fileList].sort((a, b) => (fileInDegree.get(b) ?? 0) - (fileInDegree.get(a) ?? 0))[0];
+    name = entry ? baseName(entry) : "功能组";
+  }
+  return { id, name, files: fileList, members, cohesion };
+}
+
+/** 取文件名(去扩展名/路径),如 desktop/main/agent-service.ts -> agent-service。 */
+function baseName(file: string): string {
+  const f = file.split("/").pop() ?? file;
+  return f.replace(/\.\w+$/, "");
 }

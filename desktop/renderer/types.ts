@@ -66,6 +66,7 @@ export interface DigestFile {
 /** 功能簇(像 IDE 大纲按功能分组)。 */
 export interface FeatureCluster {
   name: string;
+  files: string[];
   members: { file: string; fn: string }[];
   cohesion: number;
   what?: string;

@@ -34,11 +34,13 @@ export interface DigestFile {
 
 /** 功能簇(按调用关系聚类,像 IDE 大纲按功能分组)。 */
 export interface FeatureCluster {
-  /** 簇名(LLM 生成,如"会话管理";无 LLM 用核心函数名)。 */
+  /** 簇名(LLM 生成,如"会话管理";无 LLM 用入口文件名)。 */
   name: string;
-  /** 簇内函数(可能跨文件)。 */
+  /** 簇内文件(聚类单位)。 */
+  files: string[];
+  /** 簇内函数(从 files 展开,可能跨文件)。 */
   members: { file: string; fn: string }[];
-  /** 内聚度(簇内调用数/函数数),越高越内聚。 */
+  /** 内聚度(簇内边权重和/文件数),越高越内聚。 */
   cohesion: number;
   /** 簇一句话功能描述(LLM 生成,可选)。 */
   what?: string;
