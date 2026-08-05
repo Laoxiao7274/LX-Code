@@ -40,3 +40,8 @@ reference/
 # Electron
 electron/dist/
 release/
+
+# digest 扩展产物(项目功能地图)
+# .lxcode/digest.json 机器读产物,digest-config.json 本地配置,不进 git
+.lxcode/
+# PROJECT_DIGEST.md 是给人看的设计进 git,不忽略
