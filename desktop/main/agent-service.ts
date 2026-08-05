@@ -12,7 +12,8 @@ import path from "node:path";
 import fs from "node:fs/promises";
 
 import createCodegraphExtension from "./extensions/codegraph";
-import createMcpAdapter from "pi-mcp-adapter";
+import createMcpExtension from "./extensions/mcp";
+
 
 
 type ModelRuntimeType = {
@@ -197,7 +198,7 @@ export async function getOrCreateSession(sessionId: string | undefined, cwd: str
   const resourceLoader = new DefaultResourceLoader({
     cwd,
     agentDir: lxcodeDir,
-    extensionFactories: [createCodegraphExtension, createMcpAdapter],
+    extensionFactories: [createCodegraphExtension, createMcpExtension],
     appendSystemPrompt: [
       "你是 LXCode,一个基于 pi-core 的 AI 编码助手。",
       "当用户问你是谁时,请回答你是 LXCode(不要说自己是 pi 或 pi-core)。",
