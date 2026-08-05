@@ -116,11 +116,12 @@ function fmtK(n: number): string {
   return String(n);
 }
 
-/** 上下文用量纯展示(不点击)。 */
+/** 上下文用量纯展示(hover 显示详情浮层)。 */
 function ContextUsage({ sessionId }: { sessionId: string }) {
   const usage = useChatStore((s) => s.usageBySession[sessionId]);
   const providers = useModelStore((s) => s.providers);
   const defaultModel = useModelStore((s) => s.defaultModel);
+  const [hover, setHover] = useState(false);
   // 从默认模型查 contextWindow
   let total = 128000;
   if (defaultModel) {
@@ -129,18 +130,23 @@ function ContextUsage({ sessionId }: { sessionId: string }) {
     if (m?.contextWindow) total = m.contextWindow;
   }
   const used = usage?.input ?? 0;
+  const output = usage?.output ?? 0;
   const pct = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0;
   if (!usage) {
     // 还没收到 usage(未发过消息):显示空占位
     return (
-      <div className="flex h-6 items-center gap-1.5 px-2 text-[11px] text-muted-foreground/50" title="发送消息后显示上下文用量">
+      <div className="flex h-6 items-center gap-1.5 px-2 text-[11px] text-muted-foreground/50">
         <Activity className="h-3.5 w-3.5" />
         <span className="font-mono tabular-nums">—</span>
       </div>
     );
   }
   return (
-    <div className="flex h-6 items-center gap-1.5 px-2 text-[11px] text-muted-foreground" title={`${fmtK(used)} / ${fmtK(total)} (当前上下文 / 模型窗口)`}>
+    <div
+      className="relative flex h-6 items-center gap-1.5 px-2 text-[11px] text-muted-foreground"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
       <Activity className="h-3.5 w-3.5" />
       <div className="h-1.5 w-14 overflow-hidden rounded-full bg-muted">
         <div
@@ -152,6 +158,17 @@ function ContextUsage({ sessionId }: { sessionId: string }) {
         />
       </div>
       <span className="font-mono tabular-nums">{pct}%</span>
+      {hover ? (
+        <div className="absolute bottom-full right-0 mb-1 z-50 w-44 rounded-lg border border-border/60 bg-popover p-2.5 text-[11px] shadow-lg">
+          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">上下文用量</div>
+          <div className="space-y-1">
+            <div className="flex justify-between"><span className="text-muted-foreground">当前上下文</span><span className="font-mono tabular-nums text-foreground">{fmtK(used)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">模型窗口</span><span className="font-mono tabular-nums text-foreground">{fmtK(total)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">本轮输出</span><span className="font-mono tabular-nums text-foreground">{fmtK(output)}</span></div>
+            <div className="flex justify-between border-t border-border/40 pt-1"><span className="text-muted-foreground">已用</span><span className="font-mono tabular-nums text-accent">{pct}%</span></div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
