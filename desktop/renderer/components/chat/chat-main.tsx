@@ -85,7 +85,7 @@ export function ChatMain() {
   }, [sessionId, sessionPath, loadHistory]);
 
   return (
-    <div className="flex h-full flex-col bg-background">
+    <div className="relative flex h-full flex-col bg-background">
       {/* 顶栏:会话标题 + 项目名 */}
       <div className="flex h-11 items-center gap-2.5 border-b border-border/60 px-3">
         <span className="text-[13px] font-medium tracking-tight">
@@ -99,8 +99,9 @@ export function ChatMain() {
       </div>
 
       {/* 消息流 */}
+      {/* 消息流:占满,底部留空给悬浮输入框 */}
       <ScrollArea className="flex-1">
-        <div className="mx-auto max-w-3xl space-y-4 p-4">
+        <div className="mx-auto max-w-3xl space-y-4 p-4 pb-32">
           {messages.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 py-20 text-center text-muted-foreground">
               <div className="text-sm">开始和 LXCode 对话</div>
@@ -113,81 +114,85 @@ export function ChatMain() {
         </div>
       </ScrollArea>
 
-      {/* 输入区 */}
-      <div className="border-t border-border/60 p-3">
-        {/* 斜杠命令菜单 */}
-        <div className="mx-auto max-w-3xl">
-          <SlashMenu
-            open={slashOpen}
-            query={slashQuery}
-            onSelect={(insert) => setInput(insert)}
-            onClose={() => setInput(input.replace(/^\/[a-z]*/, ""))}
-          />
-          {/* 待发送附件 */}
-          <AttachmentView attachments={pending} view="pending" onRemove={removeAttachment} />
-        </div>
-
-        {/* Codex 风格输入区:单行圆角条,左上传右发送/中断 */}
-        <div className="mx-auto max-w-3xl">
-          <div className="flex h-10 items-center gap-1 rounded-2xl border border-border/60 bg-card px-1.5 shadow-sm focus-within:border-accent/40 transition-colors">
-            <button
-              type="button"
-              onClick={selectAndAdd}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              title="添加图片"
-            >
-              <ImageIcon className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={selectAndAdd}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              title="添加文件"
-            >
-              <FileText className="h-4 w-4" />
-            </button>
-            <textarea
-              ref={taRef}
-              placeholder={isGenerating ? "生成中…" : "输入消息,回车发送(/ 唤出命令)"}
-              value={input}
-              disabled={isGenerating}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  void send(sessionId, cwd);
-                }
-              }}
-              rows={1}
-              className="block h-10 w-full resize-none border-0 bg-transparent px-1 py-2.5 text-[13px] leading-tight text-foreground outline-none placeholder:text-muted-foreground/60 disabled:opacity-60"
-              style={{ maxHeight: 120 }}
+      {/* 悬浮输入区(Codex 风格:浮在消息区底部,不占文档流) */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10">
+        {/* 渐变遮罩:消息滚动到底部时不被输入框盖死 */}
+        <div className="h-8 bg-gradient-to-t from-background to-transparent" />
+        <div className="pointer-events-auto bg-background/80 px-3 pb-3 backdrop-blur-sm">
+          {/* 斜杠命令菜单 */}
+          <div className="mx-auto max-w-3xl">
+            <SlashMenu
+              open={slashOpen}
+              query={slashQuery}
+              onSelect={(insert) => setInput(insert)}
+              onClose={() => setInput(input.replace(/^\/[a-z]*/, ""))}
             />
-            {isGenerating ? (
-              <button
-                type="button"
-                onClick={() => void abort(sessionId)}
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-destructive text-destructive-foreground transition-opacity hover:opacity-90"
-                title="中断"
-              >
-                <Square className="h-3.5 w-3.5" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                disabled={!input.trim() && pending.length === 0}
-                onClick={() => void send(sessionId, cwd)}
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
-                title="发送"
-              >
-                <ArrowUp className="h-4 w-4" />
-              </button>
-            )}
+            {/* 待发送附件 */}
+            <AttachmentView attachments={pending} view="pending" onRemove={removeAttachment} />
           </div>
-        </div>
 
-        {/* 会话工具条:输入框下方,模型/思考/上下文 */}
-        <div className="mx-auto mt-1.5 max-w-3xl">
-          <ChatToolbar sessionId={sessionId} />
+          {/* 单行圆角输入条 */}
+          <div className="mx-auto max-w-3xl">
+            <div className="flex h-10 items-center gap-1 rounded-2xl border border-border/60 bg-card px-1.5 shadow-sm focus-within:border-accent/40 transition-colors">
+              <button
+                type="button"
+                onClick={selectAndAdd}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                title="添加图片"
+              >
+                <ImageIcon className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={selectAndAdd}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                title="添加文件"
+              >
+                <FileText className="h-4 w-4" />
+              </button>
+              <textarea
+                ref={taRef}
+                placeholder={isGenerating ? "生成中…" : "输入消息,回车发送(/ 唤出命令)"}
+                value={input}
+                disabled={isGenerating}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    void send(sessionId, cwd);
+                  }
+                }}
+                rows={1}
+                className="block h-10 w-full resize-none border-0 bg-transparent px-1 py-2.5 text-[13px] leading-tight text-foreground outline-none placeholder:text-muted-foreground/60 disabled:opacity-60"
+                style={{ maxHeight: 120 }}
+              />
+              {isGenerating ? (
+                <button
+                  type="button"
+                  onClick={() => void abort(sessionId)}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-destructive text-destructive-foreground transition-opacity hover:opacity-90"
+                  title="中断"
+                >
+                  <Square className="h-3.5 w-3.5" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={!input.trim() && pending.length === 0}
+                  onClick={() => void send(sessionId, cwd)}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+                  title="发送"
+                >
+                  <ArrowUp className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* 会话工具条:输入框下方,模型/思考/上下文 */}
+          <div className="mx-auto mt-1.5 max-w-3xl">
+            <ChatToolbar sessionId={sessionId} />
+          </div>
         </div>
       </div>
 
