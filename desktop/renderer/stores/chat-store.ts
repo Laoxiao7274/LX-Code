@@ -189,14 +189,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       const res = await window.lxcode.agent.getMessages(sessionPath);
       if (!res.ok) return;
-      const msgs = res.messages as { id: string; role: "user" | "assistant"; text?: string; parts?: MessagePart[] }[];
+      const msgs = res.messages as { id: string; role: "user" | "assistant"; text?: string; parts?: MessagePart[]; usage?: { input: number; output: number; totalTokens: number } }[];
       const history: Message[] = msgs.map((m) => ({
         id: m.id,
         role: m.role,
         text: m.text,
         parts: m.parts ?? undefined,
       }));
-      set((s) => ({ messagesBySession: { ...s.messagesBySession, [sessionId]: history } }));
+      // 取最后一条 assistant 的 usage(最新上下文)设到 usageBySession
+      const lastUsage = [...msgs].reverse().find((m) => m.role === "assistant" && m.usage)?.usage;
+      set((s) => ({
+        messagesBySession: { ...s.messagesBySession, [sessionId]: history },
+        ...(lastUsage ? { usageBySession: { ...s.usageBySession, [sessionId]: lastUsage } } : {}),
+      }));
     } catch {
       // 静默
     }
@@ -353,13 +358,15 @@ function handleAgentEvent(
         streams.get(sessionId)?.unsub();
         streams.delete(sessionId);
       } else if (ae.type === "done") {
-        // 消息完成:结束当前 streaming part
+        // 消息完成:结束当前 streaming part + 记录 usage(done 事件带 message.usage)
         updateAssistant((m) => ({
           ...m,
           parts: (m.parts ?? []).map((p) =>
             "streaming" in p && p.streaming ? { ...p, streaming: false } : p,
           ),
         }));
+        const u = (ae as { usage?: { input: number; output: number; totalTokens: number } }).usage;
+        if (u) set((s) => ({ usageBySession: { ...s.usageBySession, [sessionId]: u } }));
       }
       break;
     }

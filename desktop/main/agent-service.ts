@@ -113,7 +113,13 @@ function serializeEvent(event: AgentSessionEvent): unknown {
       if ((t as string) === "image") {
         return { type: "message_update", assistantMessageEvent: { type: "image", data: (ae as { data?: string }).data, mimeType: (ae as { mimeType?: string }).mimeType } };
       }
-      // text_*/thinking_*/done/start
+      if ((t as string) === "done") {
+        // done 事件带 message.usage(AssistantMessage),补充取 usage
+        const msg = (ae as { message?: { usage?: { input?: number; output?: number; totalTokens?: number } } }).message;
+        const u = msg?.usage;
+        return { type: "message_update", assistantMessageEvent: { type: "done", usage: u ? { input: u.input, output: u.output, totalTokens: u.totalTokens } : undefined } };
+      }
+      // text_*/thinking_*/start
       return {
         type: "message_update",
         assistantMessageEvent: {
@@ -318,6 +324,7 @@ export interface HistoryMessage {
   role: "user" | "assistant";
   text?: string;
   parts?: HistoryPart[];
+  usage?: { input: number; output: number; totalTokens: number };
 }
 export interface HistoryPart {
   type: "thinking" | "text" | "tool" | "image";
@@ -375,6 +382,9 @@ export async function getMessages(sessionPath: string): Promise<HistoryMessage[]
     if (role === "assistant") {
       // assistant turn:累积 thinking/tool/text 到当前 assistant 消息
       if (!curAssistant) curAssistant = { id: e.id, role: "assistant", parts: [] };
+      // 取该轮 usage(input=当前上下文),累加更新(后一轮覆盖)
+      const u = (msg as { usage?: { input?: number; output?: number; totalTokens?: number } }).usage;
+      if (u) curAssistant.usage = { input: u.input ?? 0, output: u.output ?? 0, totalTokens: u.totalTokens ?? 0 };
       for (const c of msg.content as Record<string, unknown>[]) {
         const ct = c.type as string;
         if (ct === "text") {
