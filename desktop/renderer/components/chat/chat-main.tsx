@@ -32,6 +32,7 @@ export function ChatMain() {
   const messages = allMessages[sessionId] ?? [];
   const input = useChatStore((s) => s.input);
   const isGenerating = useChatStore((s) => !!s.generatingBySession[sessionId]);
+  const loadingHistory = useChatStore((s) => !!s.loadingHistoryBySession[sessionId]);
   const setInput = useChatStore((s) => s.setInput);
   const send = useChatStore((s) => s.send);
   const abort = useChatStore((s) => s.abort);
@@ -109,8 +110,17 @@ export function ChatMain() {
         <div className="mx-auto max-w-3xl space-y-4 p-4 pb-32">
           {messages.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 py-20 text-center text-muted-foreground">
-              <div className="text-sm">开始和 LXCode 对话</div>
-              <div className="text-xs text-muted-foreground/70">在下方输入消息,输入 / 唤出命令</div>
+              {loadingHistory ? (
+                <>
+                  <span className="signal-dot signal-dot-live" aria-hidden />
+                  <div className="text-sm">加载历史消息…</div>
+                </>
+              ) : (
+                <>
+                  <div className="text-sm">开始和 LXCode 对话</div>
+                  <div className="text-xs text-muted-foreground/70">在下方输入消息,输入 / 唤出命令</div>
+                </>
+              )}
             </div>
           ) : (
             messages.map((m) => <ChatMessage key={m.id} message={m} onImageClick={setLightbox} />)

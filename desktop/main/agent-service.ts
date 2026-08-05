@@ -348,10 +348,14 @@ export interface HistoryPart {
 
 /** 读取某会话文件的历史消息(转成前端格式)。 */
 export async function getMessages(sessionPath: string): Promise<HistoryMessage[]> {
+  const t0 = Date.now();
   const { SessionManager } = await loadPi();
   try {
     const sm = SessionManager.open(sessionPath);
+    const t1 = Date.now();
+    console.log(`[getMessages] open ${t1 - t0}ms`);
     const entries = sm.getEntries();
+    console.log(`[getMessages] getEntries ${Date.now() - t1}ms entries=${entries.length}`);
     const out: HistoryMessage[] = [];
   let pid = 0;
   // 合并:一次用户提问后的多个 assistant turn(+中间 toolResult)合成一条 assistant 消息

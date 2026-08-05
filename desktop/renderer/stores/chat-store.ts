@@ -67,6 +67,8 @@ interface ChatState {
   generatingBySession: Record<string, boolean>;
   /** 每个会话的上下文用量(最新一轮 usage.input=当前上下文 tokens)。 */
   usageBySession: Record<string, { input: number; output: number; totalTokens: number } | undefined>;
+  /** 每个会话的历史加载状态。 */
+  loadingHistoryBySession: Record<string, boolean>;
   /** 输入区待发送的附件(图片/文件)。 */
   pendingAttachments: Attachment[];
 
@@ -96,6 +98,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isGenerating: false,
   generatingBySession: {},
   usageBySession: {},
+  loadingHistoryBySession: {},
   pendingAttachments: [],
 
   setInput: (t) => set({ input: t }),
@@ -186,9 +189,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // 已加载过则不重复加载
     if (get().messagesBySession[sessionId]?.length) return;
     if (typeof window === "undefined" || !window.lxcode?.agent) return;
+    set((s) => ({ loadingHistoryBySession: { ...s.loadingHistoryBySession, [sessionId]: true } }));
     try {
       const res = await window.lxcode.agent.getMessages(sessionPath);
-      if (!res.ok) return;
+      if (!res.ok) { set((s) => ({ loadingHistoryBySession: { ...s.loadingHistoryBySession, [sessionId]: false } })); return; }
       const msgs = res.messages as { id: string; role: "user" | "assistant"; text?: string; parts?: MessagePart[]; usage?: { input: number; output: number; totalTokens: number } }[];
       const history: Message[] = msgs.map((m) => ({
         id: m.id,
@@ -200,10 +204,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const lastUsage = [...msgs].reverse().find((m) => m.role === "assistant" && m.usage)?.usage;
       set((s) => ({
         messagesBySession: { ...s.messagesBySession, [sessionId]: history },
+        loadingHistoryBySession: { ...s.loadingHistoryBySession, [sessionId]: false },
         ...(lastUsage ? { usageBySession: { ...s.usageBySession, [sessionId]: lastUsage } } : {}),
       }));
     } catch {
-      // 静默
+      set((s) => ({ loadingHistoryBySession: { ...s.loadingHistoryBySession, [sessionId]: false } }));
     }
   },
 
