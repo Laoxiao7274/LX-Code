@@ -132,8 +132,10 @@ export interface ClusterInput {
 /** 构建功能簇命名 prompt:给 LLM 簇内函数名+文件,要它起功能名+一句话描述。 */
 function buildClusterNamesPrompt(clusters: ClusterInput[]): string {
   const lines = clusters.map((c, i) => {
-    const mems = c.members.slice(0, 15).map((m) => `${m.fn}(${m.file})`).join(", ");
-    return `簇${i}: [${mems}${c.members.length > 15 ? " ..." : ""}]`;
+    // 文件名更能体现功能,函数名只给前3个代表性
+    const files = [...new Set(c.members.map((m) => m.file.split("/").pop()))].slice(0, 6).join(", ");
+    const fns = c.members.slice(0, 3).map((m) => m.fn).join(", ");
+    return `簇${i}: 文件[${files}] 函数[${fns}]`;
   }).join("\n");
   return `你是代码分析助手。下面是按调用关系聚类出的功能簇,每簇含一组互相调用的函数(函数名+文件)。
 
@@ -181,7 +183,8 @@ export async function nameClusters(
       signal ? { signal } : undefined,
     );
     const text = result.content.find((c) => c.type === "text")?.text ?? "";
-    console.log(`[digest] LLM 命名响应长度=${text.length}, 前80字=${text.slice(0, 80)}`);
+    console.log(`[digest] LLM 命名响应: content类型=[${result.content.map(c=>c.type).join(",")}] text长度=${text.length} stopReason=${result.stopReason ?? "?"}`);
+    if (text) console.log(`[digest] 命名响应前120字=${text.slice(0, 120)}`);
     if (!text) return null;
     const parsed = parseClusterNames(text);
     console.log(`[digest] LLM 命名解析:`, parsed ? `${parsed.length}个` : 'null(解析失败)');
