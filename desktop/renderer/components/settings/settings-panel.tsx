@@ -28,7 +28,7 @@ const SECTIONS = [
   { id: "general", label: "通用", Icon: Settings },
   { id: "model", label: "模型", Icon: Cpu },
   { id: "usecase", label: "用途", Icon: Layers },
-  { id: "digest", label: "项目地图", Icon: Map },
+  // { id: "digest", label: "项目地图", Icon: Map }, // digest 暂藏,恢复时取消注释
   { id: "appearance", label: "外观", Icon: Palette },
   { id: "keybindings", label: "快捷键", Icon: Keyboard },
   { id: "about", label: "关于", Icon: Info },

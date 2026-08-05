@@ -10,7 +10,8 @@ import { TaskSidebar } from "../sidebar/task-sidebar";
 import { ChatMain } from "../chat/chat-main";
 import { AgentMain } from "../chat/agent-main";
 import { SettingsPanel } from "../settings/settings-panel";
-import { RightPanel } from "./right-panel";
+// 右栏面板(digest项目地图)暂藏,恢复时取消注释
+// import { RightPanel } from "./right-panel";
 import { useModeStore } from "../../stores/mode-store";
 import { useRef, useState } from "react";
 import type { PanelImperativeHandle } from "react-resizable-panels";
@@ -59,9 +60,8 @@ export function AppShell() {
           </ResizablePanel>
           <ResizableHandle withHandle />
           <ResizablePanel defaultSize="82" minSize="40">
-            <RightPanel>
-              <ChatMain />
-            </RightPanel>
+            {/* 右栏面板(digest项目地图)暂藏,恢复时改回 <RightPanel><ChatMain /></RightPanel> */}
+            <ChatMain />
           </ResizablePanel>
         </ResizablePanelGroup>
       )}
