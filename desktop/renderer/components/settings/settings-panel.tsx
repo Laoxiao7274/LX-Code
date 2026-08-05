@@ -332,7 +332,6 @@ function DigestSection() {
   }
   const config = useDigestStore((s) => s.config);
   const updateConfig = useDigestStore((s) => s.updateConfig);
-  const openPanel = useDigestStore((s) => s.openPanel);
   const reloadConfig = useDigestStore((s) => s.reload);
   const setDigestCwd = useDigestStore((s) => s.cwd);
   // 首次进该区加载当前项目配置
@@ -379,11 +378,8 @@ function DigestSection() {
         onChange={(v) => void updateConfig({ injectContext: v })}
       />
       <Separator className="bg-border/60" />
-      <div className="py-3">
-        <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => openPanel(cwd)}>
-          <Map className="h-3.5 w-3.5" />
-          打开项目地图
-        </Button>
+      <div className="py-3 text-[12px] text-muted-foreground">
+        切换到对话页,右侧面板的「项目地图」Tab 可查看函数级摘要。
       </div>
     </div>
   );
