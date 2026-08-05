@@ -20,8 +20,6 @@ import {
   type SettingsData,
   type UseCaseData,
 } from "./data-store";
-import { getDigestConfig, setDigestConfig, getDigestLLM, getDigestDefaultModel } from "./agent-service";
-import { buildDigest, writeDigest } from "./extensions/digest/build";
 import path from "node:path";
 import fs from "node:fs/promises";
 export function initDataIpc() {
@@ -132,45 +130,6 @@ export function initDataIpc() {
         name: m.display_name ?? m.name ?? m.id,
       }));
       return { ok: true, models };
-    } catch (e) {
-      return { ok: false, error: String(e) };
-    }
-  });
-
-  // ─── digest 项目功能地图 ─────────────────────
-  // 读 digest.json(给前端渲染三层折叠)。cwd 为项目根目录。
-  ipcMain.handle("data:getDigest", async (_e, args: { cwd: string }) => {
-    try {
-      const p = path.join(args.cwd, ".lxcode", "digest.json");
-      const raw = await fs.readFile(p, "utf-8");
-      return { ok: true, digest: JSON.parse(raw) };
-    } catch {
-      return { ok: false, error: "digest 未生成" };
-    }
-  });
-
-  // 读 digest 运行配置(开关状态,给设置页显示)
-  ipcMain.handle("data:getDigestConfig", async (_e, args: { cwd: string }) => {
-    return { ok: true, config: await getDigestConfig(args.cwd) };
-  });
-
-  // 写 digest 配置(写文件 + emit 热插拔事件,运行时切换)
-  ipcMain.handle("data:setDigestConfig", async (_e, args: { cwd: string; config: Partial<{ enabled: boolean; autoUpdate: boolean; injectContext: boolean }> }) => {
-    await setDigestConfig(args.cwd, args.config);
-    return { ok: true };
-  });
-
-  // 手动触发全量刷新 digest(调 buildDigest,无 LLM 填白话留空)
-  // 手动触发全量刷新 digest(带 LLM 填白话+功能名,用配置的默认模型)
-  ipcMain.handle("data:refreshDigest", async (_e, args: { cwd: string }) => {
-    try {
-      const llm = await getDigestLLM();
-      const model = await getDigestDefaultModel();
-      console.log(`[digest] refreshDigest: llm=${llm ? '有' : '无'}, model=${model ? '有' : '无'}`);
-      const digest = await buildDigest(args.cwd, llm ?? undefined, model);
-      digest.trigger = "onboarding";
-      await writeDigest(args.cwd, digest);
-      return { ok: true, modules: digest.modules.length, functions: Object.values(digest.functions).reduce((n, fns) => n + fns.length, 0) };
     } catch (e) {
       return { ok: false, error: String(e) };
     }

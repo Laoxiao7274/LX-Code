@@ -10,8 +10,6 @@ import type {
 import { app } from "electron";
 import path from "node:path";
 import fs from "node:fs/promises";
-import createDigestExtension from "./extensions/digest";
-import { DIGEST_CONFIG_EVENT, type DigestConfig } from "./extensions/digest/schema";
 
 
 type ModelRuntimeType = {
@@ -34,7 +32,6 @@ interface PiModule {
   SessionManager: typeof import("@earendil-works/pi-coding-agent").SessionManager;
   DefaultResourceLoader: typeof import("@earendil-works/pi-coding-agent").DefaultResourceLoader;
   SettingsManager: typeof import("@earendil-works/pi-coding-agent").SettingsManager;
-  createEventBus: typeof import("@earendil-works/pi-coding-agent").createEventBus;
 }
 
 let piPromise: Promise<PiModule> | null = null;
@@ -57,12 +54,6 @@ const sessions = new Map<string, SessionEntry>();
 
 /** 共享的 model runtime(读 LXCode 自己的 ~/.lxcode/ 数据,非 pi 的)。 */
 let sharedModelRuntime: ModelRuntimeType | null = null;
-
-/** digest 扩展的共享事件总线(LXCode ↔ digest 扩展 热插拔通道)。同进程复用。 */
-let digestEventBus: { emit: (event: string, data: unknown) => void } | null = null;
-
-/** digest 扩展的共享 LLM 运行时(手动刷新也能用,不只 agent 事件里能用)。 */
-let digestLLM: { completeSimple: (model: unknown, context: { systemPrompt?: string; messages: unknown[] }, options?: unknown) => Promise<{ content: Array<{ type: string; text?: string }> }> } | null = null;
 
 async function getModelRuntime() {
   if (!sharedModelRuntime) {
@@ -195,29 +186,14 @@ export async function getOrCreateSession(sessionId: string | undefined, cwd: str
     }
   }
 
-  const { createAgentSession, SessionManager, DefaultResourceLoader, SettingsManager, createEventBus } = await loadPi();
+  const { createAgentSession, SessionManager, DefaultResourceLoader, SettingsManager } = await loadPi();
   const modelRuntime = await getModelRuntime();
   const lxcodeDir = path.join(app.getPath("home"), ".lxcode");
-
-  // digest 扩展共享事件总线(首次创建,同进程复用)。LXCode 通过它 emit 配置变更给扩展。
-  if (!digestEventBus) digestEventBus = createEventBus() as { emit: (event: string, data: unknown) => void };
-
-  // 把 LXCode 的 ModelRuntime 包成 digest 扩展需要的 LLMRuntime(复用已配的 provider/auth)
-  if (!digestLLM) {
-    digestLLM = {
-      completeSimple: (model: unknown, context: { systemPrompt?: string; messages: unknown[] }, options?: unknown) =>
-        (modelRuntime as unknown as {
-          completeSimple: (m: unknown, ctx: unknown, opt?: unknown) => Promise<{ content: Array<{ type: string; text?: string }> }>
-        }).completeSimple(model, context, options),
-    };
-  }
 
   // 追加 LXCode 身份段(pi 默认 prompt 保留,身份以这段为准)
   const resourceLoader = new DefaultResourceLoader({
     cwd,
     agentDir: lxcodeDir,
-    eventBus: digestEventBus as never,
-    extensionFactories: [(pi: never) => createDigestExtension(pi, { llm: digestLLM })],
     appendSystemPrompt: [
       "你是 LXCode,一个基于 pi-core 的 AI 编码助手。",
       "当用户问你是谁时,请回答你是 LXCode(不要说自己是 pi 或 pi-core)。",
@@ -472,62 +448,4 @@ export async function setThinkingLevel(sessionId: string, level: string) {
 export function disposeAll() {
   for (const sid of [...sessions.keys()]) disposeSession(sid);
   sharedModelRuntime = null;
-}
-
-const DEFAULT_DIGEST_CFG: DigestConfig = { enabled: true, autoUpdate: true, injectContext: true };
-
-/** 获取 digest 扩展的 LLM 运行时(手动刷新也能用,不只 agent 事件里能用)。
- *  确保 modelRuntime 就绪并构造 digestLLM(即使没发过消息创建会话)。 */
-export async function getDigestLLM() {
-  if (!digestLLM) {
-    const modelRuntime = await getModelRuntime();
-    digestLLM = {
-      completeSimple: (model: unknown, context: { systemPrompt?: string; messages: unknown[] }, options?: unknown) =>
-        (modelRuntime as unknown as {
-          completeSimple: (m: unknown, ctx: unknown, opt?: unknown) => Promise<{ content: Array<{ type: string; text?: string }> }>
-        }).completeSimple(model, context, options),
-    };
-  }
-  return digestLLM;
-}
-
-/** 获取 digest 默认模型(从 LXCode models.json 的 defaultModel 解析,手动刷新时用)。 */
-export async function getDigestDefaultModel(): Promise<unknown> {
-  try {
-    const { readModelsPi } = await import("./data-store");
-    const cfg = await readModelsPi();
-    if (cfg.defaultModel) {
-      const [providerId, modelId] = cfg.defaultModel.split("/");
-      if (providerId && modelId) {
-        const rt = await getModelRuntime();
-        return (rt as { getModels: (id?: string) => readonly { id: string; provider?: string }[] }).getModels(providerId).find((m) => m.id === modelId);
-      }
-    }
-  } catch {
-    // 静默
-  }
-  return undefined;
-}
-
-/** 读取 digest 扩展配置(给 UI 显示当前开关状态)。 */
-export async function getDigestConfig(cwd: string): Promise<DigestConfig> {
-  try {
-    const raw = await fs.readFile(path.join(cwd, ".lxcode", "digest-config.json"), "utf-8");
-    return { ...DEFAULT_DIGEST_CFG, ...(JSON.parse(raw) as Partial<DigestConfig>) };
-  } catch {
-    return { ...DEFAULT_DIGEST_CFG };
-  }
-}
-
-/** 设置 digest 扩展配置:写文件 + emit 热插拔事件,运行时切换不重启会话。 */
-export async function setDigestConfig(cwd: string, cfg: Partial<DigestConfig>): Promise<void> {
-  const dir = path.join(cwd, ".lxcode");
-  await fs.mkdir(dir, { recursive: true });
-  const configPath = path.join(dir, "digest-config.json");
-  // 部分更新:与现有配置合并
-  const existing = await getDigestConfig(cwd);
-  const merged = { ...existing, ...cfg };
-  await fs.writeFile(configPath, JSON.stringify(merged, null, 2), "utf-8");
-  // 热插拔:emit 配置给 digest 扩展,运行时切换 gate(不重启、不 /reload)
-  digestEventBus?.emit(DIGEST_CONFIG_EVENT, merged);
 }

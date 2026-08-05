@@ -3,7 +3,6 @@ import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { useSettingsStore } from "../../stores/settings-store";
 import { useSessionStore } from "../../stores/session-store";
-import { useDigestStore } from "../../stores/digest-store";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Separator } from "../ui/separator";
@@ -12,7 +11,7 @@ import {
   X, Settings, Cpu, Palette, Keyboard, Info, ChevronRight,
   Sun, Moon, Monitor,
   Globe, BookOpen, MessageCircle, GitBranch,
-  Layers, Map,
+  Layers,
 } from "lucide-react";
 import { Logo } from "../ui/logo";
 import { ModelConfigPanel } from "./model-config-panel";
@@ -28,7 +27,6 @@ const SECTIONS = [
   { id: "general", label: "通用", Icon: Settings },
   { id: "model", label: "模型", Icon: Cpu },
   { id: "usecase", label: "用途", Icon: Layers },
-  // { id: "digest", label: "项目地图", Icon: Map }, // digest 暂藏,恢复时取消注释
   { id: "appearance", label: "外观", Icon: Palette },
   { id: "keybindings", label: "快捷键", Icon: Keyboard },
   { id: "about", label: "关于", Icon: Info },
@@ -194,9 +192,6 @@ function SectionContent({ id }: { id: string }) {
       </div>
     );
   }
-  if (id === "digest") {
-    return <DigestSection />;
-  }
   if (id === "appearance") {
     return (
       <div>
@@ -317,69 +312,6 @@ function SectionContent({ id }: { id: string }) {
       <div className="mt-6 border-t border-border/60 pt-3 text-center text-[11px] text-muted-foreground/70">
         <div>© 2025 LXCode</div>
         <div className="mt-0.5">Powered by pi-core</div>
-      </div>
-    </div>
-  );
-}
-
-/** digest 项目地图设置区(3 个热插拔开关)。 */
-function DigestSection() {
-  const projects = useSessionStore((s) => s.projects);
-  const activeId = useSessionStore((s) => s.activeId);
-  let cwd = "";
-  for (const p of projects) {
-    if (p.sessions.some((s) => s.id === activeId)) { cwd = p.path; break; }
-  }
-  const config = useDigestStore((s) => s.config);
-  const updateConfig = useDigestStore((s) => s.updateConfig);
-  const reloadConfig = useDigestStore((s) => s.reload);
-  const setDigestCwd = useDigestStore((s) => s.cwd);
-  // 首次进该区加载当前项目配置
-  useEffect(() => {
-    if (cwd && setDigestCwd !== cwd) {
-      useDigestStore.setState({ cwd });
-      void reloadConfig();
-    }
-  }, [cwd, setDigestCwd, reloadConfig]);
-  if (!cwd) {
-    return (
-      <div>
-        <h3 className="mb-1 text-base font-semibold">项目功能地图</h3>
-        <p className="text-[12px] text-muted-foreground">请先在侧栏选择一个项目会话。</p>
-      </div>
-    );
-  }
-  const cfg = config ?? { enabled: true, autoUpdate: true, injectContext: true };
-  return (
-    <div>
-      <h3 className="mb-1 text-base font-semibold">项目功能地图</h3>
-      <p className="mb-3 text-[12px] text-muted-foreground">
-        自动总结项目的函数级白话摘要,帮你不读代码就能懂功能、定位问题。
-      </p>
-      <Separator className="my-2 bg-border/60" />
-      <ToggleRow
-        label="启用项目地图"
-        desc="开启后 AI 写完代码自动更新地图,并在对话中注入项目结构"
-        value={cfg.enabled}
-        onChange={(v) => void updateConfig({ enabled: v })}
-      />
-      <Separator className="bg-border/40" />
-      <ToggleRow
-        label="自动增量更新"
-        desc="AI 每次完成任务后自动刷新地图"
-        value={cfg.autoUpdate}
-        onChange={(v) => void updateConfig({ autoUpdate: v })}
-      />
-      <Separator className="bg-border/40" />
-      <ToggleRow
-        label="注入对话上下文"
-        desc="让 AI 不全量读代码就懂项目结构"
-        value={cfg.injectContext}
-        onChange={(v) => void updateConfig({ injectContext: v })}
-      />
-      <Separator className="bg-border/60" />
-      <div className="py-3 text-[12px] text-muted-foreground">
-        切换到对话页,右侧面板的「项目地图」Tab 可查看函数级摘要。
       </div>
     </div>
   );

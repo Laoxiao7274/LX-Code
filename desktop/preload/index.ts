@@ -22,11 +22,6 @@ const dataApi = {
   writeArchived: (ids: string[]) => ipcRenderer.invoke("data:writeArchived", { ids }),
   fetchModels: (baseUrl: string, apiKey: string, api: string) =>
     ipcRenderer.invoke("data:fetchModels", { baseUrl, apiKey, api }),
-  getDigest: (cwd: string) => ipcRenderer.invoke("data:getDigest", { cwd }),
-  getDigestConfig: (cwd: string) => ipcRenderer.invoke("data:getDigestConfig", { cwd }),
-  setDigestConfig: (cwd: string, config: Partial<{ enabled: boolean; autoUpdate: boolean; injectContext: boolean }>) =>
-    ipcRenderer.invoke("data:setDigestConfig", { cwd, config }),
-  refreshDigest: (cwd: string) => ipcRenderer.invoke("data:refreshDigest", { cwd }),
 };
 
 const agentApi = {
