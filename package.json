@@ -14,6 +14,7 @@
     "electron:build": "tsc -b && vite build && node electron/build.mjs && electron-builder"
   },
   "dependencies": {
+    "@colbymchenry/codegraph": "1.5.0",
     "@earendil-works/pi-coding-agent": "0.83.0",
     "@fontsource-variable/inter": "^5.3.0",
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
@@ -38,10 +39,17 @@
     "tailwind-merge": "^3.6.0",
     "zustand": "^5.0.14"
   },
+  "optionalDependencies": {
+    "@colbymchenry/codegraph-darwin-arm64": "1.5.0",
+    "@colbymchenry/codegraph-darwin-x64": "1.5.0",
+    "@colbymchenry/codegraph-linux-arm64": "1.5.0",
+    "@colbymchenry/codegraph-linux-x64": "1.5.0",
+    "@colbymchenry/codegraph-win32-arm64": "1.5.0",
+    "@colbymchenry/codegraph-win32-x64": "1.5.0"
+  },
   "devDependencies": {
     "@babel/parser": "^8.0.4",
     "@babel/types": "^8.0.4",
-    "@colbymchenry/codegraph": "^1.5.0",
     "@types/electron": "^1.6.12",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",

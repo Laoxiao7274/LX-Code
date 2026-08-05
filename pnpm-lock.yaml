@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@colbymchenry/codegraph':
+        specifier: 1.5.0
+        version: 1.5.0
       '@earendil-works/pi-coding-agent':
         specifier: 0.83.0
         version: 0.83.0(@modelcontextprotocol/sdk@1.30.0(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.1)(zod@4.4.3)
@@ -84,9 +87,6 @@ importers:
       '@babel/types':
         specifier: ^8.0.4
         version: 8.0.4
-      '@colbymchenry/codegraph':
-        specifier: ^1.5.0
-        version: 1.5.0
       '@types/electron':
         specifier: ^1.6.12
         version: 1.6.12(supports-color@10.2.2)
@@ -138,6 +138,25 @@ importers:
       wait-on:
         specifier: ^9.1.0
         version: 9.1.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)
+    optionalDependencies:
+      '@colbymchenry/codegraph-darwin-arm64':
+        specifier: 1.5.0
+        version: 1.5.0
+      '@colbymchenry/codegraph-darwin-x64':
+        specifier: 1.5.0
+        version: 1.5.0
+      '@colbymchenry/codegraph-linux-arm64':
+        specifier: 1.5.0
+        version: 1.5.0
+      '@colbymchenry/codegraph-linux-x64':
+        specifier: 1.5.0
+        version: 1.5.0
+      '@colbymchenry/codegraph-win32-arm64':
+        specifier: 1.5.0
+        version: 1.5.0
+      '@colbymchenry/codegraph-win32-x64':
+        specifier: 1.5.0
+        version: 1.5.0
 
 packages:
 

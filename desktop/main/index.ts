@@ -4,6 +4,7 @@
  */
 import { ipcMain, BrowserWindow } from "electron";
 import { prompt, abort, disposeSession, disposeAll, listProviders, listSessions, createSession, setModel, setThinkingLevel, getMessages } from "./agent-service";
+import { closeAllCodegraph } from "./codegraph";
 import { initDataIpc } from "./data-ipc";
 
 /** 初始化所有 IPC handler。 */
@@ -95,4 +96,5 @@ export function initAgentIpc() {
 /** 应用退出时清理所有会话。 */
 export function shutdownAgent() {
   disposeAll();
+  closeAllCodegraph();
 }
