@@ -57,9 +57,18 @@ export interface DigestFile {
   generatedAt: string;
   trigger: "onboarding" | "incremental";
   cwd: string;
+  /** 功能簇(按调用关系聚类,主展示维度)。 */
+  features: FeatureCluster[];
   modules: { name: string; path: string; what: string; files: string[]; related: string[] }[];
   functions: Record<string, FunctionSummary[]>;
   provider: { name: string; version: string };
+}
+/** 功能簇(像 IDE 大纲按功能分组)。 */
+export interface FeatureCluster {
+  name: string;
+  members: { file: string; fn: string }[];
+  cohesion: number;
+  what?: string;
 }
 export interface FunctionSummary {
   file: string;

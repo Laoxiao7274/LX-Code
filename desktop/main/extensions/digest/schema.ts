@@ -18,7 +18,9 @@ export interface DigestFile {
   trigger: "onboarding" | "incremental";
   /** 项目根目录(绝对路径)。 */
   cwd: string;
-  /** 模块总览(30 秒看全局)。 */
+  /** 功能簇(按调用关系聚类,LLM 生成功能名)。主展示维度。 */
+  features: FeatureCluster[];
+  /** 模块总览(按目录,辅助维度)。 */
   modules: ModuleSummary[];
   /** 函数级摘要,按文件分组。key=相对 cwd 的文件路径。 */
   functions: Record<string, FunctionSummary[]>;
@@ -28,6 +30,18 @@ export interface DigestFile {
   callGraph?: CallGraphEntry[];
   /** 阶段2:框架/程序入口符号。 */
   entryPoints?: SymbolRef[];
+}
+
+/** 功能簇(按调用关系聚类,像 IDE 大纲按功能分组)。 */
+export interface FeatureCluster {
+  /** 簇名(LLM 生成,如"会话管理";无 LLM 用核心函数名)。 */
+  name: string;
+  /** 簇内函数(可能跨文件)。 */
+  members: { file: string; fn: string }[];
+  /** 内聚度(簇内调用数/函数数),越高越内聚。 */
+  cohesion: number;
+  /** 簇一句话功能描述(LLM 生成,可选)。 */
+  what?: string;
 }
 
 /** 模块总览表的一行。 */

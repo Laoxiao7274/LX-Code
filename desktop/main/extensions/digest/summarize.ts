@@ -122,3 +122,69 @@ export async function summarizeFile(
     return null;
   }
 }
+
+/** 一个功能簇的输入(给 LLM 命名用)。 */
+export interface ClusterInput {
+  id: string;
+  members: { fn: string; file: string }[];
+}
+
+/** 构建功能簇命名 prompt:给 LLM 簇内函数名+文件,要它起功能名+一句话描述。 */
+function buildClusterNamesPrompt(clusters: ClusterInput[]): string {
+  const lines = clusters.map((c, i) => {
+    const mems = c.members.slice(0, 15).map((m) => `${m.fn}(${m.file})`).join(", ");
+    return `簇${i}: [${mems}${c.members.length > 15 ? " ..." : ""}]`;
+  }).join("\n");
+  return `你是代码分析助手。下面是按调用关系聚类出的功能簇,每簇含一组互相调用的函数(函数名+文件)。给每个簇起一个简洁的功能名(如"会话管理""数据存储""项目地图"),并写一句话描述它干什么。
+
+${lines}
+
+返回 JSON 数组,每个元素:{"index": 簇序号, "name": 功能名, "what": 一句话描述}。只返回 JSON。`;
+}
+
+/** 解析功能簇命名 LLM 响应。失败返回 null。 */
+export function parseClusterNames(response: string): Array<{ index: number; name: string; what?: string }> | null {
+  try {
+    const parsed = JSON.parse(extractJson(response));
+    const arr = Array.isArray(parsed) ? parsed : (parsed as { clusters?: unknown[] })?.clusters;
+    if (!Array.isArray(arr)) return null;
+    return arr
+      .filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
+      .map((x) => ({
+        index: typeof x.index === "number" ? x.index : -1,
+        name: typeof x.name === "string" ? x.name : "",
+        what: typeof x.what === "string" ? x.what : undefined,
+      }))
+      .filter((x) => x.index >= 0 && x.name);
+  } catch {
+    return null;
+  }
+}
+
+/** 用 LLM 给功能簇批量命名。失败返回 null(上层用种子函数名占位)。 */
+export async function nameClusters(
+  rt: LLMRuntime,
+  model: unknown,
+  clusters: ClusterInput[],
+  signal?: AbortSignal,
+): Promise<Array<{ name: string; what?: string }> | null> {
+  if (clusters.length === 0) return [];
+  const prompt = buildClusterNamesPrompt(clusters);
+  try {
+    const result = await rt.completeSimple(
+      model,
+      { systemPrompt: "你是代码分析助手,只返回 JSON。", messages: [{ role: "user", content: prompt, timestamp: Date.now() }] },
+      signal ? { signal } : undefined,
+    );
+    const text = result.content.find((c) => c.type === "text")?.text ?? "";
+    if (!text) return null;
+    const parsed = parseClusterNames(text);
+    if (!parsed) return null;
+    return clusters.map((_, i) => {
+      const m = parsed.find((p) => p.index === i);
+      return { name: m?.name ?? "", what: m?.what };
+    });
+  } catch {
+    return null;
+  }
+}

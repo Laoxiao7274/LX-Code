@@ -7,8 +7,9 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { isParseable, parseFile, type FileSkeleton } from "./ast";
-import { summarizeFile, type LLMRuntime } from "./summarize";
-import type { DigestFile, FunctionSummary, ModuleSummary } from "./schema";
+import { summarizeFile, nameClusters, type LLMRuntime } from "./summarize";
+import { clusterByCallGraph, type FnNode } from "./cluster";
+import type { DigestFile, FeatureCluster, FunctionSummary, ModuleSummary } from "./schema";
 
 /** 构建时跳过的目录。 */
 const SKIP_DIRS = new Set([
@@ -34,9 +35,9 @@ async function listFiles(cwd: string, dir: string, out: string[]): Promise<void>
   for (const e of entries) {
     const full = path.join(dir, e.name);
     if (e.isDirectory()) {
-      if (SKIP_DIRS.has(e.name)) continue;
+      if (SKIP_DIRS.has(e.name) || e.name.startsWith(".")) continue;
       await listFiles(cwd, full, out);
-    } else if (e.isFile() && isParseable(e.name)) {
+    } else if (e.isFile() && isParseable(e.name) && !e.name.startsWith(".")) {
       out.push(path.relative(cwd, full).replace(/\\/g, "/"));
     }
   }
@@ -149,11 +150,54 @@ export async function buildDigest(cwd: string, llm?: LLMRuntime, model?: unknown
   }
   const modules = clusterModules(files, functions, moduleWhat);
 
+  // 功能聚类:标签传播按调用关系把函数聚成功能簇(跨文件)
+  const fnNodes: FnNode[] = [];
+  const fnIndex = new Map<string, { file: string; fn: string }>(); // fn名 → 节点(同名取首个)
+  for (const [file, fns] of Object.entries(functions)) {
+    for (const f of fns) {
+      const id = `${file}:${f.fn}`;
+      fnNodes.push({ id, file, fn: f.fn, level: f.level, inDegree: f.calls?.calledBy.length ?? 0 });
+      if (!fnIndex.has(f.fn)) fnIndex.set(f.fn, { file, fn: f.fn });
+    }
+  }
+  // 调用边:从 functions 的 calls 构造(A calls B → from=A, to=B所在节点)
+  const nodeById = new Map(fnNodes.map((n) => [n.id, n]));
+  const callEdges: Array<{ from: FnNode; to: FnNode }> = [];
+  for (const [file, fns] of Object.entries(functions)) {
+    for (const f of fns) {
+      const from = nodeById.get(`${file}:${f.fn}`);
+      if (!from) continue;
+      for (const calleeName of f.calls?.calls ?? []) {
+        const target = fnIndex.get(calleeName);
+        if (target) {
+          const to = nodeById.get(`${target.file}:${target.fn}`);
+          if (to && to.id !== from.id) callEdges.push({ from, to });
+        }
+      }
+    }
+  }
+  const features: FeatureCluster[] = clusterByCallGraph(fnNodes, callEdges);
+  // LLM 给功能簇批量命名(一次调用,失败用种子函数名占位)
+  if (llm && model && features.length > 0 && features.some((f) => f.id !== "__other__")) {
+    const inputs = features.filter((f) => f.id !== "__other__").map((f) => ({ id: f.id, members: f.members }));
+    const names = await nameClusters(llm, model, inputs);
+    if (names) {
+      let nameIdx = 0;
+      for (const f of features) {
+        if (f.id === "__other__") continue;
+        const n = names[nameIdx++];
+        if (n?.name) f.name = n.name;
+        if (n?.what) f.what = n.what;
+      }
+    }
+  }
+
   return {
     version: 1,
     generatedAt: new Date().toISOString(),
     trigger: "onboarding",
     cwd,
+    features,
     modules,
     functions,
     provider: { name: "builtin", version: "ast-1" },

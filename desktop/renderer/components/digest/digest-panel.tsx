@@ -4,10 +4,10 @@ import { Button } from "../ui/button";
 import { ScrollArea } from "../ui/scroll-area";
 import { cn } from "../../lib/utils";
 import { useDigestStore } from "../../stores/digest-store";
-import type { FunctionSummary } from "../../types";
+import type { DigestFile, FeatureCluster, FunctionSummary } from "../../types";
 import {
-  RefreshCw, Map, ChevronRight, ChevronDown, FileCode2,
-  CornerDownRight, AlertTriangle, FileWarning,
+  RefreshCw, Map, ChevronRight, FileCode2,
+  CornerDownRight, AlertTriangle, FileWarning, Boxes,
 } from "lucide-react";
 
 /** level 对应的 badge 样式。 */
@@ -18,41 +18,50 @@ const LEVEL_STYLE: Record<string, string> = {
   glue: "border-muted-foreground/30 bg-muted/40 text-muted-foreground",
 };
 
-/** 单个函数卡片(折叠:一句话;展开:how/logic/pitfalls/calls)。 */
-function FunctionCard({ fn }: { fn: FunctionSummary }) {
-  const hasDetail = (fn.how.length > 0) || (fn.logic?.length ?? 0) > 0 || (fn.pitfalls?.length ?? 0) || fn.calls;
+/** 折叠容器:用 state 懒渲染 + CSS max-height 过渡,避免 <details> 大数据卡顿。 */
+function Collapse({ open, children }: { open: boolean; children: React.ReactNode }) {
   return (
-    <details className="group rounded-md border border-border/40 bg-background/40">
-      <summary className={cn("flex w-full cursor-pointer list-none items-start gap-2 px-2.5 py-1.5 text-left", hasDetail && "hover:bg-muted/30")}>
+    <div
+      className="overflow-hidden transition-[max-height] duration-200 ease-out"
+      style={{ maxHeight: open ? "4000px" : "0px" }}
+    >
+      {open ? children : null}
+    </div>
+  );
+}
+
+/** 单个函数卡片(点击展开 how/logic/pitfalls/calls)。 */
+function FunctionCard({ fn, open, onToggle }: { fn: FunctionSummary; open: boolean; onToggle: () => void }) {
+  const hasDetail = (fn.how.length > 0) || (fn.logic?.length ?? 0) > 0 || (fn.pitfalls?.length ?? 0) > 0 || fn.calls;
+  return (
+    <div className="rounded-md border border-border/40 bg-background/40">
+      <button
+        type="button"
+        onClick={() => hasDetail && onToggle()}
+        className={cn("flex w-full items-start gap-1.5 px-2.5 py-1.5 text-left", hasDetail && "hover:bg-muted/30")}
+      >
         {hasDetail ? (
-          <ChevronRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground group-open:rotate-90 group-open:transition-transform" />
-        ) : <span className="mt-1.5 h-3.5 w-3.5 shrink-0" />}
+          <ChevronRight className={cn("mt-0.5 h-3 w-3 shrink-0 text-muted-foreground transition-transform", open && "rotate-90")} />
+        ) : <span className="mt-1.5 h-3 w-3 shrink-0" />}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <span className="truncate font-mono text-[11.5px] font-medium">{fn.fn}</span>
-            <Badge variant="outline" className={cn("shrink-0 px-1 py-0 text-[9.5px] font-medium", LEVEL_STYLE[fn.level])}>
-              {fn.level}
-            </Badge>
+            <Badge variant="outline" className={cn("shrink-0 px-1 py-0 text-[9.5px]", LEVEL_STYLE[fn.level])}>{fn.level}</Badge>
             {fn.entry ? <Badge variant="outline" className="shrink-0 px-1 py-0 text-[9.5px] text-accent border-accent/30">entry</Badge> : null}
-            <span className="ml-auto shrink-0 font-mono text-[10.5px] text-muted-foreground">L{fn.startLine}-{fn.endLine}</span>
+            <span className="ml-auto shrink-0 font-mono text-[10.5px] text-muted-foreground">{fn.file.split("/").pop()} L{fn.startLine}</span>
           </div>
           <div className="mt-0.5 truncate text-[11.5px] text-muted-foreground">
             {fn.what || <span className="italic opacity-60">(白话待生成)</span>}
           </div>
         </div>
-      </summary>
-      {hasDetail ? (
+      </button>
+      <Collapse open={open && hasDetail}>
         <div className="space-y-2 border-t border-border/40 px-2.5 py-2 text-[11.5px]">
           {fn.how.length > 0 ? (
             <div>
               <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">怎么写的</div>
               <ol className="space-y-0.5">
-                {fn.how.map((h, i) => (
-                  <li key={i} className="flex gap-1 text-foreground/90">
-                    <span className="text-muted-foreground/50">{i + 1}.</span>
-                    <span>{h}</span>
-                  </li>
-                ))}
+                {fn.how.map((h, i) => <li key={i} className="flex gap-1"><span className="text-muted-foreground/50">{i + 1}.</span><span>{h}</span></li>)}
               </ol>
             </div>
           ) : null}
@@ -60,28 +69,14 @@ function FunctionCard({ fn }: { fn: FunctionSummary }) {
             <div>
               <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">关键逻辑</div>
               <ul className="space-y-0.5">
-                {fn.logic.map((l, i) => (
-                  <li key={i} className="flex gap-1 text-foreground/90">
-                    <CornerDownRight className="mt-0.5 h-2.5 w-2.5 shrink-0 text-muted-foreground/50" />
-                    <span>{l}</span>
-                  </li>
-                ))}
+                {fn.logic.map((l, i) => <li key={i} className="flex gap-1"><CornerDownRight className="mt-0.5 h-2.5 w-2.5 shrink-0 text-muted-foreground/50" /><span>{l}</span></li>)}
               </ul>
             </div>
           ) : null}
           {fn.pitfalls?.length ? (
             <div className="rounded border border-amber-500/30 bg-amber-500/5 p-1.5">
-              <div className="mb-0.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">
-                <FileWarning className="h-2.5 w-2.5" /> 踩过的坑
-              </div>
-              <ul className="space-y-0.5">
-                {fn.pitfalls.map((p, i) => (
-                  <li key={i} className="flex gap-1 text-amber-700 dark:text-amber-300">
-                    <AlertTriangle className="mt-0.5 h-2.5 w-2.5 shrink-0" />
-                    <span>{p}</span>
-                  </li>
-                ))}
-              </ul>
+              <div className="mb-0.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400"><FileWarning className="h-2.5 w-2.5" /> 踩过的坑</div>
+              <ul className="space-y-0.5">{fn.pitfalls.map((p, i) => <li key={i} className="flex gap-1 text-amber-700 dark:text-amber-300"><AlertTriangle className="mt-0.5 h-2.5 w-2.5 shrink-0" /><span>{p}</span></li>)}</ul>
             </div>
           ) : null}
           {fn.calls ? (
@@ -91,54 +86,59 @@ function FunctionCard({ fn }: { fn: FunctionSummary }) {
             </div>
           ) : null}
         </div>
-      ) : null}
-    </details>
+      </Collapse>
+    </div>
   );
 }
 
-/** 函数 level 优先级(排序用)。 */
-const LEVEL_ORDER: Record<string, number> = { core: 0, util: 1, ui: 2, glue: 3 };
+/** 功能簇卡片(主视图:点开看跨文件的函数)。 */
+function FeatureCard({ cluster, fnsByFile, search }: { cluster: FeatureCluster; fnsByFile: Record<string, FunctionSummary[]>; search: string }) {
+  const [open, setOpen] = useState(false);
+  const [openFns, setOpenFns] = useState<Set<string>>(new Set());
+  const q = search.trim().toLowerCase();
+  // 簇内函数(从 functions 按 member 取),按重要性排序
+  const members = cluster.members
+    .map((m) => fnsByFile[m.file]?.find((f) => f.fn === m.fn))
+    .filter((f): f is FunctionSummary => !!f)
+    .filter((f) => !q || f.fn.toLowerCase().includes(q) || (f.what ?? "").toLowerCase().includes(q) || f.file.toLowerCase().includes(q))
+    .sort((a, b) => {
+      const order: Record<string, number> = { core: 0, util: 1, ui: 2, glue: 3 };
+      return order[a.level] - order[b.level] || a.startLine - b.startLine;
+    });
+  if (members.length === 0) return null;
+  const toggleFn = (key: string) => setOpenFns((s) => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; });
+  const isOther = cluster.name === "其他";
 
-/** 单个文件的函数组(默认折叠,函数按重要性排序+限量)。 */
-function FileGroup({ file, fns }: { file: string; fns: FunctionSummary[] }) {
-  const coreCount = fns.filter((f) => f.level === "core").length;
-  // 按重要性排序:core > util > ui > glue,同级按行号
-  const sorted = [...fns].sort((a, b) => LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level] || a.startLine - b.startLine);
-  // 默认只显示前 8 个,多的折叠在'更多'
-  const visible = sorted.slice(0, 8);
-  const rest = sorted.slice(8);
   return (
-    <details className="group rounded-md border border-border/40">
-      <summary className="flex w-full cursor-pointer list-none items-center gap-1.5 px-2.5 py-1.5 hover:bg-muted/30">
-        <ChevronRight className="h-3 w-3 text-muted-foreground group-open:rotate-90 group-open:transition-transform" />
-        <FileCode2 className="h-3 w-3 text-muted-foreground" />
-        <span className="truncate font-mono text-[11.5px]">{file}</span>
-        <span className="ml-auto shrink-0 text-[10.5px] text-muted-foreground">
-          {fns.length}{coreCount > 0 ? ` · ${coreCount}核心` : ""}
+    <div className={cn("rounded-md border", isOther ? "border-border/30 bg-muted/10" : "border-border/40")}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-1.5 px-2.5 py-2 text-left hover:bg-muted/30"
+      >
+        <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform", open && "rotate-90")} />
+        {isOther ? <Boxes className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" /> : <Boxes className="h-3.5 w-3.5 shrink-0 text-accent/70" />}
+        <span className="truncate text-[12px] font-medium">{cluster.name}</span>
+        {cluster.what && !isOther ? <span className="truncate text-[10.5px] text-muted-foreground">— {cluster.what}</span> : null}
+        <span className="ml-auto flex shrink-0 items-center gap-2">
+          {!isOther && cluster.cohesion > 0 ? <span className="text-[9.5px] text-muted-foreground/60" title="内聚度">●{cluster.cohesion.toFixed(1)}</span> : null}
+          <span className="text-[10.5px] text-muted-foreground">{members.length} 函数</span>
         </span>
-      </summary>
-      <div className="space-y-1 border-t border-border/40 p-1.5">
-        {visible.map((f) => <FunctionCard key={f.fn} fn={f} />)}
-        {rest.length > 0 ? (
-          <details className="group/rest rounded border border-border/30 bg-muted/20">
-            <summary className="flex cursor-pointer list-none items-center gap-1 px-2 py-1 text-[10.5px] text-muted-foreground hover:bg-muted/40">
-              <ChevronRight className="h-2.5 w-2.5 group-rest:open:rotate-90" />
-              还有 {rest.length} 个函数
-            </summary>
-            <div className="space-y-1 border-t border-border/30 p-1.5">
-              {rest.map((f) => <FunctionCard key={f.fn} fn={f} />)}
-            </div>
-          </details>
-        ) : null}
-      </div>
-    </details>
+      </button>
+      <Collapse open={open}>
+        <div className="space-y-1 border-t border-border/40 p-1.5">
+          {members.map((f) => (
+            <FunctionCard key={`${f.file}:${f.fn}`} fn={f} open={openFns.has(`${f.file}:${f.fn}`)} onToggle={() => toggleFn(`${f.file}:${f.fn}`)} />
+          ))}
+        </div>
+      </Collapse>
+    </div>
   );
 }
 
 /**
  * 项目功能地图内嵌视图(右栏 Tab 内容)。
- * 三层折叠:① 模块总览表 ② 文件折叠 ③ 函数详情。
- * 不含覆盖层壳,由右栏面板承载。首次进入自动加载当前项目。
+ * 主视图:按功能簇分组(像 IDE 大纲按功能),点开看跨文件函数。
  */
 export function DigestView({ cwd }: { cwd: string }) {
   const digest = useDigestStore((s) => s.digest);
@@ -149,7 +149,6 @@ export function DigestView({ cwd }: { cwd: string }) {
   const curCwd = useDigestStore((s) => s.cwd);
   const [search, setSearch] = useState("");
 
-  // 切换项目时重新加载
   useEffect(() => {
     if (cwd && cwd !== curCwd) {
       useDigestStore.setState({ cwd });
@@ -160,36 +159,17 @@ export function DigestView({ cwd }: { cwd: string }) {
   }, [cwd, curCwd, digest, loading, reload]);
 
   const fnCount = digest ? Object.values(digest.functions).reduce((n, fns) => n + fns.length, 0) : 0;
-
-  // 函数清单:搜索过滤 + 按 core 函数数排序 + 限量(防大项目卡顿)
-  const allFiles = digest ? Object.entries(digest.functions).filter(([, fns]) => fns.length > 0) : [];
-  const q = search.trim().toLowerCase();
-  const matched = q
-    ? allFiles.filter(([file, fns]) =>
-        file.toLowerCase().includes(q) || fns.some((f) => f.fn.toLowerCase().includes(q) || (f.what ?? "").toLowerCase().includes(q)),
-      )
-    : allFiles.sort((a, b) => {
-        const ca = a[1].filter((f) => f.level === "core").length;
-        const cb = b[1].filter((f) => f.level === "core").length;
-        return cb - ca;
-      });
-  const filteredFiles = q ? matched : matched.slice(0, 30);
+  const features = digest?.features ?? [];
+  const visibleFeatures = features.filter((f) => f.name !== "其他");
+  const otherCluster = features.find((f) => f.name === "其他");
 
   return (
     <div className="flex h-full flex-col">
-      {/* 顶栏:标题 + 刷新 */}
       <div className="flex h-7 shrink-0 items-center gap-1.5 border-b border-border/40 px-2.5">
         <span className="text-[11px] font-medium text-muted-foreground">
-          {digest ? `${digest.modules.length} 模块 · ${fnCount} 函数` : "项目功能地图"}
+          {digest ? `${visibleFeatures.length} 功能 · ${fnCount} 函数` : "项目功能地图"}
         </span>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="ml-auto h-6 w-6 text-muted-foreground"
-          onClick={() => void refresh()}
-          disabled={loading}
-          title="刷新地图"
-        >
+        <Button variant="ghost" size="icon" className="ml-auto h-6 w-6 text-muted-foreground" onClick={() => void refresh()} disabled={loading} title="刷新地图">
           <RefreshCw className={cn("h-3 w-3", loading && "animate-spin")} />
         </Button>
       </div>
@@ -204,69 +184,26 @@ export function DigestView({ cwd }: { cwd: string }) {
           ) : !digest ? (
             <div className="py-12 text-center">
               <Map className="mx-auto mb-2 h-7 w-7 text-muted-foreground/40" />
-              <div className="mb-2 text-[12px] text-muted-foreground">
-                {error ?? "还没有项目地图"}
-              </div>
-              <Button variant="outline" size="sm" className="h-7 text-[11px]" onClick={() => void refresh()}>
-                生成地图
-              </Button>
+              <div className="mb-2 text-[12px] text-muted-foreground">{error ?? "还没有项目地图"}</div>
+              <Button variant="outline" size="sm" className="h-7 text-[11px]" onClick={() => void refresh()}>生成地图</Button>
             </div>
           ) : (
-            <div className="space-y-3">
-              {/* ① 模块总览表 */}
-              <section>
-                <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-                  模块总览
-                </div>
-                <div className="overflow-hidden rounded-md border border-border/40">
-                  <table className="w-full text-[11.5px]">
-                    <thead className="bg-muted/30 text-[10px] uppercase tracking-wider text-muted-foreground/70">
-                      <tr>
-                        <th className="px-2 py-1 text-left font-semibold">模块</th>
-                        <th className="px-2 py-1 text-left font-semibold">功能</th>
-                        <th className="px-2 py-1 text-right font-semibold">文件</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {digest.modules.map((m) => (
-                        <tr key={m.name} className="border-t border-border/30">
-                          <td className="px-2 py-1.5 font-mono font-medium align-top">{m.name}</td>
-                          <td className="px-2 py-1.5 text-muted-foreground">
-                            {m.what || <span className="italic opacity-60">(待生成)</span>}
-                          </td>
-                          <td className="px-2 py-1.5 text-right font-mono text-[10.5px] text-muted-foreground">{m.files.length}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-
-              {/* ② 函数清单(按文件折叠,搜索过滤+限量) */}
-              <section>
-                <div className="mb-1.5 flex items-center gap-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-                    函数级摘要
-                  </span>
-                </div>
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="搜索文件或函数…"
-                  className="mb-2 w-full rounded border border-border/40 bg-background/60 px-2 py-1 text-[11px] outline-none placeholder:text-muted-foreground/50 focus:border-accent/40"
-                />
-                <div className="space-y-1">
-                  {filteredFiles.map(([file, fns]) =>
-                    fns.length > 0 ? <FileGroup key={file} file={file} fns={fns} /> : null,
-                  )}
-                  {filteredFiles.length === 0 ? (
-                    <div className="py-4 text-center text-[11px] text-muted-foreground/60">
-                      {search ? `无匹配“${search}”` : "无函数"}
-                    </div>
-                  ) : null}
-                </div>
-              </section>
+            <div className="space-y-2.5">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="搜索功能或函数…"
+                className="w-full rounded border border-border/40 bg-background/60 px-2 py-1 text-[11px] outline-none placeholder:text-muted-foreground/50 focus:border-accent/40"
+              />
+              {/* 功能簇(主视图) */}
+              {visibleFeatures.map((c) => (
+                <FeatureCard key={c.name} cluster={c} fnsByFile={digest.functions} search={search} />
+              ))}
+              {/* 其他(孤立函数,折叠在最后) */}
+              {otherCluster ? (
+                <FeatureCard cluster={otherCluster} fnsByFile={digest.functions} search={search} />
+              ) : null}
             </div>
           )}
         </div>
