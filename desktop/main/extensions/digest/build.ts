@@ -123,6 +123,7 @@ export async function buildDigest(cwd: string, llm?: LLMRuntime, model?: unknown
     .slice(0, MAX_LLM_FILES);
   const llmResults = new Map<string, { what: string; functions: Record<string, { what: string; how: string[]; logic?: string[] }> }>();
   if (llm && model) {
+    let fileIdx = 0;
     for (const sk of filesToSummarize) {
       const full = path.join(cwd, sk.file);
       try {
@@ -130,6 +131,8 @@ export async function buildDigest(cwd: string, llm?: LLMRuntime, model?: unknown
         // 骨架文本:函数名+行号+调用,给 LLM 当结构参考
         const skText = sk.functions.map((f) => `${f.fn}(L${f.startLine}-${f.endLine} ${f.exported ? "exported" : ""} calls:[${f.calls.join(",")}])`).join("\n");
         const summary = await summarizeFile(llm, model, sk.file, skText, source);
+        if (fileIdx === 0) console.log(`[digest] 首文件摘要样例 ${sk.file}:`, summary ? `what=${summary.what.slice(0,40)}` : 'null');
+        fileIdx++;
         if (summary) llmResults.set(sk.file, summary);
       } catch {
         // 单文件摘要失败不阻断
@@ -180,7 +183,9 @@ export async function buildDigest(cwd: string, llm?: LLMRuntime, model?: unknown
   // LLM 给功能簇批量命名(一次调用,失败用种子函数名占位)
   if (llm && model && features.length > 0 && features.some((f) => f.id !== "__other__")) {
     const inputs = features.filter((f) => f.id !== "__other__").map((f) => ({ id: f.id, members: f.members }));
+    console.log(`[digest] LLM 命名 ${inputs.length} 个功能簇...`);
     const names = await nameClusters(llm, model, inputs);
+    console.log(`[digest] LLM 命名结果:`, names ? `${names.length}个, 样例=${JSON.stringify(names.slice(0, 3))}` : 'null(失败)');
     if (names) {
       let nameIdx = 0;
       for (const f of features) {

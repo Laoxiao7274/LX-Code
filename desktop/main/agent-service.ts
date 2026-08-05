@@ -476,8 +476,18 @@ export function disposeAll() {
 
 const DEFAULT_DIGEST_CFG: DigestConfig = { enabled: true, autoUpdate: true, injectContext: true };
 
-/** 获取 digest 扩展的 LLM 运行时(手动刷新也能用,不只 agent 事件里能用)。 */
-export function getDigestLLM() {
+/** 获取 digest 扩展的 LLM 运行时(手动刷新也能用,不只 agent 事件里能用)。
+ *  确保 modelRuntime 就绪并构造 digestLLM(即使没发过消息创建会话)。 */
+export async function getDigestLLM() {
+  if (!digestLLM) {
+    const modelRuntime = await getModelRuntime();
+    digestLLM = {
+      completeSimple: (model: unknown, context: { systemPrompt?: string; messages: unknown[] }, options?: unknown) =>
+        (modelRuntime as unknown as {
+          completeSimple: (m: unknown, ctx: unknown, opt?: unknown) => Promise<{ content: Array<{ type: string; text?: string }> }>
+        }).completeSimple(model, context, options),
+    };
+  }
   return digestLLM;
 }
 

@@ -164,8 +164,9 @@ export function initDataIpc() {
   // 手动触发全量刷新 digest(带 LLM 填白话+功能名,用配置的默认模型)
   ipcMain.handle("data:refreshDigest", async (_e, args: { cwd: string }) => {
     try {
-      const llm = getDigestLLM();
+      const llm = await getDigestLLM();
       const model = await getDigestDefaultModel();
+      console.log(`[digest] refreshDigest: llm=${llm ? '有' : '无'}, model=${model ? '有' : '无'}`);
       const digest = await buildDigest(args.cwd, llm ?? undefined, model);
       digest.trigger = "onboarding";
       await writeDigest(args.cwd, digest);
