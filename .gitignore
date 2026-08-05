@@ -48,3 +48,4 @@ release/
 
 # codegraph 本地索引产物(每台机器独立,不入库)
 .codegraph/
+codegraph.json
