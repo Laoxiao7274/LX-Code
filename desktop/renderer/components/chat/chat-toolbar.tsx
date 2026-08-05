@@ -110,6 +110,12 @@ function ThinkingLevelSelect({ sessionId }: { sessionId: string }) {
   );
 }
 
+/** 格式化 tokens 为 k(如 24576 → 24.6k)。 */
+function fmtK(n: number): string {
+  if (n >= 1000) return (n / 1000).toFixed(n >= 10000 ? 0 : 1) + "k";
+  return String(n);
+}
+
 /** 上下文用量纯展示(不点击)。 */
 function ContextUsage({ sessionId }: { sessionId: string }) {
   const usage = useChatStore((s) => s.usageBySession[sessionId]);
@@ -134,7 +140,7 @@ function ContextUsage({ sessionId }: { sessionId: string }) {
     );
   }
   return (
-    <div className="flex h-6 items-center gap-1.5 px-2 text-[11px] text-muted-foreground" title={`${used.toLocaleString()} / ${total.toLocaleString()} tokens(当前上下文 / 模型窗口)`}>
+    <div className="flex h-6 items-center gap-1.5 px-2 text-[11px] text-muted-foreground" title={`${fmtK(used)} / ${fmtK(total)} (当前上下文 / 模型窗口)`}>
       <Activity className="h-3.5 w-3.5" />
       <div className="h-1.5 w-14 overflow-hidden rounded-full bg-muted">
         <div
