@@ -42,14 +42,20 @@ export function ChatMain() {
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
-  // textarea 自动增高(单行保持 h-10,多行才扩展)
+  // textarea 自动增高:单行靠 h-10 + leading-10 让文字垂直居中(行高=容器高);
+  // 多行(含换行)才设 inline height 扩展。用换行判断,不用 scrollHeight 阈值
+  // —— py 会使 scrollHeight 含 padding 误判,导致单行被设成 88px 破坏居中。
   useEffect(() => {
     const ta = taRef.current;
     if (!ta) return;
-    // 单行:重置高度(让 h-10 + py-2 生效,文字精确垂直居中)
-    ta.style.height = "";
-    // 多行:按 scrollHeight 扩展(单行含 padding 约 40,超过才多行)
-    if (ta.scrollHeight > 40) ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
+    if (!input.includes("\n")) {
+      // 单行:清空 inline height,让 h-10 + leading-10 生效(文字精确居中)
+      ta.style.height = "";
+      return;
+    }
+    // 多行:按 scrollHeight 扩展(此时 scrollHeight 真实反映多行内容)
+    ta.style.height = "auto";
+    ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
   }, [input]);
   const [lightbox, setLightbox] = useState<Attachment | null>(null);
 
@@ -178,7 +184,7 @@ export function ChatMain() {
                   }
                 }}
                 rows={1}
-                className="block h-10 w-full resize-none border-0 bg-transparent px-1 py-2 text-[13px] leading-6 text-foreground outline-none placeholder:text-muted-foreground/60 disabled:opacity-60"
+                className="block h-10 w-full resize-none border-0 bg-transparent px-1 py-0 text-[13px] leading-[38px] text-foreground outline-none placeholder:text-muted-foreground/60 disabled:opacity-60"
                 style={{ maxHeight: 120 }}
               />
               {isGenerating ? (
