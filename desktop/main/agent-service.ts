@@ -119,13 +119,17 @@ function serializeEvent(event: AgentSessionEvent): unknown {
         const u = msg?.usage;
         return { type: "message_update", assistantMessageEvent: { type: "done", usage: u ? { input: u.input, output: u.output, totalTokens: u.totalTokens } : undefined } };
       }
-      // text_*/thinking_*/start
+      // text_*/thinking_*/start:这些流式事件的 partial.usage 在生成一开始就有上下文用量,
+      // 提前提取(不等 done/message_end),避免某些 provider done 没填 message.usage 时一直空。
+      const partial = (ae as { partial?: { usage?: { input?: number; output?: number; totalTokens?: number } } }).partial;
+      const pu = partial?.usage;
       return {
         type: "message_update",
         assistantMessageEvent: {
           type: t,
           delta: "delta" in ae ? ae.delta : undefined,
           content: "content" in ae ? (ae as { content?: string }).content : undefined,
+          usage: pu ? { input: pu.input, output: pu.output, totalTokens: pu.totalTokens } : undefined,
         },
       };
     }

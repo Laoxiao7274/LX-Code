@@ -262,6 +262,9 @@ function handleAgentEvent(
   switch (event.type) {
     case "message_update": {
       const ae = event.assistantMessageEvent;
+      // 通用:任何带 usage 的 message_update(流式 partial.usage / done)都记录上下文用量
+      const ue = (ae as { usage?: { input: number; output: number; totalTokens: number } }).usage;
+      if (ue) set((s) => ({ usageBySession: { ...s.usageBySession, [sessionId]: ue } }));
       if (!ae) break;
       if (ae.type === "text_start") {
         // 新文本块开始:结束上个 thinking part(若有),准备接收 text_delta
