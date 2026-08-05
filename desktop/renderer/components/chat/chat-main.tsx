@@ -79,6 +79,11 @@ export function ChatMain() {
     bottomRef.current?.scrollIntoView({ block: "end" });
   }, [messages.length, lastSig]);
 
+  // 切会话时滚到底(sessionId 变化)
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: "end" });
+  }, [sessionId]);
+
   // 选中会话时加载历史消息(首次 + 路径有效)
   useEffect(() => {
     if (sessionId && sessionPath) void loadHistory(sessionId, sessionPath);
@@ -159,7 +164,7 @@ export function ChatMain() {
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
-                    void send(sessionId, cwd);
+                    void send(sessionId, cwd, sessionPath);
                   }
                 }}
                 rows={1}
@@ -179,7 +184,7 @@ export function ChatMain() {
                 <button
                   type="button"
                   disabled={!input.trim() && pending.length === 0}
-                  onClick={() => void send(sessionId, cwd)}
+                  onClick={() => void send(sessionId, cwd, sessionPath)}
                   className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
                   title="发送"
                 >

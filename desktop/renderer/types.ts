@@ -3,7 +3,7 @@ export interface LxcodeAPI {
   version: string;
   platform: string;
   agent: {
-    prompt: (sessionId: string, cwd: string, text: string, images?: { path: string }[]) => Promise<{ ok: boolean; error?: string }>;
+    prompt: (sessionId: string, cwd: string, text: string, images?: { path: string }[], sessionPath?: string) => Promise<{ ok: boolean; error?: string }>;
     abort: (sessionId: string) => Promise<{ ok: boolean }>;
     dispose: (sessionId: string) => Promise<{ ok: boolean }>;
     listProviders: () => Promise<{ ok: boolean; error?: string; providers: unknown[] }>;

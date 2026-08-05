@@ -172,7 +172,7 @@ function subscribeSession(session: AgentSession, sid: string, win: { webContents
 }
 
 /** 获取或创建某工作目录的 agent 会话(持久化到磁盘)。 */
-export async function getOrCreateSession(sessionId: string | undefined, cwd: string, win: { webContents: { send: (ch: string, ...a: unknown[]) => void } } | null) {
+export async function getOrCreateSession(sessionId: string | undefined, cwd: string, win: { webContents: { send: (ch: string, ...a: unknown[]) => void } } | null, sessionPath?: string) {
   // 按 sessionId 找已缓存的会话(同一项目多个会话互不干扰)
   if (sessionId) {
     const existing = sessions.get(sessionId);
@@ -222,8 +222,10 @@ export async function getOrCreateSession(sessionId: string | undefined, cwd: str
     // 静默失败,用 pi 默认模型
   }
 
+  // 有 sessionPath 用 SessionManager.open 恢复已有会话(保留历史上下文),否则 create 新建
+  const sm = sessionPath ? SessionManager.open(sessionPath) : SessionManager.create(cwd, sessionDir);
   const { session } = await createAgentSession({
-    sessionManager: SessionManager.create(cwd, sessionDir),
+    sessionManager: sm,
     modelRuntime: modelRuntime as never,
     resourceLoader: resourceLoader as never,
     settingsManager: SettingsManager.create(cwd, lxcodeDir) as never,
@@ -261,8 +263,9 @@ export async function prompt(
   text: string,
   win: { webContents: { send: (ch: string, ...a: unknown[]) => void } } | null,
   images?: { path: string }[],
+  sessionPath?: string,
 ) {
-  const { session } = await getOrCreateSession(sessionId, cwd, win);
+  const { session } = await getOrCreateSession(sessionId, cwd, win, sessionPath);
   // 读图片附件转 base64
   const imgContents: { type: "image"; data: string; mimeType: string }[] = [];
   if (images?.length) {

@@ -76,7 +76,7 @@ interface ChatState {
   /** 移除一条待发送附件。 */
   removeAttachment: (id: string) => void;
   /** 发送消息(调真实 agent)。 */
-  send: (sessionId: string, cwd: string) => Promise<void>;
+  send: (sessionId: string, cwd: string, sessionPath?: string) => Promise<void>;
   /** 加载会话历史消息(从会话文件)。 */
   loadHistory: (sessionId: string, sessionPath: string) => Promise<void>;
   /** 中断。 */
@@ -104,7 +104,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   removeAttachment: (id) =>
     set((s) => ({ pendingAttachments: s.pendingAttachments.filter((a) => a.id !== id) })),
 
-  send: async (sessionId, cwd) => {
+  send: async (sessionId, cwd, sessionPath) => {
     const { input, generatingBySession, pendingAttachments } = get();
     const gen = !!generatingBySession[sessionId];
     if ((!input.trim() && pendingAttachments.length === 0) || gen) return;
@@ -148,7 +148,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       // 图片附件的 path 传给 agent(主进程读文件转 base64)
       const images = pendingAttachments.filter((a) => a.kind === "image" && a.path).map((a) => ({ path: a.path! }));
-      await window.lxcode?.agent?.prompt(sessionId, cwd, userMsg.text!, images.length ? images : undefined);
+      await window.lxcode?.agent?.prompt(sessionId, cwd, userMsg.text!, images.length ? images : undefined, sessionPath);
     } catch (e) {
       console.error("agent prompt 失败", e);
       // 失败:清理流 + 停止生成

@@ -26,8 +26,8 @@ const dataApi = {
 
 const agentApi = {
   /** 发送 prompt,返回 {ok, error?}。事件流通过 onEvent 推送。 */
-  prompt: (sessionId: string, cwd: string, text: string, images?: { path: string }[]) =>
-    ipcRenderer.invoke("agent:prompt", { sessionId, cwd, text, images }),
+  prompt: (sessionId: string, cwd: string, text: string, images?: { path: string }[], sessionPath?: string) =>
+    ipcRenderer.invoke("agent:prompt", { sessionId, cwd, text, images, sessionPath }),
 
   /** 中断某会话。 */
   abort: (sessionId: string) => ipcRenderer.invoke("agent:abort", { sessionId }),
