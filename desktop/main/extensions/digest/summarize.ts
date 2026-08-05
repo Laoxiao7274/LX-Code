@@ -64,10 +64,14 @@ ${source}
 - 只返回 JSON`;
 }
 
-/** 从 LLM 响应提取 JSON(容错:处理 markdown fence + 裸 JSON)。摘取 UA 的 extractJson。 */
+/** 从 LLM 响应提取 JSON(容错:处理 markdown fence + 裸 JSON 数组/对象)。摘取 UA 的 extractJson 改造。 */
 function extractJson(response: string): string {
   const fence = response.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
   if (fence) return fence[1].trim();
+  // JSON 数组
+  const arr = response.match(/\[[\s\S]*\]/);
+  if (arr) return arr[0].trim();
+  // JSON 对象
   const obj = response.match(/\{[\s\S]*\}/);
   if (obj) return obj[0].trim();
   return response.trim();
@@ -161,8 +165,9 @@ export function parseClusterNames(response: string): Array<{ index: number; name
         name: typeof x.name === "string" ? x.name : "",
         what: typeof x.what === "string" ? x.what : undefined,
       }))
-      .filter((x) => x.index >= 0 && x.name);
-  } catch {
+      .filter((x) => x.name); // 只要有名字即可,不强求 index>=0(按顺序对应)
+  } catch (e) {
+    console.log(`[digest] parseClusterNames JSON解析失败: ${e instanceof Error ? e.message : e}`);
     return null;
   }
 }
