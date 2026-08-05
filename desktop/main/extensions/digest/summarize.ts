@@ -181,8 +181,10 @@ export async function nameClusters(
       signal ? { signal } : undefined,
     );
     const text = result.content.find((c) => c.type === "text")?.text ?? "";
+    console.log(`[digest] LLM 命名响应长度=${text.length}, 前80字=${text.slice(0, 80)}`);
     if (!text) return null;
     const parsed = parseClusterNames(text);
+    console.log(`[digest] LLM 命名解析:`, parsed ? `${parsed.length}个` : 'null(解析失败)');
     if (!parsed) return null;
     // 按返回顺序对应(不依赖 LLM 的 index 字段,更鲁棒)
     return clusters.map((_, i) => ({
