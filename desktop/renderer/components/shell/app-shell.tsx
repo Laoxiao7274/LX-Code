@@ -10,6 +10,7 @@ import { TaskSidebar } from "../sidebar/task-sidebar";
 import { ChatMain } from "../chat/chat-main";
 import { AgentMain } from "../chat/agent-main";
 import { SettingsPanel } from "../settings/settings-panel";
+import { DigestPanel } from "../digest/digest-panel";
 import { useModeStore } from "../../stores/mode-store";
 
 /** 应用框架:标题栏(含模式切换) + (侧栏 | 主区) + 状态栏 + 设置覆盖层。 */
@@ -42,6 +43,8 @@ export function AppShell() {
       )}
       {/* 设置面板(覆盖层) */}
       <SettingsPanel />
+      {/* digest 项目地图面板(覆盖层) */}
+      <DigestPanel />
     </div>
   );
 }

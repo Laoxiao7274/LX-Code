@@ -28,6 +28,10 @@ export interface LxcodeAPI {
     readArchived: () => Promise<{ ok: boolean; ids: string[] }>;
     writeArchived: (ids: string[]) => Promise<{ ok: boolean }>;
     fetchModels: (baseUrl: string, apiKey: string, api: string) => Promise<{ ok: boolean; models?: { id: string; name: string }[]; error?: string }>;
+    getDigest: (cwd: string) => Promise<{ ok: boolean; digest?: DigestFile; error?: string }>;
+    getDigestConfig: (cwd: string) => Promise<{ ok: boolean; config: DigestConfig }>;
+    setDigestConfig: (cwd: string, config: Partial<DigestConfig>) => Promise<{ ok: boolean }>;
+    refreshDigest: (cwd: string) => Promise<{ ok: boolean; modules?: number; functions?: number; error?: string }>;
   };
   win: {
     minimize: () => Promise<void>;
@@ -39,6 +43,39 @@ export interface LxcodeAPI {
 }
 
 export type AgentEventListener = (event: unknown) => void;
+
+/** digest 配置(开关)。 */
+export interface DigestConfig {
+  enabled: boolean;
+  autoUpdate: boolean;
+  injectContext: boolean;
+}
+
+/** digest.json 结构(与扩展 schema 对齐,前端只读)。 */
+export interface DigestFile {
+  version: 1;
+  generatedAt: string;
+  trigger: "onboarding" | "incremental";
+  cwd: string;
+  modules: { name: string; path: string; what: string; files: string[]; related: string[] }[];
+  functions: Record<string, FunctionSummary[]>;
+  provider: { name: string; version: string };
+}
+export interface FunctionSummary {
+  file: string;
+  fn: string;
+  startLine: number;
+  endLine: number;
+  level: "core" | "util" | "ui" | "glue";
+  what: string;
+  how: string[];
+  logic?: string[];
+  pitfalls?: string[];
+  calls?: { calls: string[]; calledBy: string[]; source: string };
+  deps?: string[];
+  entry?: boolean;
+  blocks?: { lines: [number, number]; what: string }[];
+}
 
 declare global {
   interface Window {
