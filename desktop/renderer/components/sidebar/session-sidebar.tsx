@@ -7,7 +7,7 @@ import { Separator } from "../ui/separator";
 import { cn } from "../../lib/utils";
 import {
   Plus, MessageSquare, Settings, ChevronRight, Folder, FolderPlus,
-  MoreHorizontal, Pencil, Trash2, Archive,
+  MoreHorizontal, Pencil, Trash2, Archive, PanelLeftOpen, PanelLeftClose,
 } from "lucide-react";
 
 /** 相对时间格式化。 */
@@ -85,7 +85,7 @@ function ActionMenu({ items }: { items: { icon: typeof Pencil; label: string; on
  * 左侧会话栏:按项目(文件夹)分组,项目下挂会话。
  * 项目和会话都支持改名/删除/归档(⋯ 菜单)。
  */
-export function SessionSidebar() {
+export function SessionSidebar({ collapsed, onToggleCollapse }: { collapsed?: boolean; onToggleCollapse?: () => void } = {}) {
   const projects = useSessionStore((s) => s.projects);
   const activeId = useSessionStore((s) => s.activeId);
   const generatingBySession = useChatStore((s) => s.generatingBySession);
@@ -117,9 +117,61 @@ export function SessionSidebar() {
   const handleRenameProject = (id: string, cur: string) => setEditing({ kind: "project", id, value: cur });
   const handleRenameSession = (id: string, cur: string) => setEditing({ kind: "session", id, value: cur });
 
+  // 折叠态:图标竖栏(项目图标 + 新建 + 展开)
+  if (collapsed) {
+    return (
+      <div className="flex h-full flex-col items-center gap-1 border-r border-border/60 bg-muted/20 py-1.5">
+        {projects.map((p) => {
+          const visibleSessions = p.sessions.filter((s) => !s.archived);
+          const projectRunning = visibleSessions.some((s) => generatingBySession[s.id]);
+          const firstSession = visibleSessions[0];
+          const active = firstSession && firstSession.id === activeId;
+          return (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => firstSession && select(firstSession.id)}
+              title={p.name}
+              className={cn(
+                "flex h-7 w-7 items-center justify-center rounded transition-colors",
+                active ? "bg-accent/10 text-accent" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              {projectRunning ? (
+                <span className="relative flex h-3.5 w-3.5 items-center justify-center">
+                  <span className="signal-dot signal-dot-live" aria-hidden />
+                </span>
+              ) : (
+                <Folder className={cn("h-4 w-4", p.archived && "opacity-40")} />
+              )}
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          onClick={() => void addProject()}
+          title="新建项目"
+          className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <FolderPlus className="h-4 w-4" />
+        </button>
+        <div className="mt-auto">
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            title="展开侧栏"
+            className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <PanelLeftOpen className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full flex-col bg-muted/25">
-      {/* 侧栏头部:项目标题 + 新建项目按钮 */}
+      {/* 侧栏头部:项目标题 + 新建项目按钮 + 折叠按钮 */}
       <div className="flex items-center justify-between px-3 pb-1 pt-2.5">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">项目</span>
         <button
@@ -130,6 +182,14 @@ export function SessionSidebar() {
         >
           <FolderPlus className="h-3.5 w-3.5" />
           新建
+        </button>
+        <button
+          type="button"
+          onClick={onToggleCollapse}
+          className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
+          title="收起侧栏"
+        >
+          <PanelLeftClose className="h-3.5 w-3.5" />
         </button>
       </div>
       {/* 项目列表 */}

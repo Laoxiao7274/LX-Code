@@ -178,7 +178,7 @@ export function ChatMain() {
                   }
                 }}
                 rows={1}
-                className="block h-10 w-full resize-none border-0 bg-transparent px-1 text-[13px] leading-10 text-foreground outline-none placeholder:text-muted-foreground/60 disabled:opacity-60"
+                className="block h-10 w-full resize-none border-0 bg-transparent px-1 py-0 text-[13px] leading-10 text-foreground outline-none placeholder:text-muted-foreground/60 disabled:opacity-60"
                 style={{ maxHeight: 120 }}
               />
               {isGenerating ? (
