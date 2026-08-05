@@ -45,3 +45,6 @@ release/
 # .lxcode/digest.json 机器读产物,digest-config.json 本地配置,不进 git
 .lxcode/
 # PROJECT_DIGEST.md 是给人看的设计进 git,不忽略
+
+# codegraph 本地索引产物(每台机器独立,不入库)
+.codegraph/
