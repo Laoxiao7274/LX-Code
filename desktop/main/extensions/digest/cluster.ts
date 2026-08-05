@@ -151,11 +151,11 @@ function makeFileCluster(
   }
   const cohesion = fileList.length > 0 ? internalW / fileList.length : 0;
 
-  // 启发式命名:入口文件(被依赖最多)+ 高频文件名术语
+  // 启发式命名:入口文件名 + 所在目录(避免不同目录同名文件导致簇名重复)
   let name = "";
   if (id !== "__other__") {
     const entry = [...fileList].sort((a, b) => (fileInDegree.get(b) ?? 0) - (fileInDegree.get(a) ?? 0))[0];
-    name = entry ? baseName(entry) : "功能组";
+    name = entry ? dirPrefix(entry) + baseName(entry) : "功能组";
   }
   return { id, name, files: fileList, members, cohesion };
 }
@@ -164,4 +164,14 @@ function makeFileCluster(
 function baseName(file: string): string {
   const f = file.split("/").pop() ?? file;
   return f.replace(/\.\w+$/, "");
+}
+
+/** 取文件所在的一级目录前缀(避免不同目录同名文件簇名重复),如 src/types.ts -> src/, desktop/main/x.ts -> main/。 */
+function dirPrefix(file: string): string {
+  const parts = file.split("/");
+  if (parts.length <= 1) return "";
+  // 用一级目录(若一级是 src 则用二级),让名字更有区分度
+  let dir = parts[0];
+  if (dir === "src" && parts.length > 2) dir = parts[1];
+  return dir + "/";
 }

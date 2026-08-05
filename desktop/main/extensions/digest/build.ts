@@ -246,6 +246,43 @@ export async function buildDigest(cwd: string, llm?: LLMRuntime, model?: unknown
       }
     }
   }
+  // 小簇归并:未被 LLM 命名且文件少的簇 + 其他簇,按一级目录合并,减少簇数
+  const smallUnnamed = features.filter((f) => !f.what && f.files.length <= 4);
+  const bigKept = features.filter((f) => f.what || f.files.length > 4);
+  if (smallUnnamed.length > 0) {
+    const byDir = new Map<string, typeof features>();
+    for (const f of smallUnnamed) {
+      for (const file of f.files) {
+        const dir = file.split("/")[0] ?? "misc";
+        if (!byDir.has(dir)) byDir.set(dir, []);
+        byDir.get(dir)!.push(f);
+      }
+    }
+    const merged = [...bigKept];
+    for (const [dir, fs] of byDir) {
+      const allFiles = [...new Set(fs.flatMap((f) => f.files))];
+      merged.push({
+        id: `merged:${dir}`,
+        name: `${dir} 其他`,
+        files: allFiles,
+        members: fs.flatMap((f) => f.members),
+        cohesion: 0,
+      });
+    }
+    merged.sort((a, b) => b.files.length - a.files.length);
+    return {
+      version: 1,
+      generatedAt: new Date().toISOString(),
+      trigger: "onboarding",
+      cwd,
+      features: merged,
+      modules,
+      functions,
+      provider: { name: "builtin", version: "ast-1" },
+      callGraph: [],
+      entryPoints: [],
+    };
+  }
 
   return {
     version: 1,
