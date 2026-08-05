@@ -180,10 +180,11 @@ export async function nameClusters(
     if (!text) return null;
     const parsed = parseClusterNames(text);
     if (!parsed) return null;
-    return clusters.map((_, i) => {
-      const m = parsed.find((p) => p.index === i);
-      return { name: m?.name ?? "", what: m?.what };
-    });
+    // 按返回顺序对应(不依赖 LLM 的 index 字段,更鲁棒)
+    return clusters.map((_, i) => ({
+      name: parsed[i]?.name ?? "",
+      what: parsed[i]?.what,
+    }));
   } catch {
     return null;
   }

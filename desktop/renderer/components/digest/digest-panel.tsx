@@ -214,13 +214,13 @@ export function DigestView({ cwd }: { cwd: string }) {
                 className="w-full rounded border border-border/40 bg-background/60 px-2 py-1 text-[11px] outline-none placeholder:text-muted-foreground/50 focus:border-accent/40"
               />
               {/* 功能簇(主视图,限量15 + 更多折叠) */}
-              {visibleFeatures.map((c) => (
-                <FeatureCard key={c.name} cluster={c} fnsByFile={digest.functions} search={search} />
+              {visibleFeatures.map((c, i) => (
+                <FeatureCard key={`feat-${i}`} cluster={c} fnsByFile={digest.functions} search={search} />
               ))}
               {hiddenFeatures.length > 0 ? (
                 <Collapse open={showMoreFeat}>
-                  {hiddenFeatures.map((c) => (
-                    <FeatureCard key={c.name} cluster={c} fnsByFile={digest.functions} search={search} />
+                  {hiddenFeatures.map((c, i) => (
+                    <FeatureCard key={`feat-hidden-${i}`} cluster={c} fnsByFile={digest.functions} search={search} />
                   ))}
                 </Collapse>
               ) : null}
@@ -231,7 +231,7 @@ export function DigestView({ cwd }: { cwd: string }) {
               ) : null}
               {/* 其他(孤立函数,折叠在最后) */}
               {otherCluster ? (
-                <FeatureCard cluster={otherCluster} fnsByFile={digest.functions} search={search} />
+                <FeatureCard key="feat-other" cluster={otherCluster} fnsByFile={digest.functions} search={search} />
               ) : null}
             </div>
           )}
