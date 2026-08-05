@@ -173,16 +173,18 @@ export function SessionSidebar({ collapsed, onToggleCollapse }: { collapsed?: bo
     <div className="flex h-full flex-col bg-muted/25">
       {/* 侧栏头部:项目标题 + 新建项目按钮 + 折叠按钮 */}
       <div className="flex items-center justify-between px-3 pb-1 pt-2.5">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">项目</span>
-        <button
-          type="button"
-          onClick={() => void addProject()}
-          className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          title="新建项目(选择文件夹)"
-        >
-          <FolderPlus className="h-3.5 w-3.5" />
-          新建
-        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">项目</span>
+          <button
+            type="button"
+            onClick={() => void addProject()}
+            className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            title="新建项目(选择文件夹)"
+          >
+            <FolderPlus className="h-3.5 w-3.5" />
+            新建
+          </button>
+        </div>
         <button
           type="button"
           onClick={onToggleCollapse}

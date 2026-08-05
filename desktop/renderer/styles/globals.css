@@ -145,14 +145,30 @@
   to { opacity: 1; }
 }
 @keyframes lx-card-in {
-  from { opacity: 0; transform: translateY(16px) scale(0.92); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+/* 退场:反向 + 更快 */
+@keyframes lx-overlay-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes lx-card-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-6px); }
 }
 .sp-overlay, .pf-overlay {
-  animation: lx-overlay-in 0.2s ease-out both;
+  animation: lx-overlay-in 0.18s ease-out both;
 }
 .sp-card, .pf-card {
-  animation: lx-card-in 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: lx-card-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+/* 退场态:覆盖入场动画 */
+.sp-closing .sp-overlay, .sp-closing .pf-overlay {
+  animation: lx-overlay-out 0.16s ease-in both;
+}
+.sp-closing .sp-card, .sp-closing .pf-card {
+  animation: lx-card-out 0.16s ease-in both;
 }
 @media (prefers-reduced-motion: reduce) {
   .sp-overlay, .pf-overlay, .sp-card, .pf-card { animation: none; }

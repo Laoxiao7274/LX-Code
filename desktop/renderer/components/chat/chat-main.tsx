@@ -41,6 +41,7 @@ export function ChatMain() {
   const removeAttachment = useChatStore((s) => s.removeAttachment);
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   // textarea 自动增高:单行靠 h-10 + leading-10 让文字垂直居中(行高=容器高);
   // 多行(含换行)才设 inline height 扩展。用换行判断,不用 scrollHeight 阈值
@@ -83,12 +84,14 @@ export function ChatMain() {
   const lastMsg = messages.length ? messages[messages.length - 1] : null;
   const lastSig = lastMsg ? (lastMsg.parts ?? []).length * 1000 + (lastMsg.parts ?? []).reduce((n, p) => n + (p.type === "text" || p.type === "thinking" ? (p.text?.length ?? 0) : p.type === "tool" ? (p.arg?.length ?? 0) + (p.output?.length ?? 0) * 50 : 0), 0) + (lastMsg.text?.length ?? 0) : 0;
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: "end" });
+    const vp = viewportRef.current;
+    if (vp) vp.scrollTop = vp.scrollHeight;
   }, [messages.length, lastSig]);
 
   // 切会话时滚到底(sessionId 变化)
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: "end" });
+    const vp = viewportRef.current;
+    if (vp) vp.scrollTop = vp.scrollHeight;
   }, [sessionId]);
 
   // 选中会话时加载历史消息(首次 + 路径有效)
@@ -112,10 +115,10 @@ export function ChatMain() {
 
       {/* 消息流 */}
       {/* 消息流:占满,底部留空给悬浮输入框 */}
-      <ScrollArea className="flex-1">
-        <div className="mx-auto max-w-3xl space-y-4 p-4 pb-32">
+      <ScrollArea className="flex-1" viewportRef={viewportRef}>
+        <div className="mx-auto min-h-full max-w-3xl space-y-4 p-4 pb-6">
           {messages.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center gap-3 py-20 text-center text-muted-foreground">
+            <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-muted-foreground">
               {loadingHistory ? (
                 <>
                   <span className="signal-dot signal-dot-live" aria-hidden />
@@ -135,11 +138,9 @@ export function ChatMain() {
         </div>
       </ScrollArea>
 
-      {/* 悬浮输入区(Codex 风格:浮在消息区底部,不占文档流) */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10">
-        {/* 渐变遮罩:消息滚动到底部时不被输入框盖死 */}
-        <div className="h-8 bg-gradient-to-t from-background to-transparent" />
-        <div className="pointer-events-auto bg-background/80 px-3 pb-3 backdrop-blur-sm">
+      {/* 输入区(文档流卡片,投影营造悬浮感;占文档流保证消息底部不被遮) */}
+      <div className="px-3 pb-3 pt-2">
+        <div className="mx-auto max-w-3xl rounded-2xl border border-border/60 bg-card/95 px-2.5 py-2.5 shadow-lg backdrop-blur-sm">
           {/* 斜杠命令菜单 */}
           <div className="mx-auto max-w-3xl">
             <SlashMenu

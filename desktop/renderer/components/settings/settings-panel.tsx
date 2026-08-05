@@ -20,8 +20,6 @@ import { cn } from "../../lib/utils";
 
 gsap.registerPlugin(useGSAP);
 
-gsap.registerPlugin(useGSAP);
-
 /** 分类定义。 */
 const SECTIONS = [
   { id: "general", label: "通用", Icon: Settings },
@@ -35,21 +33,6 @@ const SECTIONS = [
 /** 开关行。 */
 function ToggleRow({ label, desc, value, onChange }: { label: string; desc?: string; value: boolean; onChange: (v: boolean) => void }) {
   const on = value;
-  const knobRef = useRef<HTMLSpanElement>(null);
-
-  useGSAP(
-    () => {
-      if (!knobRef.current) return;
-      gsap.to(knobRef.current, {
-        left: on ? 18 : 2,
-        duration: 0.25,
-        ease: "back.out(2)",
-        overwrite: true,
-      });
-    },
-    { dependencies: [on] },
-  );
-
   return (
     <div className="flex items-center justify-between py-3">
       <div className="min-w-0">
@@ -60,14 +43,13 @@ function ToggleRow({ label, desc, value, onChange }: { label: string; desc?: str
         type="button"
         onClick={() => onChange(!on)}
         className={cn(
-          "relative h-5 w-9 shrink-0 rounded-full transition-colors duration-200",
+          "relative h-5 w-9 shrink-0 rounded-full transition-colors duration-200 ease-out",
           on ? "bg-accent" : "bg-muted-foreground/30",
         )}
       >
         <span
-          ref={knobRef}
-          className="absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-white shadow"
-          style={{ left: on ? 18 : 2 }}
+          className="absolute left-0.5 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-white shadow transition-transform duration-200 ease-out"
+          style={{ transform: `translateY(-50%) translateX(${on ? 16 : 0}px)` }}
         />
       </button>
     </div>
@@ -331,38 +313,24 @@ export function SettingsPanel() {
   const contentRef = useRef<HTMLDivElement>(null);
   // mounted:真正挂载(打开时立刻 true,关闭时播完退出动画才 false)
   const [mounted, setMounted] = useState(open);
+  // closing:退场动画进行中(加在根上触发 CSS 退场)
+  const [closing, setClosing] = useState(false);
 
-  // 打开:挂载 + 入场动画
+  // 打开:立刻挂载(入场动画交给 CSS .sp-overlay/.sp-card)
   useEffect(() => {
-    if (open) setMounted(true);
+    if (open) { setMounted(true); setClosing(false); }
   }, [open]);
 
-  // 入场动画(open 变 true)
-  useGSAP(
-    () => {
-      if (!open || !rootRef.current) return;
-      gsap.fromTo(rootRef.current, { opacity: 0 }, { opacity: 1, duration: 0.28, ease: "power2.out", overwrite: true });
-      const card = rootRef.current.querySelector(".sp-card");
-      if (card) gsap.fromTo(card, { opacity: 0, scale: 0.9, y: 20 }, { opacity: 1, scale: 1, y: 0, duration: 0.32, ease: "power3.out", overwrite: true });
-    },
-    { scope: rootRef, dependencies: [open] },
-  );
-
-  // 关闭:播退出动画后卸载(open 变 false)
+  // 关闭:加 closing 态触发 CSS 退场,动画完卸载
   useEffect(() => {
-    if (open || !rootRef.current) return;
-    const card = rootRef.current.querySelector(".sp-card");
-    if (card) gsap.to(card, { opacity: 0, scale: 0.9, y: -20, duration: 0.24, ease: "power2.in", overwrite: true });
-    gsap.to(rootRef.current, {
-      opacity: 0,
-      duration: 0.24,
-      ease: "power2.in",
-      overwrite: true,
-      onComplete: () => setMounted(false),
-    });
-  }, [open]);
+    if (open || !mounted) return;
+    setClosing(true);
+    // 兜底:CSS 动画 0.18s,0.2s 后强制卸载(防 onAnimationEnd 不触发)
+    const t = setTimeout(() => { setMounted(false); setClosing(false); }, 200);
+    return () => clearTimeout(t);
+  }, [open, mounted]);
 
-  // 分类切换:内容淡入上移 + 左条弹出
+  // 分类切换:内容淡入上移 + 左条弹出(这个用 GSAP 保留,不影响开/关)
   useGSAP(
     () => {
       if (!open || !contentRef.current || !rootRef.current) return;
@@ -376,9 +344,9 @@ export function SettingsPanel() {
   if (!mounted) return null;
 
   return (
-    <div ref={rootRef} className="sp-overlay absolute inset-0 z-40 flex items-center justify-center rounded-xl bg-background/80 backdrop-blur-sm" onClick={() => setOpen(false)}>
+    <div ref={rootRef} className={cn("sp-overlay absolute inset-0 z-40 flex items-center justify-center rounded-xl bg-black/40", closing && "sp-closing")} onClick={() => setOpen(false)}>
       <div
-        className="sp-card surface flex h-[80%] w-[80%] max-w-3xl max-h-[640px] min-w-[640px] overflow-hidden rounded-lg shadow-xl"
+        className="sp-card surface flex h-[80%] w-[80%] max-w-3xl max-h-[640px] min-w-[640px] overflow-hidden rounded-lg shadow-2xl will-change-transform"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 左侧分类导航 */}

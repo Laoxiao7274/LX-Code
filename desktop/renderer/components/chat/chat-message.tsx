@@ -2,8 +2,9 @@ import { memo } from "react";
 import { Avatar, AvatarFallback } from "../../components/ui/avatar";
 import { cn } from "../../lib/utils";
 import type { Message, MessagePart, Attachment } from "../../stores/chat-store";
-import { ThinkingBlock } from "./thinking-block";
 import { ToolCallRow } from "./tool-call-row";
+import { ChainOfThoughtBlock, groupParts } from "./chain-of-thought";
+import { ThinkingBlock } from "./thinking-block";
 import { AttachmentView } from "./attachment-view";
 import { MarkdownText } from "./markdown-text";
 import { StreamingText } from "./streaming-text";
@@ -50,29 +51,34 @@ export const ChatMessage = memo(function ChatMessage({ message, onImageClick }: 
               思考中…
             </div>
           ) : null}
-          {message.parts?.map((part: MessagePart) => {
-            if (part.type === "thinking") return <ThinkingBlock key={part.id} part={part} />;
-            if (part.type === "tool") return <ToolCallRow key={part.id} part={part} />;
-            if (part.type === "image") {
-              const src = part.data.startsWith("data:") ? part.data : `data:${part.mimeType};base64,${part.data}`;
+          {(() => {
+            const groups = groupParts(message.parts);
+            return groups.map((g, i) => {
+              if (g.type === "chain") return <ChainOfThoughtBlock key={i} parts={g.parts} />;
+              const part = g.part;
+              if (part.type === "tool") return <ToolCallRow key={part.id} part={part} />;
+              if (part.type === "thinking") return <ThinkingBlock key={part.id} part={part} />;
+              if (part.type === "image") {
+                const src = part.data.startsWith("data:") ? part.data : `data:${part.mimeType};base64,${part.data}`;
+                return (
+                  <div key={part.id} className="py-1">
+                    <img src={src} alt="生成图片" className="max-w-full rounded-lg border border-border/50" />
+                  </div>
+                );
+              }
+              // text
               return (
                 <div key={part.id} className="py-1">
-                  <img src={src} alt="生成图片" className="max-w-full rounded-lg border border-border/50" />
+                  {part.streaming ? (
+                    <StreamingText content={part.text} streaming />
+                  ) : (
+                    <MarkdownText content={part.text} />
+                  )}
+                  {part.streaming ? <span className="ml-0.5 inline-block h-3.5 w-px animate-pulse bg-foreground/50 align-middle" /> : null}
                 </div>
               );
-            }
-            return (
-              <div key={part.id} className="py-1">
-                {/* 流式时逐字显示(丝滑),结束后 MarkdownText(解析 markdown) */}
-                {part.streaming ? (
-                  <StreamingText content={part.text} streaming />
-                ) : (
-                  <MarkdownText content={part.text} />
-                )}
-                {part.streaming ? <span className="ml-0.5 inline-block h-3.5 w-px animate-pulse bg-foreground/50 align-middle" /> : null}
-              </div>
-            );
-          })}
+            });
+          })()}
         </div>
       )}
     </div>
