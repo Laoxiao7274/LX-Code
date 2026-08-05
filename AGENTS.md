@@ -23,6 +23,15 @@ LXCode 是 pi 的 SDK 宿主，能力来自 pi 扩展。新增任何「给 AI �
 
 挂载方式：在 `agent-service.ts` 的 `getOrCreateSession` 里给 `DefaultResourceLoader` 传 `extensionFactories: [xxxFactory]`。当前用内联 factory，等能力成熟后抽成带 `pi` manifest 的独立 npm 包（`pi-package` 关键字）发布。**内联 factory 和包的 `index.ts` 同构**，所以现在写内联不会白做。
 
+## CodeGraph 代码图谱（理解代码优先用）
+
+项目根有 `.codegraph/` 目录时（首次对话自动建索引），**理解或定位代码优先用 `codegraph_explore` 工具，而不是 grep/find 或读文件**：
+
+- `codegraph_explore` 一次调用返回相关符号的逐行源码 + 它们之间的调用路径（含回调、React re-render、JSX children 这种 grep 跟不上的动态分发跳）+ 影响面摘要。一个问题通常一调答完。查询里带文件名或符号名可直接读它当前带行号源码。
+- 配套：`codegraph_callers`（谁调用了它）、`codegraph_callees`（它调用了谁）、`codegraph_impact`（改它影响哪些代码，改代码前必看）。
+
+没有 `.codegraph/` 目录就别用（索引自动建，正常对话会有；删了重启会重建）。
+
 ## 能力边界
 
 | 该做 | 不该做 |
