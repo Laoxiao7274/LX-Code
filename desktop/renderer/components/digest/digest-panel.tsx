@@ -48,7 +48,7 @@ function FunctionCard({ fn, open, onToggle }: { fn: FunctionSummary; open: boole
             <span className="truncate font-mono text-[11.5px] font-medium">{fn.fn}</span>
             <Badge variant="outline" className={cn("shrink-0 px-1 py-0 text-[9.5px]", LEVEL_STYLE[fn.level])}>{fn.level}</Badge>
             {fn.entry ? <Badge variant="outline" className="shrink-0 px-1 py-0 text-[9.5px] text-accent border-accent/30">entry</Badge> : null}
-            <span className="ml-auto shrink-0 font-mono text-[10.5px] text-muted-foreground">{fn.file.split("/").pop()} L{fn.startLine}</span>
+            <span className="ml-auto shrink truncate pl-2 font-mono text-[10.5px] text-muted-foreground">{fn.file.split("/").pop()} L{fn.startLine}</span>
           </div>
           <div className="mt-0.5 truncate text-[11.5px] text-muted-foreground">
             {fn.what || <span className="italic opacity-60">(白话待生成)</span>}
@@ -95,6 +95,7 @@ function FunctionCard({ fn, open, onToggle }: { fn: FunctionSummary; open: boole
 function FeatureCard({ cluster, fnsByFile, search }: { cluster: FeatureCluster; fnsByFile: Record<string, FunctionSummary[]>; search: string }) {
   const [open, setOpen] = useState(false);
   const [openFns, setOpenFns] = useState<Set<string>>(new Set());
+  const [showMoreFns, setShowMoreFns] = useState(false);
   const q = search.trim().toLowerCase();
   // 簇内函数(从 functions 按 member 取),按重要性排序
   const members = cluster.members
@@ -106,8 +107,10 @@ function FeatureCard({ cluster, fnsByFile, search }: { cluster: FeatureCluster; 
       return order[a.level] - order[b.level] || a.startLine - b.startLine;
     });
   if (members.length === 0) return null;
+  const visibleFns = members.slice(0, 8);
+  const restFns = members.slice(8);
   const toggleFn = (key: string) => setOpenFns((s) => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; });
-  const isOther = cluster.name === "其他";
+  const isOther = cluster.name === "其他函数";
 
   return (
     <div className={cn("rounded-md border", isOther ? "border-border/30 bg-muted/10" : "border-border/40")}>
@@ -127,9 +130,21 @@ function FeatureCard({ cluster, fnsByFile, search }: { cluster: FeatureCluster; 
       </button>
       <Collapse open={open}>
         <div className="space-y-1 border-t border-border/40 p-1.5">
-          {members.map((f) => (
+          {visibleFns.map((f) => (
             <FunctionCard key={`${f.file}:${f.fn}`} fn={f} open={openFns.has(`${f.file}:${f.fn}`)} onToggle={() => toggleFn(`${f.file}:${f.fn}`)} />
           ))}
+          {restFns.length > 0 ? (
+            <>
+              <Collapse open={showMoreFns}>
+                {restFns.map((f) => (
+                  <FunctionCard key={`${f.file}:${f.fn}`} fn={f} open={openFns.has(`${f.file}:${f.fn}`)} onToggle={() => toggleFn(`${f.file}:${f.fn}`)} />
+                ))}
+              </Collapse>
+              <button type="button" onClick={() => setShowMoreFns((v) => !v)} className="w-full rounded border border-border/30 py-0.5 text-[10px] text-muted-foreground hover:bg-muted/40">
+                {showMoreFns ? "收起" : `还有 ${restFns.length} 个函数`}
+              </button>
+            </>
+          ) : null}
         </div>
       </Collapse>
     </div>
@@ -160,8 +175,10 @@ export function DigestView({ cwd }: { cwd: string }) {
 
   const fnCount = digest ? Object.values(digest.functions).reduce((n, fns) => n + fns.length, 0) : 0;
   const features = digest?.features ?? [];
-  const visibleFeatures = features.filter((f) => f.name !== "其他");
-  const otherCluster = features.find((f) => f.name === "其他");
+  const visibleFeatures = features.filter((f) => f.name !== "其他").slice(0, 15);
+  const hiddenFeatures = features.filter((f) => f.name !== "其他").slice(15);
+  const otherCluster = features.find((f) => f.name === "其他函数");
+  const [showMoreFeat, setShowMoreFeat] = useState(false);
 
   return (
     <div className="flex h-full flex-col">
@@ -175,7 +192,7 @@ export function DigestView({ cwd }: { cwd: string }) {
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="px-2.5 py-2">
+        <div className="px-2.5 py-2 pr-3">
           {loading && !digest ? (
             <div className="py-12 text-center text-[12px] text-muted-foreground">
               <RefreshCw className="mx-auto mb-2 h-5 w-5 animate-spin opacity-50" />
@@ -196,10 +213,22 @@ export function DigestView({ cwd }: { cwd: string }) {
                 placeholder="搜索功能或函数…"
                 className="w-full rounded border border-border/40 bg-background/60 px-2 py-1 text-[11px] outline-none placeholder:text-muted-foreground/50 focus:border-accent/40"
               />
-              {/* 功能簇(主视图) */}
+              {/* 功能簇(主视图,限量15 + 更多折叠) */}
               {visibleFeatures.map((c) => (
                 <FeatureCard key={c.name} cluster={c} fnsByFile={digest.functions} search={search} />
               ))}
+              {hiddenFeatures.length > 0 ? (
+                <Collapse open={showMoreFeat}>
+                  {hiddenFeatures.map((c) => (
+                    <FeatureCard key={c.name} cluster={c} fnsByFile={digest.functions} search={search} />
+                  ))}
+                </Collapse>
+              ) : null}
+              {hiddenFeatures.length > 0 ? (
+                <button type="button" onClick={() => setShowMoreFeat((v) => !v)} className="w-full rounded border border-border/30 py-1 text-[10.5px] text-muted-foreground hover:bg-muted/40">
+                  {showMoreFeat ? "收起" : `还有 ${hiddenFeatures.length} 个功能`}
+                </button>
+              ) : null}
               {/* 其他(孤立函数,折叠在最后) */}
               {otherCluster ? (
                 <FeatureCard cluster={otherCluster} fnsByFile={digest.functions} search={search} />

@@ -61,6 +61,9 @@ let sharedModelRuntime: ModelRuntimeType | null = null;
 /** digest 扩展的共享事件总线(LXCode ↔ digest 扩展 热插拔通道)。同进程复用。 */
 let digestEventBus: { emit: (event: string, data: unknown) => void } | null = null;
 
+/** digest 扩展的共享 LLM 运行时(手动刷新也能用,不只 agent 事件里能用)。 */
+let digestLLM: { completeSimple: (model: unknown, context: { systemPrompt?: string; messages: unknown[] }, options?: unknown) => Promise<{ content: Array<{ type: string; text?: string }> }> } | null = null;
+
 async function getModelRuntime() {
   if (!sharedModelRuntime) {
     const { ModelRuntime } = await loadPi();
@@ -200,12 +203,14 @@ export async function getOrCreateSession(sessionId: string | undefined, cwd: str
   if (!digestEventBus) digestEventBus = createEventBus() as { emit: (event: string, data: unknown) => void };
 
   // 把 LXCode 的 ModelRuntime 包成 digest 扩展需要的 LLMRuntime(复用已配的 provider/auth)
-  const digestLLM = {
-    completeSimple: (model: unknown, context: { systemPrompt?: string; messages: unknown[] }, options?: unknown) =>
-      (modelRuntime as unknown as {
-        completeSimple: (m: unknown, ctx: unknown, opt?: unknown) => Promise<{ content: Array<{ type: string; text?: string }> }>
-      }).completeSimple(model, context, options),
-  };
+  if (!digestLLM) {
+    digestLLM = {
+      completeSimple: (model: unknown, context: { systemPrompt?: string; messages: unknown[] }, options?: unknown) =>
+        (modelRuntime as unknown as {
+          completeSimple: (m: unknown, ctx: unknown, opt?: unknown) => Promise<{ content: Array<{ type: string; text?: string }> }>
+        }).completeSimple(model, context, options),
+    };
+  }
 
   // 追加 LXCode 身份段(pi 默认 prompt 保留,身份以这段为准)
   const resourceLoader = new DefaultResourceLoader({
@@ -470,6 +475,29 @@ export function disposeAll() {
 }
 
 const DEFAULT_DIGEST_CFG: DigestConfig = { enabled: true, autoUpdate: true, injectContext: true };
+
+/** 获取 digest 扩展的 LLM 运行时(手动刷新也能用,不只 agent 事件里能用)。 */
+export function getDigestLLM() {
+  return digestLLM;
+}
+
+/** 获取 digest 默认模型(从 LXCode models.json 的 defaultModel 解析,手动刷新时用)。 */
+export async function getDigestDefaultModel(): Promise<unknown> {
+  try {
+    const { readModelsPi } = await import("./data-store");
+    const cfg = await readModelsPi();
+    if (cfg.defaultModel) {
+      const [providerId, modelId] = cfg.defaultModel.split("/");
+      if (providerId && modelId) {
+        const rt = await getModelRuntime();
+        return (rt as { getModels: (id?: string) => readonly { id: string; provider?: string }[] }).getModels(providerId).find((m) => m.id === modelId);
+      }
+    }
+  } catch {
+    // 静默
+  }
+  return undefined;
+}
 
 /** 读取 digest 扩展配置(给 UI 显示当前开关状态)。 */
 export async function getDigestConfig(cwd: string): Promise<DigestConfig> {

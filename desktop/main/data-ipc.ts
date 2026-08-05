@@ -20,7 +20,7 @@ import {
   type SettingsData,
   type UseCaseData,
 } from "./data-store";
-import { getDigestConfig, setDigestConfig } from "./agent-service";
+import { getDigestConfig, setDigestConfig, getDigestLLM, getDigestDefaultModel } from "./agent-service";
 import { buildDigest, writeDigest } from "./extensions/digest/build";
 import path from "node:path";
 import fs from "node:fs/promises";
@@ -161,9 +161,12 @@ export function initDataIpc() {
   });
 
   // 手动触发全量刷新 digest(调 buildDigest,无 LLM 填白话留空)
+  // 手动触发全量刷新 digest(带 LLM 填白话+功能名,用配置的默认模型)
   ipcMain.handle("data:refreshDigest", async (_e, args: { cwd: string }) => {
     try {
-      const digest = await buildDigest(args.cwd);
+      const llm = getDigestLLM();
+      const model = await getDigestDefaultModel();
+      const digest = await buildDigest(args.cwd, llm ?? undefined, model);
       digest.trigger = "onboarding";
       await writeDigest(args.cwd, digest);
       return { ok: true, modules: digest.modules.length, functions: Object.values(digest.functions).reduce((n, fns) => n + fns.length, 0) };

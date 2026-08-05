@@ -128,14 +128,14 @@ export function clusterByCallGraph(
     clusters.push(makeCluster("__other__", leftovers, callEdges));
   }
 
-  // 5. 簇名:用被调用最多的 core 函数名作种子(无 LLM 时的占位名)
+  // 5. 簇名:无 LLM 时用更白话的兑底(核心函数的 what 或 '含 N 个函数')
   for (const c of clusters) {
     if (c.id === "__other__") {
-      c.name = "其他";
+      c.name = "其他函数";
       continue;
     }
     const seed = [...c.members].sort((a, b) => b.inDegree - a.inDegree)[0];
-    c.name = seed ? `${seed.fn} 簇` : c.id;
+    c.name = seed ? `${seed.fn} 相关功能` : `功能组(${c.members.length})`;
   }
 
   // 按成员数降序
