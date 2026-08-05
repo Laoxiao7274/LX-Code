@@ -117,27 +117,36 @@ export async function buildDigest(cwd: string, llm?: LLMRuntime, model?: unknown
   for (const sk of skeletons) for (const f of sk.functions) allFnNames.add(f.fn);
 
   // LLM 摘要:只摘要有导出函数的文件,且限量(最多 40 个文件,防大项目烧 token)
-  const MAX_LLM_FILES = 40;
+  const MAX_LLM_FILES = 20;
   const filesToSummarize = skeletons
     .filter((sk) => sk.functions.some((f) => f.exported))
     .slice(0, MAX_LLM_FILES);
   const llmResults = new Map<string, { what: string; functions: Record<string, { what: string; how: string[]; logic?: string[] }> }>();
   if (llm && model) {
-    let fileIdx = 0;
-    for (const sk of filesToSummarize) {
-      const full = path.join(cwd, sk.file);
-      try {
-        const source = await fs.readFile(full, "utf-8");
-        // 骨架文本:函数名+行号+调用,给 LLM 当结构参考
-        const skText = sk.functions.map((f) => `${f.fn}(L${f.startLine}-${f.endLine} ${f.exported ? "exported" : ""} calls:[${f.calls.join(",")}])`).join("\n");
-        const summary = await summarizeFile(llm, model, sk.file, skText, source);
-        if (fileIdx === 0) console.log(`[digest] 首文件摘要样例 ${sk.file}:`, summary ? `what=${summary.what.slice(0,40)}` : 'null');
-        fileIdx++;
-        if (summary) llmResults.set(sk.file, summary);
-      } catch {
-        // 单文件摘要失败不阻断
+    // 并发调用 LLM(5 路),避免串行几十个文件太慢
+    const CONCURRENCY = 5;
+    let done = 0;
+    const total = filesToSummarize.length;
+    const queue = [...filesToSummarize];
+    const worker = async () => {
+      while (queue.length) {
+        const sk = queue.shift()!;
+        const full = path.join(cwd, sk.file);
+        try {
+          const source = await fs.readFile(full, "utf-8");
+          const skText = sk.functions.map((f) => `${f.fn}(L${f.startLine}-${f.endLine} ${f.exported ? "exported" : ""} calls:[${f.calls.join(",")}])`).join("\n");
+          const summary = await summarizeFile(llm, model, sk.file, skText, source);
+          done++;
+          if (done === 1 || done % 5 === 0) console.log(`[digest] 摘要进度 ${done}/${total}`);
+          if (summary) llmResults.set(sk.file, summary);
+        } catch {
+          // 单文件摘要失败不阻断
+          done++;
+        }
       }
-    }
+    };
+    await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
+    console.log(`[digest] 摘要完成 ${llmResults.size}/${total}`);
   }
 
   const functions: Record<string, FunctionSummary[]> = {};
