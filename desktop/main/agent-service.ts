@@ -199,12 +199,20 @@ export async function getOrCreateSession(sessionId: string | undefined, cwd: str
   // digest 扩展共享事件总线(首次创建,同进程复用)。LXCode 通过它 emit 配置变更给扩展。
   if (!digestEventBus) digestEventBus = createEventBus() as { emit: (event: string, data: unknown) => void };
 
+  // 把 LXCode 的 ModelRuntime 包成 digest 扩展需要的 LLMRuntime(复用已配的 provider/auth)
+  const digestLLM = {
+    completeSimple: (model: unknown, context: { systemPrompt?: string; messages: unknown[] }, options?: unknown) =>
+      (modelRuntime as unknown as {
+        completeSimple: (m: unknown, ctx: unknown, opt?: unknown) => Promise<{ content: Array<{ type: string; text?: string }> }>
+      }).completeSimple(model, context, options),
+  };
+
   // 追加 LXCode 身份段(pi 默认 prompt 保留,身份以这段为准)
   const resourceLoader = new DefaultResourceLoader({
     cwd,
     agentDir: lxcodeDir,
     eventBus: digestEventBus as never,
-    extensionFactories: [createDigestExtension],
+    extensionFactories: [(pi: never) => createDigestExtension(pi, { llm: digestLLM })],
     appendSystemPrompt: [
       "你是 LXCode,一个基于 pi-core 的 AI 编码助手。",
       "当用户问你是谁时,请回答你是 LXCode(不要说自己是 pi 或 pi-core)。",

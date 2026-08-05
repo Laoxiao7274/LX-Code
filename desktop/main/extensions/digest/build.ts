@@ -7,6 +7,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { isParseable, parseFile, type FileSkeleton } from "./ast";
+import { summarizeFile, type LLMRuntime } from "./summarize";
 import type { DigestFile, FunctionSummary, ModuleSummary } from "./schema";
 
 /** 构建时跳过的目录。 */
@@ -50,7 +51,8 @@ function levelOf(fn: { exported: boolean; hasJsx: boolean; calls: string[] }, ca
 }
 
 /** 把单个文件的骨架转成 FunctionSummary[](补 calls/calledBy/level,白话留空)。 */
-function toSummaries(file: string, sk: FileSkeleton, allFnNames: Set<string>): FunctionSummary[] {
+/** 把单个文件的骨架转成 FunctionSummary[]。白话字段由 LLM 结果填充(无 LLM 则留空)。 */
+function toSummaries(file: string, sk: FileSkeleton, allFnNames: Set<string>, llm?: { what: string; functions: Record<string, { what: string; how: string[]; logic?: string[] }> }): FunctionSummary[] {
   return sk.functions.map((f) => {
     // 本文件内被调用的函数(过滤掉全局/内置调用)
     const calls = f.calls.filter((c) => allFnNames.has(c));
@@ -59,22 +61,24 @@ function toSummaries(file: string, sk: FileSkeleton, allFnNames: Set<string>): F
       .filter((other) => other.fn !== f.fn && other.calls.includes(f.fn))
       .map((other) => other.fn);
     const callCount = calledBy.length;
+    const llmFn = llm?.functions[f.fn];
     return {
       file,
       fn: f.fn,
       startLine: f.startLine,
       endLine: f.endLine,
       level: levelOf(f, callCount),
-      what: "", // 阶段1 留空,下次迭代 LLM 填白话
-      how: [],
+      what: llmFn?.what ?? "",
+      how: llmFn?.how ?? [],
+      ...(llmFn?.logic?.length ? { logic: llmFn.logic } : {}),
       calls: { calls, calledBy, source: "ast" },
       entry: f.exported,
     } satisfies FunctionSummary;
   });
 }
 
-/** 按目录聚类成模块(取第一层目录名作为模块名)。 */
-function clusterModules(files: string[], functionsByFile: Record<string, FunctionSummary[]>): ModuleSummary[] {
+/** 按目录聚类成模块(取第一层目录名作为模块名)。moduleWhat 传 LLM 生成的模块白话。 */
+function clusterModules(files: string[], functionsByFile: Record<string, FunctionSummary[]>, moduleWhat: Record<string, string>): ModuleSummary[] {
   const byDir = new Map<string, string[]>();
   for (const file of files) {
     const dir = path.dirname(file);
@@ -85,14 +89,14 @@ function clusterModules(files: string[], functionsByFile: Record<string, Functio
   return [...byDir.entries()].map(([name, files]) => ({
     name,
     path: files[0] ?? name,
-    what: "", // 阶段1 留空
+    what: moduleWhat[name] ?? "",
     files,
     related: [],
   }));
 }
 
-/** 全量构建 digest。返回 DigestFile 结构(白话字段留空)。 */
-export async function buildDigest(cwd: string): Promise<DigestFile> {
+/** 全量构建 digest。有 LLM+model 则对含导出函数的文件调 LLM 填白话(限量,防烧 token)。 */
+export async function buildDigest(cwd: string, llm?: LLMRuntime, model?: unknown): Promise<DigestFile> {
   const files: string[] = [];
   await listFiles(cwd, cwd, files);
 
@@ -111,12 +115,39 @@ export async function buildDigest(cwd: string): Promise<DigestFile> {
   const allFnNames = new Set<string>();
   for (const sk of skeletons) for (const f of sk.functions) allFnNames.add(f.fn);
 
-  const functions: Record<string, FunctionSummary[]> = {};
-  for (const sk of skeletons) {
-    functions[sk.file] = toSummaries(sk.file, sk, allFnNames);
+  // LLM 摘要:只摘要有导出函数的文件,且限量(最多 40 个文件,防大项目烧 token)
+  const MAX_LLM_FILES = 40;
+  const filesToSummarize = skeletons
+    .filter((sk) => sk.functions.some((f) => f.exported))
+    .slice(0, MAX_LLM_FILES);
+  const llmResults = new Map<string, { what: string; functions: Record<string, { what: string; how: string[]; logic?: string[] }> }>();
+  if (llm && model) {
+    for (const sk of filesToSummarize) {
+      const full = path.join(cwd, sk.file);
+      try {
+        const source = await fs.readFile(full, "utf-8");
+        // 骨架文本:函数名+行号+调用,给 LLM 当结构参考
+        const skText = sk.functions.map((f) => `${f.fn}(L${f.startLine}-${f.endLine} ${f.exported ? "exported" : ""} calls:[${f.calls.join(",")}])`).join("\n");
+        const summary = await summarizeFile(llm, model, sk.file, skText, source);
+        if (summary) llmResults.set(sk.file, summary);
+      } catch {
+        // 单文件摘要失败不阻断
+      }
+    }
   }
 
-  const modules = clusterModules(files, functions);
+  const functions: Record<string, FunctionSummary[]> = {};
+  for (const sk of skeletons) {
+    functions[sk.file] = toSummaries(sk.file, sk, allFnNames, llmResults.get(sk.file));
+  }
+
+  // 模块白话:用该模块下文件 LLM what 拼接(简单聚合)
+  const moduleWhat: Record<string, string> = {};
+  for (const [file, s] of llmResults) {
+    const top = path.dirname(file) === "." ? "(root)" : path.dirname(file).split("/")[0];
+    if (s.what && !moduleWhat[top]) moduleWhat[top] = s.what;
+  }
+  const modules = clusterModules(files, functions, moduleWhat);
 
   return {
     version: 1,

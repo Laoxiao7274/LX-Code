@@ -22,6 +22,13 @@ import { Type } from "typebox";
 
 import { buildDigest, readDigest, writeDigest } from "./build";
 import { DEFAULT_DIGEST_CONFIG, DIGEST_CONFIG_EVENT, type DigestConfig, type DigestFile } from "./schema";
+import type { LLMRuntime } from "./summarize";
+
+/** digest 扩展初始化选项(LXCode 主进程传入)。 */
+export interface DigestExtensionOptions {
+  /** LLM 运行时,用于生成白话摘要。无则跳过 LLM,只产结构化字段。 */
+  llm?: LLMRuntime;
+}
 
 /** digest 注册的工具名,用于 gate 控制。 */
 const DIGEST_TOOLS = ["update_project_digest", "query_function_summary", "read_file_slice"] as const;
@@ -69,7 +76,7 @@ async function safe(run: () => Promise<void>, label: string): Promise<void> {
 }
 
 /** 扩展工厂。LXCode 在 DefaultResourceLoader.extensionFactories 里挂载。 */
-export default function createDigestExtension(pi: ExtensionAPI): void {
+export default function createDigestExtension(pi: ExtensionAPI, options?: DigestExtensionOptions): void {
   // —— 热插拔 gate(闭包变量,运行时可改)——
   let gates: DigestConfig = { ...DEFAULT_DIGEST_CONFIG };
   let currentCwd = "";
@@ -120,7 +127,7 @@ export default function createDigestExtension(pi: ExtensionAPI): void {
     if (!gates.enabled || !gates.autoUpdate) return; // gate 早返回
     const cwd = ctx.cwd;
     await safe(async () => {
-      const digest = await buildDigest(cwd);
+      const digest = await buildDigest(cwd, options?.llm, ctx.model);
       digest.trigger = "incremental";
       await writeDigest(cwd, digest);
     }, "incremental update");
@@ -138,7 +145,7 @@ export default function createDigestExtension(pi: ExtensionAPI): void {
         return { content: [{ type: "text", text: "项目功能地图(digest)未启用" }], details: {} };
       }
       const cwd = ctx.cwd;
-      const digest = await buildDigest(cwd);
+      const digest = await buildDigest(cwd, options?.llm, ctx.model);
       digest.trigger = "onboarding";
       await writeDigest(cwd, digest);
       const fnCount = Object.values(digest.functions).reduce((n, fns) => n + fns.length, 0);
