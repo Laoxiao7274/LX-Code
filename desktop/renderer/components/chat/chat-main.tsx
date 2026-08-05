@@ -46,10 +46,10 @@ export function ChatMain() {
   useEffect(() => {
     const ta = taRef.current;
     if (!ta) return;
-    // 单行:重置为默认高度(让 h-10 生效),不设 inline height
+    // 单行:重置高度(让 rows=1 + flex 居中生效),不设 inline height
     ta.style.height = "";
-    // 多行:按 scrollHeight 扩展
-    if (ta.scrollHeight > 40) ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
+    // 多行:按 scrollHeight 扩展(单行自然高约 24-28,超过 30 视为多行)
+    if (ta.scrollHeight > 30) ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
   }, [input]);
   const [lightbox, setLightbox] = useState<Attachment | null>(null);
 
@@ -178,7 +178,7 @@ export function ChatMain() {
                   }
                 }}
                 rows={1}
-                className="block h-10 w-full resize-none border-0 bg-transparent px-1 py-0 text-[13px] leading-10 text-foreground outline-none placeholder:text-muted-foreground/60 disabled:opacity-60"
+                className="block w-full resize-none border-0 bg-transparent px-1 py-0 text-[13px] leading-6 text-foreground outline-none placeholder:text-muted-foreground/60 disabled:opacity-60 my-auto"
                 style={{ maxHeight: 120 }}
               />
               {isGenerating ? (
