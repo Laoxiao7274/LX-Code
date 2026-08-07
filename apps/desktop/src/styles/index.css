@@ -1,0 +1,926 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
+
+@font-face {
+  font-family: "PiDeck PingFang SC";
+  src: url("../assets/fonts/pingfang-sc/PingFangSC-Regular.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  unicode-range: U+2E80-2EFF, U+2F00-2FDF, U+3000-303F, U+31C0-31EF,
+    U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FE10-FE1F, U+FE30-FE4F,
+    U+FF00-FFEF, U+20000-2FA1F;
+}
+
+@font-face {
+  font-family: "PiDeck PingFang SC";
+  src: url("../assets/fonts/pingfang-sc/PingFangSC-Medium.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  unicode-range: U+2E80-2EFF, U+2F00-2FDF, U+3000-303F, U+31C0-31EF,
+    U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FE10-FE1F, U+FE30-FE4F,
+    U+FF00-FFEF, U+20000-2FA1F;
+}
+
+@font-face {
+  font-family: "PiDeck PingFang SC";
+  src: url("../assets/fonts/pingfang-sc/PingFangSC-Semibold.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  unicode-range: U+2E80-2EFF, U+2F00-2FDF, U+3000-303F, U+31C0-31EF,
+    U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FE10-FE1F, U+FE30-FE4F,
+    U+FF00-FFEF, U+20000-2FA1F;
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@source "../../node_modules/streamdown/dist/*.js";
+@source "../../node_modules/@streamdown/code/dist/*.js";
+@source "../../node_modules/@streamdown/cjk/dist/*.js";
+@source "../../node_modules/@streamdown/math/dist/*.js";
+@source "../../node_modules/@streamdown/mermaid/dist/*.js";
+
+@theme {
+  --color-surface: #1a1714;
+  --color-surface-raised: #221e1a;
+  --color-surface-overlay: #2c2722;
+  --color-sidebar: #15110e;
+  --color-border: #3a342d;
+  --color-foreground: #edeef0;
+  --color-muted: #9a9ba3;
+  --color-accent: #2f7ad6;
+  --color-accent-hover: #2668bd;
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  --color-background: var(--color-surface);
+  --color-muted-foreground: var(--color-muted);
+  /* LXCode 兑容 token:让 LXCode 原版 className(bg-card/bg-popover/bg-destructive 等)在 Skitre 体系生效
+     注意:不覆盖 --color-muted(它是文字色 #9a9ba3),LXCode 的 bg-muted 用 --color-surface-overlay 语义 */
+  --color-card: var(--color-surface-raised);
+  --color-popover: var(--color-surface-raised);
+  --color-muted-bg: var(--color-surface-overlay);
+  --color-destructive: var(--color-danger);
+  --color-destructive-foreground: #fff;
+  --color-accent-foreground: #fff;
+  --color-amber-500: var(--color-warning);
+  --color-ring: var(--color-accent);
+  --font-sans: "Inter Variable", "PiDeck PingFang SC", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono Variable", "PiDeck PingFang SC", ui-monospace, "Cascadia Code", monospace;
+}
+
+:root {
+  color-scheme: dark;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.conversation-content-width {
+  max-width: min(100%, var(--conversation-content-width, 48rem));
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.mac-window-control-dot {
+  display: flex;
+  width: 12px;
+  height: 12px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 9999px;
+}
+
+.mac-window-control-dot--close {
+  border-color: #e0443e;
+  background: #ff5f57;
+}
+
+.mac-window-control-dot--minimize {
+  border-color: #dea123;
+  background: #febc2e;
+}
+
+.mac-window-control-dot--maximize {
+  border-color: #1aab29;
+  background: #28c840;
+}
+
+.mac-window-control-icon {
+  width: 7px;
+  height: 7px;
+  color: rgb(0 0 0 / 62%);
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.mac-window-controls:hover .mac-window-control-icon,
+.mac-window-control:focus-visible .mac-window-control-icon {
+  opacity: 1;
+}
+
+[data-window-platform="macos"] [data-sidebar-header] {
+  padding-top: 24px;
+  padding-left: 16px;
+}
+
+[data-window-platform="macos"] .mac-sidebar-brand-mark {
+  width: 18px;
+  height: 18px;
+}
+
+[data-window-platform="macos"] [data-chat-header] {
+  padding-right: 20px;
+  transition: padding-left 200ms ease-out;
+}
+
+[data-window-platform="macos"] [data-sidebar-collapsed="true"] + main [data-chat-header] {
+  padding-left: 76px;
+}
+
+[data-window-platform="macos"] [data-dock-header] {
+  padding-right: 8px;
+}
+
+/* Multi-select checkboxes follow the app accent instead of the OS default. */
+input[type="checkbox"] {
+  accent-color: var(--color-accent);
+}
+
+/* Light theme */
+html.light {
+  color-scheme: light;
+  --color-surface: #ffffff;
+  --color-surface-raised: #ffffff;
+  --color-surface-overlay: #ececf0;
+  --color-sidebar: #f5f6f7;
+  --color-border: #e0e0e4;
+  --color-foreground: #1b1c1f;
+  --color-muted: #6b6c74;
+  --color-accent: #2f7ad6;
+  --color-accent-hover: #2668bd;
+}
+
+/* Session sidebar: soft elevation shadow cast onto the conversation area. */
+.sidebar-edge-shadow {
+  box-shadow: 4px 0 16px -6px rgb(0 0 0 / 45%);
+}
+
+html.light .sidebar-edge-shadow {
+  box-shadow: 4px 0 16px -6px rgb(0 0 0 / 10%);
+}
+
+.startup-screen {
+  position: absolute;
+  z-index: 45;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #101211;
+  color: #f3f1ed;
+  opacity: 1;
+  transition: opacity 200ms ease-out;
+}
+
+html.light .startup-screen {
+  background: #ffffff;
+  color: #171918;
+}
+
+.startup-screen--exiting {
+  pointer-events: none;
+  opacity: 0;
+}
+
+.startup-drag-region {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 44px;
+}
+
+.startup-content {
+  display: flex;
+  width: 180px;
+  align-items: center;
+  flex-direction: column;
+  transform: translateY(0);
+  transition: transform 200ms ease-out;
+}
+
+.startup-screen--exiting .startup-content {
+  transform: translateY(-4px);
+}
+
+.startup-mark {
+  width: 58px;
+  height: 58px;
+  animation: startup-mark-breathe 1.8s ease-in-out infinite;
+}
+
+.startup-wordmark {
+  margin-top: 17px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.startup-progress {
+  width: 104px;
+  height: 2px;
+  margin-top: 22px;
+  overflow: hidden;
+  border-radius: 1px;
+  background: #2b2e2c;
+}
+
+html.light .startup-progress {
+  background: #dedfe1;
+}
+
+.startup-progress-value {
+  display: block;
+  width: 34px;
+  height: 100%;
+  background: #e06b35;
+  animation: startup-progress 1.25s ease-in-out infinite;
+}
+
+html.light .startup-progress-value {
+  background: #2f7ad6;
+}
+
+.startup-status {
+  min-height: 16px;
+  margin-top: 11px;
+  color: #8f938f;
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+}
+
+html.light .startup-status {
+  color: #70736f;
+}
+
+@keyframes startup-mark-breathe {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: scale(0.985);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes startup-progress {
+  from {
+    transform: translateX(-38px);
+  }
+  to {
+    transform: translateX(110px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .startup-screen,
+  .startup-content {
+    transition-duration: 0ms;
+  }
+  .startup-mark,
+  .startup-progress-value {
+    animation: none;
+  }
+  .startup-progress-value {
+    transform: translateX(35px);
+  }
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-accent) 72%, transparent);
+  outline-offset: 1px;
+}
+
+.chat-composer-input:focus-visible {
+  outline: none;
+}
+/* 输入框 textarea 隐藏滚动条:多行时可滚动但不显示滚动条(下滑框) */
+.chat-composer-input {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+.chat-composer-input::-webkit-scrollbar {
+  display: none;
+}
+
+.new-conversation-copy {
+  font-family: var(--font-mono);
+  letter-spacing: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
+}
+
+/* Transcript virtualization: skip layout/paint for offscreen rows.
+   `auto` keeps the last measured size once a row has been rendered. */
+.transcript-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 120px;
+}
+
+/* Keep the long-running trace indicator on WebKit's compositor while the
+   transcript is receiving frequent streaming updates. */
+.execution-trace-spinner {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  align-items: center;
+  justify-content: center;
+  backface-visibility: hidden;
+  transform-origin: center;
+  will-change: transform;
+  animation: execution-trace-spin 900ms linear infinite;
+}
+
+@keyframes execution-trace-spin {
+  from {
+    transform: translate3d(0, 0, 0) rotate(0turn);
+  }
+  to {
+    transform: translate3d(0, 0, 0) rotate(1turn);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .execution-trace-spinner {
+    animation: none;
+    transform: none;
+    will-change: auto;
+  }
+}
+
+/* Conversation markdown */
+.chat-markdown {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: var(--color-foreground);
+  font-size: 15px;
+  line-height: 1.9;
+}
+
+.chat-markdown p {
+  margin: 0.5rem 0;
+  overflow-wrap: anywhere;
+}
+
+.chat-markdown strong,
+.chat-markdown [data-streamdown="strong"] {
+  font-weight: 600;
+}
+
+.chat-markdown h1,
+.chat-markdown [data-streamdown="heading-1"] {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.chat-markdown h2,
+.chat-markdown [data-streamdown="heading-2"] {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.chat-markdown h3,
+.chat-markdown [data-streamdown="heading-3"] {
+  margin: 1rem 0 0.375rem;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.chat-markdown h4,
+.chat-markdown h5,
+.chat-markdown h6,
+.chat-markdown [data-streamdown="heading-4"],
+.chat-markdown [data-streamdown="heading-5"],
+.chat-markdown [data-streamdown="heading-6"] {
+  margin: 1rem 0 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.chat-markdown a,
+.chat-markdown [data-streamdown="link"] {
+  color: var(--color-accent);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--color-accent) 45%, transparent);
+  text-underline-offset: 3px;
+}
+
+.chat-markdown a:hover,
+.chat-markdown [data-streamdown="link"]:hover {
+  text-decoration-color: var(--color-accent);
+}
+
+.chat-markdown code:not(pre code),
+.chat-markdown [data-streamdown="inline-code"] {
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--color-foreground) 6%, transparent);
+  padding: 0.15rem 0.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  overflow-wrap: anywhere;
+}
+
+.chat-markdown blockquote,
+.chat-markdown [data-streamdown="blockquote"] {
+  margin: 0.75rem 0;
+  border-left: 2px solid var(--color-border);
+  padding-left: 1rem;
+  color: var(--color-muted);
+}
+
+.chat-markdown ul,
+.chat-markdown [data-streamdown="unordered-list"] {
+  margin: 0.5rem 0;
+  list-style: disc;
+  padding-left: 1.5rem;
+}
+
+.chat-markdown ol,
+.chat-markdown [data-streamdown="ordered-list"] {
+  margin: 0.5rem 0;
+  list-style: decimal;
+  padding-left: 1.5rem;
+}
+
+.chat-markdown li,
+.chat-markdown [data-streamdown="list-item"] {
+  padding-left: 0.2rem;
+  line-height: 1.8;
+}
+
+.chat-markdown .contains-task-list {
+  list-style: none;
+  padding-left: 0;
+}
+
+.chat-markdown .task-list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding-left: 0;
+}
+
+.chat-markdown .task-list-item input[type="checkbox"] {
+  margin-top: 0.5rem;
+  accent-color: var(--color-success);
+}
+
+.chat-markdown [data-streamdown="code-block"] {
+  --markdown-code-header-height: 2rem;
+
+  position: relative;
+  margin: 1rem 0;
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.chat-markdown [data-streamdown="code-block-header"] {
+  min-height: var(--markdown-code-header-height);
+  border: 0;
+  background: transparent;
+  padding: 0 0.5rem 0.35rem;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+.chat-markdown [data-streamdown="code-block-header"][data-language=""] {
+  display: none;
+}
+
+.markdown-code-copy-button {
+  top: calc(var(--markdown-code-header-height) + 1.5rem);
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity 140ms ease,
+    color 140ms ease,
+    background-color 140ms ease;
+}
+
+.chat-markdown [data-streamdown="code-block"][data-language=""]
+  > .markdown-code-copy-button {
+  top: 1rem;
+}
+
+.chat-markdown [data-streamdown="code-block"]:hover > .markdown-code-copy-button,
+.chat-markdown [data-streamdown="code-block"]:focus-within > .markdown-code-copy-button,
+.markdown-code-copy-button[data-copied="true"] {
+  pointer-events: auto;
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .markdown-code-copy-button {
+    pointer-events: auto;
+    opacity: 1;
+  }
+}
+
+.chat-markdown [data-streamdown="code-block-body"] {
+  min-width: 0;
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--color-surface-overlay) 55%, transparent);
+  padding: 0.875rem 1rem;
+}
+
+.chat-markdown pre {
+  margin: 0;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.65;
+  white-space: pre;
+}
+
+.chat-markdown pre code {
+  display: block;
+  min-width: 100%;
+  width: max-content;
+}
+
+/* Streamdown 2.5 only marks highlighted lines as blocks when line numbers are
+   enabled. PiDeck hides line numbers, so restore the line layout explicitly. */
+.chat-markdown [data-streamdown="code-block-body"] pre > code > span {
+  display: block;
+}
+
+.markdown-code-content[data-collapsed="true"] {
+  max-height: 20rem;
+  overflow: hidden;
+}
+
+.chat-markdown .katex {
+  display: inline-block;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  font-size: 1em;
+  vertical-align: middle;
+}
+
+.chat-markdown .katex-display {
+  max-width: 100%;
+  margin: 0.75rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.25rem 0;
+}
+
+.chat-markdown .katex-display > .katex {
+  display: block;
+  min-width: max-content;
+  overflow: visible;
+  padding-inline: 0.25rem;
+}
+
+.chat-markdown [data-streamdown="mermaid-block"] {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  border-color: var(--color-border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--color-surface-overlay) 42%, transparent);
+}
+
+.chat-markdown [data-streamdown="mermaid"] {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--color-surface) 88%, transparent);
+}
+
+[data-streamdown="mermaid"] [aria-label="Mermaid chart"] {
+  width: 100%;
+  min-width: 0;
+}
+
+[data-streamdown="mermaid"] svg {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  height: auto;
+}
+
+svg[data-pideck-mermaid-theme="neutral"] {
+  background: #ffffff;
+  color-scheme: light;
+}
+
+.chat-markdown [data-streamdown="mermaid-block-actions"] button,
+.chat-markdown [data-streamdown="mermaid"] button {
+  color: var(--color-muted);
+}
+
+.chat-markdown [data-streamdown="mermaid-block-actions"] button:hover,
+.chat-markdown [data-streamdown="mermaid"] button:hover {
+  color: var(--color-foreground);
+}
+
+.markdown-mermaid-error {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  margin: 1rem 0;
+  border: 1px solid color-mix(in srgb, var(--color-danger) 45%, var(--color-border));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--color-danger) 9%, var(--color-surface));
+  padding: 0.75rem 3rem 0.75rem 0.875rem;
+  color: var(--color-foreground);
+}
+
+.markdown-mermaid-error-retry {
+  position: absolute;
+  top: 0.625rem;
+  right: 0.625rem;
+  display: flex;
+  width: 1.75rem;
+  height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background: var(--color-surface-raised);
+  color: var(--color-muted);
+}
+
+.markdown-mermaid-error-retry:hover {
+  color: var(--color-foreground);
+}
+
+.chat-markdown [data-footnotes] {
+  margin-top: 1.25rem;
+  border-top: 1px solid var(--color-border);
+  padding-top: 0.5rem;
+  color: var(--color-muted);
+  font-size: 0.875em;
+}
+
+.chat-markdown [data-footnote-ref],
+.chat-markdown [data-footnote-backref] {
+  scroll-margin-block: 1rem;
+}
+
+.chat-markdown .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  border-width: 0;
+  padding: 0;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.chat-markdown [data-streamdown="table-wrapper"] {
+  margin: 1rem 0;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 7px !important;
+  background: color-mix(
+    in srgb,
+    var(--color-surface-overlay) 32%,
+    transparent
+  ) !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+
+.chat-markdown [data-streamdown="table-wrapper"] > div {
+  width: 100% !important;
+  min-width: 0 !important;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+
+.chat-markdown table,
+.chat-markdown [data-streamdown="table"] {
+  width: 100%;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-size: 13px;
+  line-height: 1.55;
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-markdown thead,
+.chat-markdown [data-streamdown="table-header"] {
+  background: color-mix(
+    in srgb,
+    var(--color-surface-overlay) 72%,
+    transparent
+  );
+}
+
+.chat-markdown th,
+.chat-markdown td,
+.chat-markdown [data-streamdown="table-header-cell"],
+.chat-markdown [data-streamdown="table-cell"] {
+  min-width: 6.5rem;
+  border-bottom: 1px solid var(--color-border);
+  padding: 0.625rem 0.75rem;
+  text-align: start;
+  vertical-align: top;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.chat-markdown th,
+.chat-markdown [data-streamdown="table-header-cell"] {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.chat-markdown tbody tr:last-child > td,
+.chat-markdown [data-streamdown="table-body"]
+  [data-streamdown="table-row"]:last-child
+  > [data-streamdown="table-cell"] {
+  border-bottom: 0;
+}
+
+.chat-markdown td code,
+.chat-markdown [data-streamdown="table-cell"] code {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+@media (hover: hover) {
+  .chat-markdown tbody tr,
+  .chat-markdown [data-streamdown="table-body"] [data-streamdown="table-row"] {
+    transition: background-color 140ms ease;
+  }
+
+  .chat-markdown tbody tr:hover,
+  .chat-markdown [data-streamdown="table-body"] [data-streamdown="table-row"]:hover {
+    background: color-mix(
+      in srgb,
+      var(--color-surface-overlay) 46%,
+      transparent
+    );
+  }
+}
+
+.chat-markdown hr,
+.chat-markdown [data-streamdown="horizontal-rule"] {
+  margin: 1.25rem 0;
+  border-color: var(--color-border);
+}
+
+.chat-markdown > *:first-child,
+.chat-markdown > *:first-child > *:first-child {
+  margin-top: 0;
+}
+
+.chat-markdown > *:last-child,
+.chat-markdown > *:last-child > *:last-child {
+  margin-bottom: 0;
+}
+
+.chat-markdown.thinking-markdown,
+.chat-markdown.thinking-markdown p,
+.thinking-markdown .chat-markdown,
+.thinking-markdown .chat-markdown p {
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+/* 模型服务右侧编辑区进场动画:切换提供商时 fade + 轻微右滑 */
+.provider-edit-panel {
+  animation: provider-edit-enter 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes provider-edit-enter {
+  from { opacity: 0; transform: translateX(10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .provider-edit-panel { animation: none; }
+}
+
+/* 设置页表单控件高级感:统一过渡 + hover/focus 边框增强 + focus 光晕 */
+[data-settings-root] input:not([type="checkbox"]):not([type="radio"]),
+[data-settings-root] select,
+[data-settings-root] textarea {
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+}
+[data-settings-root] input:not([type="checkbox"]):not([type="radio"]):hover,
+[data-settings-root] select:hover,
+[data-settings-root] textarea:hover {
+  border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-border));
+}
+[data-settings-root] input:not([type="checkbox"]):not([type="radio"]):focus,
+[data-settings-root] select:focus,
+[data-settings-root] textarea:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 18%, transparent);
+}
+
+/* 接口格式卡片 hover 微交互 */
+[data-settings-root] .api-format-card {
+  transition: border-color 0.18s ease, background-color 0.18s ease, transform 0.18s ease;
+}
+[data-settings-root] .api-format-card:hover {
+  transform: translateY(-1px);
+}
+
+/* 自定义下拉箭头 + 展开过渡(原生 select 无法动画,这里给卡片式选择已用按钮) */
+
+/* 自定义下拉浮层入场动画 */
+.select-popover {
+  animation: select-popover-enter 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: top center;
+}
+@keyframes select-popover-enter {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .select-popover { animation: none; }
+}

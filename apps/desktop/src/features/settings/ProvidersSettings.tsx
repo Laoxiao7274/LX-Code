@@ -1,0 +1,1618 @@
+import {
+  Activity,
+  AlertTriangle,
+  Check,
+  ChevronRight,
+  CircleCheck,
+  Eye,
+  EyeOff,
+  LogIn,
+  Plus,
+  RefreshCw,
+  Save,
+  Search,
+  Server,
+  SlidersHorizontal,
+  Trash2,
+  X,
+} from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import gsap from "gsap";
+import { useGSAP } from "@gsap/react";
+import type {
+  DiscoveredProviderModel,
+  ProviderConnectionResult,
+  ProviderCompatibilityDraft,
+  ProviderDraft,
+  ProviderSnapshot,
+} from "@lxcode/protocol";
+import { THINKING_LEVELS } from "@lxcode/protocol";
+
+/** 思考档位中文标签(对齐 LXCode 旧版,无 minimal)。 */
+const THINKING_LABELS: Record<string, string> = {
+  off: "关闭",
+  low: "低",
+  medium: "中",
+  high: "高",
+  xhigh: "极高",
+  max: "最大",
+};
+const VISIBLE_THINKING_LEVELS = THINKING_LEVELS.filter((level) => level !== "minimal");
+import { hostClient } from "../../lib/bridge/host-client";
+import { hostContext } from "../../lib/bridge/host-context";
+import { requestWithRetry } from "../../lib/bridge/request-retry";
+import { useAppStore } from "../../lib/stores/app-store";
+import { Dialog, secondaryButton } from "../../components/Dialog";
+import { Select } from "../../components/Select";
+import { SectionHeader } from "../../components/SectionHeader";
+import { Switch } from "../../components/Switch";
+import type { MessageKey } from "../../lib/i18n";
+import { useT, type Translate } from "../../lib/i18n/use-t";
+import { useImeComposition } from "../../lib/use-ime-composition";
+import { ProviderLoginPage } from "./ProviderLoginSection";
+import {
+  automaticThinkingConfig,
+  compatibilityChoice,
+  customThinkingMap,
+  emptyProviderDraft as emptyDraft,
+  enabledProviderCatalog as enabledCatalog,
+  newProviderModel,
+  providerDraftFingerprint as draftFingerprint,
+  providerDraftForSave,
+  providerLoadFailureMessage,
+  providerSaveFailureMessage,
+  providerThinkingMode as thinkingMode,
+  providerThinkingSourceLabel as thinkingSourceLabel,
+  shouldOpenAdvancedEndpoint,
+  snapshotToDraft,
+  stripProviderModelState as stripEnabled,
+  validateProviderDraft,
+  type ProviderDraftState as DraftState,
+} from "./provider-settings-model";
+import { collapseStyle, collapseInnerStyle } from "../chat/collapse-style";
+
+const API_OPTIONS: Array<{
+  value: ProviderDraft["api"];
+  label: string;
+  desc: MessageKey;
+}> = [
+  { value: "openai-completions", label: "OpenAI", desc: "providersApiDescOpenaiCompletions" },
+  { value: "openai-responses", label: "OpenAI Responses", desc: "providersApiDescOpenaiResponses" },
+  { value: "anthropic-messages", label: "Anthropic", desc: "providersApiDescAnthropicMessages" },
+  { value: "google-generative-ai", label: "Google", desc: "providersApiDescGoogleGenerativeAi" },
+];
+
+/**
+ * 通用浮层弹窗:居中 + 遮罩 + GSAP 入场/退出动画。
+ * 用于模型设置等需要聚焦编辑的场景。
+ */
+function FloatingModal({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  useGSAP(() => {
+    if (!rootRef.current || !cardRef.current) return;
+    gsap.fromTo(rootRef.current, { opacity: 0 }, { opacity: 1, duration: 0.18, ease: "power2.out", overwrite: true });
+    gsap.fromTo(cardRef.current, { opacity: 0, scale: 0.96, y: 14 }, { opacity: 1, scale: 1, y: 0, duration: 0.26, ease: "power3.out", overwrite: true });
+  }, []);
+  function closeWithAnimation() {
+    if (!rootRef.current || !cardRef.current) { onClose(); return; }
+    gsap.to(rootRef.current, { opacity: 0, duration: 0.16, ease: "power2.in", overwrite: true });
+    gsap.to(cardRef.current, { opacity: 0, scale: 0.96, y: 10, duration: 0.18, ease: "power2.in", overwrite: true, onComplete: onClose });
+  }
+  return (
+    <div ref={rootRef} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={closeWithAnimation}>
+      <div
+        ref={cardRef}
+        className="flex max-h-[85vh] w-[90%] max-w-md min-w-[360px] flex-col overflow-hidden rounded-xl border border-border bg-surface-raised shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className="flex h-11 shrink-0 items-center justify-between border-b border-border px-4">
+          <h2 className="text-sm font-semibold">{title}</h2>
+          <button
+            type="button"
+            className="flex size-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-overlay hover:text-foreground"
+            onClick={closeWithAnimation}
+            aria-label="关闭"
+          >
+            <X size={15} />
+          </button>
+        </header>
+        <div className="min-h-0 flex-1 overflow-auto p-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function NumberField({
+  label,
+  value,
+  onCommit,
+}: {
+  label: string;
+  value: number;
+  onCommit: (next: number) => void;
+}) {
+  // Keep the raw text while typing; committing on every keystroke would snap
+  // a cleared field to the fallback and corrupt the value being entered.
+  const [text, setText] = useState(String(value));
+  const [committed, setCommitted] = useState(value);
+  const skipCommitRef = useRef(false);
+  if (value !== committed) {
+    // The draft changed underneath us (catalog refetch, host reload): the
+    // committed value is the source of truth, stale text must not survive.
+    setCommitted(value);
+    setText(String(value));
+  }
+  const commit = () => {
+    const parsed = Math.floor(Number(text));
+    if (Number.isFinite(parsed) && parsed >= 1) {
+      onCommit(parsed);
+      setCommitted(parsed);
+      setText(String(parsed));
+    } else {
+      setText(String(value));
+    }
+  };
+  return (
+    <label className="flex flex-col gap-1 text-[11px] text-muted">
+      {label}
+      <input
+        type="number"
+        min={1}
+        className="h-8 rounded-md border border-border bg-surface px-2 text-xs text-foreground"
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        onBlur={() => {
+          if (skipCommitRef.current) {
+            skipCommitRef.current = false;
+            return;
+          }
+          commit();
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") commit();
+          if (event.key === "Escape") {
+            // First Escape resolves the field (revert + leave) and must not
+            // bubble on to close the whole Settings overlay.
+            event.preventDefault();
+            event.stopPropagation();
+            skipCommitRef.current = true;
+            setText(String(value));
+            event.currentTarget.blur();
+          }
+        }}
+      />
+    </label>
+  );
+}
+
+function authLabel(t: Translate, provider: ProviderSnapshot | undefined): string {
+  if (!provider?.auth.configured) {
+    return provider?.auth.label
+      ? t("providersKeyAvailableVia", { label: provider.auth.label })
+      : t("providersKeyNone");
+  }
+  return provider.auth.source === "stored" ? t("providersKeyStored") : t("providersKeyConfigured");
+}
+
+export function ProvidersSettings() {
+  const t = useT();
+  const host = useAppStore((state) => state.host);
+  const hostInstanceId = host?.hostInstanceId;
+  const pushNotification = useAppStore((state) => state.pushNotification);
+  const refreshProviderConfig = useAppStore((state) => state.refreshProviderConfig);
+  const [providers, setProviders] = useState<ProviderSnapshot[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedIdRef = useRef<string | null>(null);
+  selectedIdRef.current = selectedId;
+  const [draft, setDraft] = useState<DraftState | null>(null);
+  const [catalog, setCatalog] = useState<DiscoveredProviderModel[]>([]);
+  const [providerSearch, setProviderSearch] = useState("");
+  const [modelSearch, setModelSearch] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [clearApiKey, setClearApiKey] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [fetching, setFetching] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [probingModelId, setProbingModelId] = useState<string | null>(null);
+  const [connectionResult, setConnectionResult] = useState<ProviderConnectionResult | null>(null);
+  const [updatingProviderId, setUpdatingProviderId] = useState<string | null>(null);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [advancedEndpointOpen, setAdvancedEndpointOpen] = useState(false);
+  const [headersOpen, setHeadersOpen] = useState(false);
+  const [manualId, setManualId] = useState("");
+  const ime = useImeComposition();
+  const [editingModelId, setEditingModelId] = useState<string | null>(null);
+  const [oauthOpen, setOauthOpen] = useState(false);
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [pendingSwitch, setPendingSwitch] = useState<
+    { kind: "select"; id: string } | { kind: "new" } | { kind: "oauth" } | { kind: "close" } | null
+  >(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  // Serialized shape of the draft as loaded/saved; any divergence means unsaved edits.
+  const baselineRef = useRef<string | null>(null);
+  // Bumped on every draft replacement. In-flight save/fetch/test continuations
+  // compare it so a resolved request never writes into a different draft.
+  const draftEpochRef = useRef(0);
+
+  const selectedProvider = providers.find((provider) => provider.id === selectedId);
+  const setProvidersDirty = useAppStore((state) => state.setProvidersDirty);
+  const dirty = useMemo(
+    () =>
+      draft !== null &&
+      (apiKey !== "" || clearApiKey || draftFingerprint(draft) !== baselineRef.current),
+    [draft, apiKey, clearApiKey],
+  );
+
+  useEffect(() => {
+    setProvidersDirty(dirty);
+  }, [dirty, setProvidersDirty]);
+  useEffect(() => () => setProvidersDirty(false), [setProvidersDirty]);
+
+  useEffect(() => {
+    if (!hostInstanceId) {
+      setProviders([]);
+      setDraft(null);
+      setLoading(false);
+      setLoadError(null);
+      baselineRef.current = null;
+      draftEpochRef.current += 1;
+      setPendingSwitch(null);
+      setAdvancedEndpointOpen(false);
+      return;
+    }
+    const requestHost = useAppStore.getState().host;
+    if (!requestHost || requestHost.hostInstanceId !== hostInstanceId) return;
+    let cancelled = false;
+    setLoading(true);
+    setLoadError(null);
+    void requestWithRetry(
+      () => hostClient.request("provider.list", hostContext(requestHost), null),
+      undefined,
+      () => !cancelled,
+    )
+      .then((response) => {
+        if (cancelled || !response) return;
+        if (!response.ok) {
+          const message = providerLoadFailureMessage(response.error, t("notifProviderLoadFailed"));
+          setLoadError(message);
+          pushNotification(message, "error");
+          return;
+        }
+        setProviders(response.result.providers);
+        // A pending switch confirmation refers to the pre-reload world.
+        setPendingSwitch(null);
+        if (useAppStore.getState().providersDirty) {
+          // Host restarted mid-edit: keep the unsaved draft instead of
+          // silently replacing it with the reloaded snapshot.
+          return;
+        }
+        const preferred =
+          response.result.providers.find((provider) => provider.id === selectedIdRef.current) ??
+          response.result.providers[0];
+        if (preferred) {
+          const nextDraft = snapshotToDraft(preferred);
+          setSelectedId(preferred.id);
+          setDraft(nextDraft);
+          baselineRef.current = draftFingerprint(nextDraft);
+          draftEpochRef.current += 1;
+          setCatalog(enabledCatalog(nextDraft.models));
+          setAdvancedEndpointOpen(shouldOpenAdvancedEndpoint(nextDraft.modelsUrl));
+        } else {
+          setSelectedId(null);
+          setDraft(null);
+          baselineRef.current = null;
+          draftEpochRef.current += 1;
+          setCatalog([]);
+          setAdvancedEndpointOpen(false);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          const message = error instanceof Error ? error.message : t("notifProviderLoadFailed");
+          setLoadError(message);
+          pushNotification(message, "error");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [hostInstanceId, loadAttempt, pushNotification, t]);
+
+  const filteredProviders = useMemo(() => {
+    const query = providerSearch.trim().toLowerCase();
+    if (!query) return providers;
+    return providers.filter((provider) =>
+      `${provider.name} ${provider.id} ${provider.baseUrl}`.toLowerCase().includes(query),
+    );
+  }, [providerSearch, providers]);
+
+  const filteredModels = useMemo(() => {
+    const query = modelSearch.trim().toLowerCase();
+    if (!query) return catalog;
+    return catalog.filter((model) => `${model.name} ${model.id}`.toLowerCase().includes(query));
+  }, [catalog, modelSearch]);
+
+  function selectProvider(provider: ProviderSnapshot) {
+    const nextDraft = snapshotToDraft(provider);
+    setOauthOpen(false);
+    setSelectedId(provider.id);
+    setDraft(nextDraft);
+    baselineRef.current = draftFingerprint(nextDraft);
+    draftEpochRef.current += 1;
+    setCatalog(enabledCatalog(nextDraft.models));
+    setApiKey("");
+    setClearApiKey(false);
+    setEditingModelId(null);
+    setManualOpen(false);
+    setFieldErrors({});
+    setAdvancedEndpointOpen(shouldOpenAdvancedEndpoint(nextDraft.modelsUrl));
+    setConnectionResult(null);
+  }
+
+  function requestCloseEdit() {
+    if (dirty) { setPendingSwitch({ kind: "close" }); return; }
+    setDraft(null);
+    setSelectedId(null);
+    baselineRef.current = null;
+  }
+
+  function startNewProvider() {
+    const nextDraft = emptyDraft();
+    setOauthOpen(false);
+    setSelectedId(null);
+    setDraft(nextDraft);
+    baselineRef.current = draftFingerprint(nextDraft);
+    draftEpochRef.current += 1;
+    setCatalog([]);
+    setApiKey("");
+    setClearApiKey(false);
+    setEditingModelId(null);
+    setManualOpen(false);
+    setFieldErrors({});
+    setAdvancedEndpointOpen(false);
+    setConnectionResult(null);
+  }
+
+  function openOauthLogin() {
+    // The OAuth page replaces the draft editor; drop any (non-dirty) draft so
+    // closing the page lands back on the neutral hint or a clean selection.
+    setSelectedId(null);
+    setDraft(null);
+    baselineRef.current = null;
+    draftEpochRef.current += 1;
+    setCatalog([]);
+    setApiKey("");
+    setClearApiKey(false);
+    setEditingModelId(null);
+    setManualOpen(false);
+    setFieldErrors({});
+    setAdvancedEndpointOpen(false);
+    setConnectionResult(null);
+    setOauthOpen(true);
+  }
+
+  function updateDraft(patch: Partial<ProviderDraft>) {
+    setConnectionResult(null);
+    setFieldErrors((current) => {
+      const patched = Object.keys(patch).filter((key) => key in current);
+      if (patched.length === 0) return current;
+      const next = { ...current };
+      for (const key of patched) delete next[key];
+      return next;
+    });
+    setDraft((current) => (current ? { ...current, ...patch } : current));
+  }
+
+  function validateUrlField(field: "baseUrl" | "modelsUrl") {
+    if (!draft) return;
+    const errors = validateProviderDraft(draft);
+    setFieldErrors((current) => {
+      const next = { ...current };
+      if (errors[field]) next[field] = errors[field];
+      else delete next[field];
+      return next;
+    });
+  }
+
+  function syncModels(nextCatalog: DiscoveredProviderModel[]) {
+    setCatalog(nextCatalog);
+    updateDraft({ models: nextCatalog.filter((model) => model.enabled).map(stripEnabled) });
+  }
+
+  async function persistDraft(
+    options: {
+      notify?: boolean;
+      includeKeyRemoval?: boolean;
+      refreshModelCatalog?: boolean;
+    } = {},
+  ): Promise<ProviderSnapshot | null> {
+    // Implicit saves (before Test/Fetch) must never commit a pending stored-key
+    // removal: that deletion is irreversible and belongs to the explicit Save.
+    const { notify = true, includeKeyRemoval = true, refreshModelCatalog = true } = options;
+    // Fetch/Test persist their own input, but delay waking the hidden chat model
+    // list until their follow-up request has released the same graph lock.
+    if (!host || !draft || saving) return null;
+    const errors = validateProviderDraft(draft);
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      pushNotification(t("notifProvidersFixFields"), "error");
+      return null;
+    }
+    const removeStoredKey = clearApiKey && includeKeyRemoval;
+    const epoch = draftEpochRef.current;
+    setSaving(true);
+    try {
+      const provider = providerDraftForSave(
+        draft,
+        providers.some((item) => item.id === draft.originalId && item.compat !== undefined),
+      );
+      const response = await hostClient.request("provider.save", hostContext(host), {
+        ...(draft.originalId ? { originalId: draft.originalId } : {}),
+        provider,
+        ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
+        ...(removeStoredKey ? { clearApiKey: true } : {}),
+      });
+      if (!response.ok) {
+        const message = response.error?.message ?? t("notifProviderSaveFailed");
+        pushNotification(providerSaveFailureMessage(message, provider), "error");
+        return null;
+      }
+      const saved = response.result.provider;
+      setProviders((current) =>
+        [
+          ...current.filter(
+            (provider) => provider.id !== draft.originalId && provider.id !== saved.id,
+          ),
+          saved,
+        ].sort((left, right) => left.name.localeCompare(right.name)),
+      );
+      if (refreshModelCatalog) refreshProviderConfig();
+      if (epoch === draftEpochRef.current) {
+        // Only touch draft-local state when this is still the same draft the
+        // request was made for; the user may have switched providers mid-save.
+        setSelectedId(saved.id);
+        const savedDraft = snapshotToDraft(saved);
+        setDraft(savedDraft);
+        baselineRef.current = draftFingerprint(savedDraft);
+        setCatalog((current) => {
+          const savedIds = new Set(saved.models.map((model) => model.id));
+          const savedById = new Map(saved.models.map((model) => [model.id, model]));
+          if (current.length === 0) return enabledCatalog(saved.models);
+          return current.map((model) => ({
+            ...model,
+            ...(savedById.get(model.id) ?? {}),
+            enabled: savedIds.has(model.id),
+          }));
+        });
+        setApiKey("");
+        if (removeStoredKey) setClearApiKey(false);
+      }
+      if (notify) pushNotification(t("notifProviderSaved"));
+      return saved;
+    } catch (error) {
+      pushNotification(
+        error instanceof Error ? error.message : t("notifProviderSaveFailed"),
+        "error",
+      );
+      return null;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function fetchModels() {
+    if (!host || !draft || fetching) return;
+    const epoch = draftEpochRef.current;
+    const saved = await persistDraft({
+      notify: false,
+      includeKeyRemoval: false,
+      refreshModelCatalog: false,
+    });
+    if (!saved) return;
+    setFetching(true);
+    try {
+      const response = await hostClient.request(
+        "provider.fetchModels",
+        hostContext(host),
+        { providerId: saved.id },
+        20_000,
+      );
+      if (!response.ok) {
+        pushNotification(response.error?.message ?? t("notifFetchModelsFailed"), "error");
+        return;
+      }
+      // The user may have switched to another Provider while the fetch was in
+      // flight; never write another Provider's models into the current draft.
+      if (epoch !== draftEpochRef.current) return;
+      setCatalog(response.result.models);
+      setDraft((current) =>
+        current
+          ? {
+              ...current,
+              models: response.result.models.filter((model) => model.enabled).map(stripEnabled),
+            }
+          : current,
+      );
+      pushNotification(t("notifFoundModels", { count: response.result.models.length }));
+    } catch (error) {
+      pushNotification(
+        error instanceof Error ? error.message : t("notifFetchModelsFailed"),
+        "error",
+      );
+    } finally {
+      setFetching(false);
+      refreshProviderConfig();
+    }
+  }
+
+  /** 探测单个模型能力(真实发测试请求测思考/视觉):保存 provider → provider.probeModel → 应用结果。 */
+  async function probeModel(modelId: string) {
+    if (!host || !draft || probingModelId) return;
+    const epoch = draftEpochRef.current;
+    const saved = await persistDraft({ notify: false, includeKeyRemoval: false, refreshModelCatalog: false });
+    if (!saved) return;
+    setProbingModelId(modelId);
+    try {
+      const response = await hostClient.request("provider.probeModel", hostContext(host), { providerId: saved.id, modelId }, 30_000);
+      if (!response.ok) {
+        pushNotification(t("providersProbeFail", { message: response.error?.message ?? "" }), "error");
+        return;
+      }
+      if (epoch !== draftEpochRef.current) return;
+      const probe = response.result;
+      // 应用真实探测到的视觉/思考能力(input/reasoning),上下文窗口/token 保留用户填写值
+      updateModel(modelId, {
+        input: probe.vision ? ["text", "image"] : ["text"],
+        reasoning: probe.reasoning,
+      });
+      const level = probe.vision || probe.reasoning || probe.embeddings ? "success" : "warning";
+      pushNotification(
+        t("providersProbeResult", {
+          vision: probe.vision ? t("providersProbeVisionYes") : t("providersProbeVisionNo"),
+          thinking: probe.reasoning ? t("providersProbeThinkingYes") : t("providersProbeThinkingNo"),
+          embedding: probe.embeddings ? t("providersProbeEmbeddingYes") : t("providersProbeEmbeddingNo"),
+        }),
+        level,
+      );
+    } catch (error) {
+      pushNotification(t("providersProbeFail", { message: error instanceof Error ? error.message : "" }), "error");
+    } finally {
+      setProbingModelId(null);
+      refreshProviderConfig();
+    }
+  }
+
+  async function testConnection() {
+    if (!host || !draft || testing) return;
+    const epoch = draftEpochRef.current;
+    const saved = await persistDraft({
+      notify: false,
+      includeKeyRemoval: false,
+      refreshModelCatalog: false,
+    });
+    if (!saved) return;
+    const modelId = saved.models[0]?.id;
+    if (!modelId) {
+      pushNotification(t("notifNeedModelToTest"), "error");
+      refreshProviderConfig();
+      return;
+    }
+    setTesting(true);
+    setConnectionResult(null);
+    try {
+      const response = await hostClient.request(
+        "provider.checkConnection",
+        hostContext(host),
+        { providerId: saved.id, modelId },
+        25_000,
+      );
+      if (!response.ok) {
+        pushNotification(response.error?.message ?? t("notifProviderTestFailed"), "error");
+        return;
+      }
+      // Never render a result banner for a Provider the user switched away from.
+      if (epoch !== draftEpochRef.current) return;
+      setConnectionResult(response.result);
+      if (response.result.ok)
+        pushNotification(t("notifProviderResponded", { ms: response.result.latencyMs }));
+    } catch (error) {
+      pushNotification(
+        error instanceof Error ? error.message : t("notifProviderTestFailed"),
+        "error",
+      );
+    } finally {
+      setTesting(false);
+      refreshProviderConfig();
+    }
+  }
+
+  function updateCompatibility(key: keyof ProviderCompatibilityDraft, value: boolean | null) {
+    updateDraft({
+      compat: {
+        ...draft?.compat,
+        [key]: value,
+      },
+    });
+  }
+
+  async function setProviderEnabled(provider: ProviderSnapshot, enabled: boolean) {
+    if (!host || updatingProviderId) return;
+    setUpdatingProviderId(provider.id);
+    try {
+      const response = await hostClient.request("provider.setEnabled", hostContext(host), {
+        providerId: provider.id,
+        enabled,
+      });
+      if (!response.ok) {
+        pushNotification(response.error?.message ?? t("notifProviderUpdateFailed"), "error");
+        return;
+      }
+      setProviders((current) =>
+        current.map((item) =>
+          item.id === response.result.providerId
+            ? { ...item, enabled: response.result.enabled }
+            : item,
+        ),
+      );
+      refreshProviderConfig();
+      pushNotification(
+        enabled
+          ? t("notifProviderEnabled", { name: provider.name })
+          : t("notifProviderDisabled", { name: provider.name }),
+      );
+    } catch (error) {
+      pushNotification(
+        error instanceof Error ? error.message : t("notifProviderUpdateFailed"),
+        "error",
+      );
+    } finally {
+      setUpdatingProviderId(null);
+    }
+  }
+
+  async function removeProvider() {
+    if (!host || !draft?.originalId || saving || fetching || testing) return;
+    setSaving(true);
+    try {
+      const response = await hostClient.request("provider.remove", hostContext(host), {
+        providerId: draft.originalId,
+      });
+      if (!response.ok) {
+        pushNotification(response.error?.message ?? t("notifProviderDeleteFailed"), "error");
+        return;
+      }
+      const listResponse = await hostClient.request("provider.list", hostContext(host), null);
+      const remaining = listResponse.ok
+        ? listResponse.result.providers
+        : providers.filter((provider) => provider.id !== draft.originalId);
+      setProviders(remaining);
+      const nextProvider = remaining.find((provider) => provider.enabled) ?? remaining[0];
+      if (nextProvider) selectProvider(nextProvider);
+      else {
+        setSelectedId(null);
+        setDraft(null);
+        setCatalog([]);
+      }
+      refreshProviderConfig();
+      pushNotification(t("notifProviderDeleted"));
+    } catch (error) {
+      pushNotification(
+        error instanceof Error ? error.message : t("notifProviderDeleteFailed"),
+        "error",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function addManualModel() {
+    const id = manualId.trim();
+    if (!id) return;
+    const existing = catalog.find((model) => model.id === id);
+    const model = existing ?? newProviderModel(id);
+    const next = [...catalog.filter((item) => item.id !== id), { ...model, enabled: true }].sort(
+      (left, right) => left.id.localeCompare(right.id),
+    );
+    syncModels(next);
+    setManualId("");
+    setManualOpen(false);
+    setEditingModelId(id);
+  }
+
+  function updateModel(id: string, patch: Partial<DiscoveredProviderModel>) {
+    syncModels(catalog.map((model) => (model.id === id ? { ...model, ...patch } : model)));
+  }
+
+  function updateHeader(oldKey: string, nextKey: string, value: string) {
+    if (!draft) return;
+    const headers = { ...draft.headers };
+    delete headers[oldKey];
+    if (nextKey) headers[nextKey] = value;
+    updateDraft({ headers });
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <SectionHeader title={t("navProviders")} subtitle={t("providersSubtitle")} />
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-surface-raised/40">
+          <div className="flex items-center gap-2 border-b border-border p-3">
+            <div className="relative min-w-0 flex-1">
+              <Search className="absolute left-2 top-2 text-muted" size={14} />
+              <input
+                className="h-8 w-full rounded-md border border-border bg-surface pl-7 pr-2 text-xs outline-none focus:border-accent"
+                placeholder={t("providersSearch")}
+                value={providerSearch}
+                onChange={(event) => setProviderSearch(event.target.value)}
+              />
+            </div>
+            <div className="relative">
+              <button
+                type="button"
+                className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border hover:bg-surface-overlay"
+                title={t("providersAdd")}
+                aria-haspopup="menu"
+                aria-expanded={addMenuOpen}
+                onClick={() => setAddMenuOpen((current) => !current)}
+              >
+                <Plus size={15} />
+              </button>
+              {addMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-20" onClick={() => setAddMenuOpen(false)} />
+                  <div
+                    role="menu"
+                    className="absolute right-0 top-9 z-30 w-56 rounded-md border border-border bg-surface-raised p-1 shadow-lg"
+                  >
+                    <button
+                      role="menuitem"
+                      type="button"
+                      className="flex w-full items-start gap-2 rounded px-2.5 py-2 text-left hover:bg-surface-overlay"
+                      onClick={() => {
+                        setAddMenuOpen(false);
+                        if (dirty) setPendingSwitch({ kind: "oauth" });
+                        else openOauthLogin();
+                      }}
+                    >
+                      <LogIn className="mt-0.5 shrink-0 text-muted" size={14} />
+                      <span className="min-w-0">
+                        <span className="block text-xs font-medium">
+                          {t("providersAddChoiceOauth")}
+                        </span>
+                        <span className="block text-[10px] text-muted">
+                          {t("providersAddChoiceOauthHint")}
+                        </span>
+                      </span>
+                    </button>
+                    <button
+                      role="menuitem"
+                      type="button"
+                      className="flex w-full items-start gap-2 rounded px-2.5 py-2 text-left hover:bg-surface-overlay"
+                      onClick={() => {
+                        setAddMenuOpen(false);
+                        if (dirty) setPendingSwitch({ kind: "new" });
+                        else startNewProvider();
+                      }}
+                    >
+                      <Server className="mt-0.5 shrink-0 text-muted" size={14} />
+                      <span className="min-w-0">
+                        <span className="block text-xs font-medium">
+                          {t("providersAddChoiceCustom")}
+                        </span>
+                        <span className="block text-[10px] text-muted">
+                          {t("providersAddChoiceCustomHint")}
+                        </span>
+                      </span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+          <div className="min-h-0 flex-1 overflow-auto p-2">
+            {loading ? (
+              <p className="p-3 text-xs text-muted">{t("providersLoading")}</p>
+            ) : loadError && providers.length === 0 ? (
+              <div className="flex items-start gap-2 p-3 text-xs text-danger">
+                <AlertTriangle className="mt-0.5 shrink-0" size={13} />
+                <span>{t("providersLoadFailed")}</span>
+              </div>
+            ) : filteredProviders.length === 0 ? (
+              <p className="p-3 text-xs text-muted">{t("providersNone")}</p>
+            ) : (
+              filteredProviders.map((provider) => (
+                <div
+                  key={provider.id}
+                  className={`mb-1 flex w-full items-center rounded-md ${
+                    selectedId === provider.id
+                      ? "bg-surface-overlay text-foreground"
+                      : "text-muted hover:bg-surface-overlay hover:text-foreground"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 items-start gap-2 px-3 py-2 text-left"
+                    aria-current={selectedId === provider.id ? "true" : undefined}
+                    onClick={() =>
+                      dirty
+                        ? setPendingSwitch({ kind: "select", id: provider.id })
+                        : selectProvider(provider)
+                    }
+                  >
+                    <span
+                      className={`mt-1.5 size-2 shrink-0 rounded-full ${
+                        provider.auth.configured ? "bg-success" : "bg-muted"
+                      }`}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{provider.name}</span>
+                      <span className="block truncate text-[11px]">
+                        {provider.enabled
+                          ? t("providersModelsCountEnabled", { count: provider.models.length })
+                          : t("providersModelsCount", { count: provider.models.length })}
+                      </span>
+                    </span>
+                  </button>
+                  <span className="mr-2 flex size-8 shrink-0 items-center justify-center">
+                    {updatingProviderId === provider.id ? (
+                      <RefreshCw className="animate-spin text-muted" size={15} />
+                    ) : (
+                      <Switch
+                        checked={provider.enabled}
+                        label={`${provider.enabled ? "Disable" : "Enable"} ${provider.name}`}
+                        disabled={updatingProviderId !== null}
+                        onChange={(next) => void setProviderEnabled(provider, next)}
+                      />
+                    )}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+          <div className="border-t border-border p-2">
+            <button
+              type="button"
+              className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs font-medium ${
+                oauthOpen
+                  ? "bg-surface-overlay text-foreground"
+                  : "text-muted hover:bg-surface-overlay hover:text-foreground"
+              }`}
+              aria-current={oauthOpen ? "true" : undefined}
+              onClick={() => {
+                if (oauthOpen) return;
+                if (dirty) setPendingSwitch({ kind: "oauth" });
+                else openOauthLogin();
+              }}
+            >
+              <LogIn size={14} /> {t("providersLoginSection")}
+            </button>
+          </div>
+        </aside>
+
+        {oauthOpen ? (
+          <ProviderLoginPage onClose={() => setOauthOpen(false)} />
+        ) : !draft ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm text-muted">
+            {loading && providers.length === 0 ? (
+              <span role="status" className="flex items-center gap-2">
+                <RefreshCw className="animate-spin motion-reduce:animate-none" size={15} />
+                {t("providersLoading")}
+              </span>
+            ) : loadError && providers.length === 0 ? (
+              <div role="alert" className="flex max-w-sm flex-col items-center gap-3 text-center">
+                <AlertTriangle className="text-danger" size={20} />
+                <div>
+                  <p className="font-medium text-foreground">{t("providersLoadFailed")}</p>
+                  <p className="mt-1 break-words text-xs text-muted">{loadError}</p>
+                </div>
+                <button
+                  type="button"
+                  className={secondaryButton}
+                  disabled={loading}
+                  onClick={() => setLoadAttempt((current) => current + 1)}
+                >
+                  <RefreshCw size={14} /> {t("providersRetry")}
+                </button>
+              </div>
+            ) : providers.length === 0 ? (
+              <>
+                <p>{t("providersEmptyTitle")}</p>
+                <div className="flex items-center gap-2">
+                  <button type="button" className={secondaryButton} onClick={openOauthLogin}>
+                    <LogIn size={14} /> {t("providersAddChoiceOauth")}
+                  </button>
+                  <button type="button" className={secondaryButton} onClick={startNewProvider}>
+                    <Plus size={14} /> {t("providersAddChoiceCustom")}
+                  </button>
+                </div>
+              </>
+            ) : (
+              t("providersSelectHint")
+            )}
+          </div>
+        ) : (
+          <div
+            key={draft?.originalId ?? "new"}
+            className="provider-edit-panel min-w-0 flex-1 overflow-auto"
+          >
+            <div className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
+              <header className="-mx-6 -mt-6 sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-border bg-surface/95 px-6 py-3 backdrop-blur">
+                <div className="min-w-0">
+                  <h1 className="truncate text-lg font-semibold">
+                    {draft.originalId ? t("providersEditTitle") : t("providersAddTitle")}
+                  </h1>
+                  <p className="mt-0.5 truncate text-xs text-muted">
+                    {draft.originalId ?? t("providersCustom")}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                {dirty && (
+                  <span className="flex items-center gap-1 text-[11px] text-warning">
+                    <AlertTriangle size={12} /> {t("providersUnsaved")}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs hover:bg-surface-overlay disabled:opacity-50"
+                  disabled={saving || fetching || testing || draft.models.length === 0}
+                  title={t("providersSaveAndTestTitle")}
+                  onClick={() => void testConnection()}
+                >
+                  <Activity className={testing ? "animate-pulse" : ""} size={14} />
+                  {testing ? t("providersTesting") : t("providersSaveAndTest")}
+                </button>
+                {draft.originalId && (
+                  <button
+                    type="button"
+                    className="flex h-8 items-center gap-1.5 rounded-md border border-danger/40 px-2.5 text-xs text-danger hover:bg-danger/10 disabled:opacity-50"
+                    disabled={saving || fetching || testing}
+                    onClick={() => setConfirmDelete(true)}
+                  >
+                    <Trash2 size={14} /> {t("commonDelete")}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-xs text-white hover:bg-accent-hover disabled:opacity-50"
+                  disabled={saving || fetching || testing}
+                  onClick={() => void persistDraft()}
+                >
+                  {saving ? <RefreshCw className="animate-spin" size={14} /> : <Save size={14} />}
+                  {t("commonSave")}
+                </button>
+                </div>
+              </header>
+
+              {connectionResult && (
+                <div
+                  className={`rounded-lg border px-3 py-2 text-xs ${
+                    connectionResult.ok
+                      ? "border-success/35 bg-success/10"
+                      : "border-danger/35 bg-danger/10"
+                  }`}
+                >
+                  <div className="flex items-start gap-2">
+                    {connectionResult.ok ? (
+                      <CircleCheck className="mt-0.5 shrink-0 text-success" size={15} />
+                    ) : (
+                      <AlertTriangle className="mt-0.5 shrink-0 text-danger" size={15} />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="font-medium">
+                          {connectionResult.ok
+                            ? t("providersConnectionOk")
+                            : connectionResult.category.replace("_", " ")}
+                        </span>
+                        <span className="font-mono text-[11px] text-muted">
+                          {connectionResult.modelId} · {connectionResult.latencyMs} ms
+                        </span>
+                      </div>
+                      <p className="mt-1 break-words text-muted">{connectionResult.message}</p>
+                      {connectionResult.suggestion && (
+                        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                          <span>{connectionResult.suggestion}</span>
+                          {connectionResult.category === "configuration" &&
+                            draft.api === "openai-completions" && (
+                              <>
+                                {draft.compat?.supportsDeveloperRole !== false && (
+                                  <button
+                                    type="button"
+                                    className="font-medium text-accent hover:underline"
+                                    onClick={() =>
+                                      updateCompatibility("supportsDeveloperRole", false)
+                                    }
+                                  >
+                                    {t("providersUseSystemRole")}
+                                  </button>
+                                )}
+                                {draft.compat?.supportsReasoningEffort !== false && (
+                                  <button
+                                    type="button"
+                                    className="font-medium text-accent hover:underline"
+                                    onClick={() =>
+                                      updateCompatibility("supportsReasoningEffort", false)
+                                    }
+                                  >
+                                    {t("providersOmitReasoningEffort")}
+                                  </button>
+                                )}
+                              </>
+                            )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <section className="flex flex-col gap-5">
+                {/* 接口格式:旧版 LXCode 卡片选择风格 */}
+                <div>
+                  <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted">{t("providersApiFormatGroup")}</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {API_OPTIONS.map((option) => {
+                      const active = draft.api === option.value;
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => updateDraft({ api: option.value })}
+                          className={`api-format-card rounded-lg border p-3 text-left ${
+                            active
+                              ? "border-accent bg-accent/5"
+                              : "border-border hover:bg-surface-overlay"
+                          }`}
+                        >
+                          <div className={`text-[13px] font-medium ${active ? "text-accent" : ""}`}>{option.label}</div>
+                          <div className="mt-0.5 text-[11px] text-muted">{t(option.desc)}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 基本信息 */}
+                <div className="flex flex-col gap-3">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-muted">{t("providersApiProtocol")}</div>
+                  <label className="flex flex-col gap-1.5 text-xs text-muted">
+                    <span>
+                      {t("providersDisplayName")} <span className="text-danger">*</span>
+                    </span>
+                    <input
+                      className={`h-8 rounded-md border bg-surface px-3 text-xs text-foreground outline-none focus:border-accent ${
+                        fieldErrors.name ? "border-danger" : "border-border"
+                      }`}
+                      value={draft.name}
+                      onChange={(event) => updateDraft({ name: event.target.value })}
+                    />
+                    {fieldErrors.name && (
+                      <span className="text-[11px] text-danger">
+                        {t(fieldErrors.name as MessageKey)}
+                      </span>
+                    )}
+                  </label>
+                  <label className="flex flex-col gap-1.5 text-xs text-muted">
+                    <span>
+                      {t("providersId")} <span className="text-danger">*</span>
+                    </span>
+                    <input
+                      className={`h-8 rounded-md border bg-surface px-3 font-mono text-xs text-foreground outline-none focus:border-accent ${
+                        fieldErrors.id ? "border-danger" : "border-border"
+                      }`}
+                      value={draft.id}
+                      onChange={(event) => updateDraft({ id: event.target.value })}
+                    />
+                    {fieldErrors.id && (
+                      <span className="text-[11px] text-danger">
+                        {t(fieldErrors.id as MessageKey)}
+                      </span>
+                    )}
+                  </label>
+                  <label className="flex flex-col gap-1.5 text-xs text-muted">
+                    <span>
+                      {t("providersBaseUrl")} <span className="text-danger">*</span>
+                    </span>
+                    <input
+                      className={`h-8 rounded-md border bg-surface px-3 font-mono text-xs text-foreground outline-none focus:border-accent ${
+                        fieldErrors.baseUrl ? "border-danger" : "border-border"
+                      }`}
+                      placeholder={
+                        draft.api === "anthropic-messages"
+                          ? "https://api.example.com"
+                          : "https://api.example.com/v1"
+                      }
+                      value={draft.baseUrl}
+                      onChange={(event) => updateDraft({ baseUrl: event.target.value })}
+                      onBlur={() => validateUrlField("baseUrl")}
+                    />
+                    {fieldErrors.baseUrl && (
+                      <span className="text-[11px] text-danger">
+                        {t(fieldErrors.baseUrl as MessageKey)}
+                      </span>
+                    )}
+                  </label>
+                </div>
+                <div className="group">
+                  <button
+                    type="button"
+                    className="flex h-8 w-full cursor-pointer items-center gap-2 text-xs font-medium text-muted hover:text-foreground"
+                    aria-expanded={advancedEndpointOpen}
+                    onClick={() => setAdvancedEndpointOpen((v) => !v)}
+                  >
+                    <ChevronRight className={`transition-transform ${advancedEndpointOpen ? "rotate-90" : ""}`} size={14} />
+                    {t("providersAdvancedEndpoint")}
+                  </button>
+                  <div style={collapseStyle(advancedEndpointOpen)}>
+                    <div style={collapseInnerStyle}>
+                      <label className="mt-2 flex flex-col gap-1.5 text-xs text-muted">
+                        <span>
+                          {t("providersModelsUrl")}{" "}
+                          <span className="font-normal text-muted">{t("providersOptional")}</span>
+                        </span>
+                        <input
+                          className={`h-8 rounded-md border bg-surface px-3 font-mono text-xs text-foreground outline-none focus:border-accent ${
+                            fieldErrors.modelsUrl ? "border-danger" : "border-border"
+                          }`}
+                          placeholder={t("providersModelsUrlPlaceholder")}
+                          value={draft.modelsUrl ?? ""}
+                          onChange={(event) => updateDraft({ modelsUrl: event.target.value })}
+                          onBlur={() => validateUrlField("modelsUrl")}
+                        />
+                        {fieldErrors.modelsUrl && (
+                          <span className="text-[11px] text-danger">
+                            {t(fieldErrors.modelsUrl as MessageKey)}
+                          </span>
+                        )}
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                {draft.api === "openai-completions" && (
+                  <div className="flex flex-col gap-3">
+                    <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted">{t("providersCompatGroup")}</h2>
+                    <div className="grid grid-cols-2 gap-4">
+                    <label className="flex flex-col gap-1.5 text-xs text-muted">
+                      {t("providersCompatSystemRole")}
+                      <Select
+                        value={compatibilityChoice(draft.compat?.supportsDeveloperRole ?? false)}
+                        onChange={(v) => updateCompatibility("supportsDeveloperRole", v === "enabled")}
+                        options={[
+                          { value: "enabled", label: t("providersCompatDeveloper") },
+                          { value: "disabled", label: t("providersCompatSystem") },
+                        ]}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1.5 text-xs text-muted">
+                      {t("providersCompatReasoningEffort")}
+                      <Select
+                        value={compatibilityChoice(draft.compat?.supportsReasoningEffort)}
+                        onChange={(v) => updateCompatibility("supportsReasoningEffort", v === "auto" ? null : v === "enabled")}
+                        options={[
+                          { value: "auto", label: t("commonAuto") },
+                          { value: "enabled", label: t("providersCompatSend") },
+                          { value: "disabled", label: t("providersCompatOmit") },
+                        ]}
+                      />
+                    </label>
+                    </div>
+                  </div>
+                )}
+              </section>
+
+              <section>
+                <div className="mb-2 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-sm font-medium">{t("providersApiKey")}</h2>
+                    {clearApiKey ? (
+                      <p className="flex items-center gap-1 text-[11px] text-danger">
+                        <AlertTriangle size={12} /> {t("providersKeyWillBeRemoved")}
+                      </p>
+                    ) : (
+                      <p className="text-[11px] text-muted">{authLabel(t, selectedProvider)}</p>
+                    )}
+                  </div>
+                  {selectedProvider?.auth.configured && (
+                    <button
+                      type="button"
+                      className="text-xs text-danger hover:underline"
+                      onClick={() => {
+                        setClearApiKey((current) => !current);
+                        setApiKey("");
+                      }}
+                    >
+                      {clearApiKey ? t("providersKeyKeep") : t("providersKeyRemove")}
+                    </button>
+                  )}
+                </div>
+                <div className="relative">
+                  <input
+                    type={showApiKey ? "text" : "password"}
+                    className="h-8 w-full rounded-md border border-border bg-surface px-3 pr-10 font-mono text-xs outline-none focus:border-accent"
+                    placeholder={
+                      selectedProvider?.auth.configured
+                        ? t("providersKeyPlaceholderKeep")
+                        : t("providersKeyPlaceholderEnter")
+                    }
+                    value={apiKey}
+                    onChange={(event) => {
+                      setApiKey(event.target.value);
+                      if (event.target.value) setClearApiKey(false);
+                    }}
+                    autoComplete="off"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-1 top-1 flex size-7 items-center justify-center text-muted hover:text-foreground"
+                    title={showApiKey ? t("providersKeyHide") : t("providersKeyShow")}
+                    onClick={() => setShowApiKey((current) => !current)}
+                  >
+                    {showApiKey ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              </section>
+
+              <section>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-medium">{t("providersModelsGroup")}</h2>
+                    <p className="text-[11px] text-muted">
+                      {t("providersModelsEnabledIn", { count: draft.models.length })}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      className="h-8 px-2 text-xs text-muted hover:text-foreground"
+                      disabled={catalog.length === 0}
+                      onClick={() => {
+                        const enable = catalog.some((model) => !model.enabled);
+                        syncModels(catalog.map((model) => ({ ...model, enabled: enable })));
+                      }}
+                    >
+                      {catalog.length > 0 && catalog.every((model) => model.enabled)
+                        ? t("providersSelectNone")
+                        : t("providersSelectAll")}
+                    </button>
+                    <button
+                      type="button"
+                      className="flex size-8 items-center justify-center rounded-md hover:bg-surface-overlay disabled:opacity-50"
+                      title={t("providersFetchModels")}
+                      disabled={fetching || saving || testing}
+                      onClick={() => void fetchModels()}
+                    >
+                      <RefreshCw className={fetching ? "animate-spin" : ""} size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      className="flex size-8 items-center justify-center rounded-md hover:bg-surface-overlay"
+                      title={t("providersAddModel")}
+                      onClick={() => setManualOpen((current) => !current)}
+                    >
+                      <Plus size={15} />
+                    </button>
+                  </div>
+                </div>
+                <div className="relative mb-2">
+                  <Search className="absolute left-2.5 top-2.5 text-muted" size={14} />
+                  <input
+                    className="h-8 w-full rounded-md border border-border bg-surface pl-8 pr-3 text-xs outline-none focus:border-accent"
+                    placeholder={t("providersSearchModels")}
+                    value={modelSearch}
+                    onChange={(event) => setModelSearch(event.target.value)}
+                  />
+                </div>
+                {manualOpen && (
+                  <div className="mb-2 flex gap-2">
+                    <input
+                      className="h-8 min-w-0 flex-1 rounded-md border border-border bg-surface px-3 font-mono text-xs outline-none focus:border-accent"
+                      placeholder={t("providersModelId")}
+                      value={manualId}
+                      onChange={(event) => setManualId(event.target.value)}
+                      onCompositionStart={ime.onCompositionStart}
+                      onCompositionEnd={ime.onCompositionEnd}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && !ime.isImeKey(event)) addManualModel();
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="flex size-8 items-center justify-center rounded-md bg-accent text-white"
+                      title={t("providersAddModelConfirm")}
+                      onClick={addManualModel}
+                    >
+                      <Check size={14} />
+                    </button>
+                  </div>
+                )}
+                <div className="max-h-96 overflow-auto rounded-md border border-border">
+                  {filteredModels.length === 0 ? (
+                    <p className="p-4 text-center text-xs text-muted">
+                      {t("providersModelsEmpty")}
+                    </p>
+                  ) : (
+                    filteredModels.map((model) => (
+                      <div key={model.id} className="border-b border-border last:border-b-0">
+                        <div className="flex h-10 items-center gap-3 px-3">
+                          <input
+                            type="checkbox"
+                            checked={model.enabled}
+                            aria-label={t("providersShowInChat", { name: model.name })}
+                            onChange={(event) =>
+                              updateModel(model.id, { enabled: event.target.checked })
+                            }
+                          />
+                          <span className="min-w-0 flex-1 truncate text-sm" title={model.id}>
+                            {model.name}
+                          </span>
+                          {model.reasoning && (
+                            <span
+                              className="text-[11px] text-muted"
+                              title={thinkingSourceLabel(t, model)}
+                            >
+                              {t("providersReasoningBadge")}
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            className={`flex size-7 items-center justify-center rounded-md ${
+                              editingModelId === model.id
+                                ? "bg-accent/15 text-accent"
+                                : "text-muted hover:text-foreground"
+                            }`}
+                            title={t("providersModelSettings")}
+                            aria-expanded={editingModelId === model.id}
+                            onClick={() =>
+                              setEditingModelId((current) =>
+                                current === model.id ? null : model.id,
+                              )
+                            }
+                          >
+                            <SlidersHorizontal size={14} />
+                          </button>
+                        </div>
+                        {editingModelId === model.id && (
+                          <FloatingModal
+                            title={model.name || model.id}
+                            onClose={() => setEditingModelId(null)}
+                          >
+                          <div className="flex flex-col gap-4">
+                            {/* 探测能力按钮:探测视觉/思考档位(上下文窗口/token 由用户填) */}
+                            <button
+                              type="button"
+                              disabled={probingModelId === model.id || saving || fetching}
+                              onClick={() => void probeModel(model.id)}
+                              className="flex items-center justify-center gap-1.5 rounded-md border border-accent/40 bg-accent/8 px-3 py-2 text-xs text-accent transition-colors hover:bg-accent/15 disabled:opacity-50"
+                              title={t("providersProbeModelHint")}
+                            >
+                              <RefreshCw size={13} className={probingModelId === model.id ? "animate-spin" : ""} />
+                              {probingModelId === model.id ? t("providersProbing") : t("providersProbeModel")}
+                            </button>
+                            <p className="-mt-2 text-[10px] leading-4 text-muted">{t("providersProbeModelHint")}</p>
+                            {/* 显示名称 */}
+                            <label className="flex flex-col gap-1 text-[11px] text-muted">
+                              {t("providersDisplayName")}
+                              <input
+                                className="h-8 rounded-md border border-border bg-surface px-2 text-xs text-foreground"
+                                value={model.name}
+                                onChange={(event) => updateModel(model.id, { name: event.target.value })}
+                              />
+                            </label>
+
+                            {/* 模型能力分组 */}
+                            <div className="flex flex-col gap-3">
+                              <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">{t("providersCapabilities")}</div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <NumberField
+                                  key={`${model.id}:contextWindow`}
+                                  label={t("providersContextWindow")}
+                                  value={model.contextWindow}
+                                  onCommit={(next) => updateModel(model.id, { contextWindow: next })}
+                                />
+                                <NumberField
+                                  key={`${model.id}:maxTokens`}
+                                  label={t("providersMaxTokens")}
+                                  value={model.maxTokens}
+                                  onCommit={(next) => updateModel(model.id, { maxTokens: next })}
+                                />
+                              </div>
+                              <label className="flex flex-col gap-1 text-[11px] text-muted">
+                                {t("providersThinkingSupport")}
+                                <Select
+                                  value={thinkingMode(model)}
+                                  onChange={(mode) => {
+                                    if (mode === "disabled") {
+                                      updateModel(model.id, { reasoning: false, thinkingLevelMap: undefined, thinkingSource: "manual" });
+                                      return;
+                                    }
+                                    if (mode === "custom") {
+                                      updateModel(model.id, { reasoning: true, thinkingLevelMap: customThinkingMap(model), thinkingSource: "manual" });
+                                      return;
+                                    }
+                                    updateModel(model.id, automaticThinkingConfig(model.id));
+                                  }}
+                                  options={[
+                                    { value: "auto", label: t("commonAuto") },
+                                    { value: "custom", label: t("commonCustom") },
+                                    { value: "disabled", label: t("commonDisabled") },
+                                  ]}
+                                />
+                              </label>
+                              {thinkingMode(model) === "custom" && (
+                                <div className="grid grid-cols-4 gap-2 border-t border-border pt-2">
+                                  {VISIBLE_THINKING_LEVELS.map((level) => {
+                                    const enabled = model.thinkingLevelMap?.[level] !== null;
+                                    const enabledCount = VISIBLE_THINKING_LEVELS.filter((item) => model.thinkingLevelMap?.[item] !== null).length;
+                                    return (
+                                      <label key={level} className="flex items-center gap-2 text-xs">
+                                        <input
+                                          type="checkbox"
+                                          checked={enabled}
+                                          onChange={(event) => {
+                                            if (!event.target.checked && enabledCount <= 1) return;
+                                            updateModel(model.id, {
+                                              reasoning: true,
+                                              thinkingLevelMap: { ...customThinkingMap(model), [level]: event.target.checked ? level : null },
+                                              thinkingSource: "manual",
+                                            });
+                                          }}
+                                        />
+                                        {THINKING_LABELS[level] ?? level}
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                              <div className="flex items-center justify-between rounded-md border border-border bg-surface px-3 py-2">
+                                <span className="text-xs text-foreground">{t("providersImages")}</span>
+                                <Switch
+                                  checked={model.input.includes("image")}
+                                  onChange={(v) => updateModel(model.id, { input: v ? ["text", "image"] : ["text"] })}
+                                  label={t("providersImages")}
+                                />
+                              </div>
+                              <p className="text-[10px] text-muted">{thinkingSourceLabel(t, model)}</p>
+                            </div>
+                          </div>
+                          </FloatingModal>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </section>
+
+              <div className="border-t border-border pt-4">
+                <button
+                  type="button"
+                  className="flex w-full cursor-pointer items-center gap-2 text-sm font-medium hover:text-foreground"
+                  aria-expanded={headersOpen}
+                  onClick={() => setHeadersOpen((v) => !v)}
+                >
+                  <ChevronRight className={`transition-transform ${headersOpen ? "rotate-90" : ""}`} size={15} />
+                  {t("providersHeadersGroup")}
+                </button>
+                <div style={collapseStyle(headersOpen)}>
+                  <div style={collapseInnerStyle}>
+                    <div className="mt-3 flex flex-col gap-2">
+                  {Object.entries(draft.headers).map(([key, value]) => (
+                    <div key={key} className="grid grid-cols-[1fr_1.5fr_32px] gap-2">
+                      <input
+                        className="h-8 rounded-md border border-border bg-surface px-2 font-mono text-xs"
+                        value={key}
+                        onChange={(event) => updateHeader(key, event.target.value, value)}
+                      />
+                      <input
+                        className="h-8 rounded-md border border-border bg-surface px-2 font-mono text-xs"
+                        value={value}
+                        onChange={(event) => updateHeader(key, key, event.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="flex size-8 items-center justify-center text-muted hover:text-danger"
+                        title={t("providersHeaderRemove")}
+                        onClick={() => updateHeader(key, "", "")}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    className="flex h-8 w-fit items-center gap-1.5 rounded-md border border-border px-2.5 text-xs hover:bg-surface-overlay"
+                    onClick={() => {
+                      let key = "X-Custom-Header";
+                      let index = 2;
+                      while (draft.headers[key] !== undefined) key = `X-Custom-Header-${index++}`;
+                      updateDraft({ headers: { ...draft.headers, [key]: "" } });
+                    }}
+                  >
+                    <Plus size={13} /> {t("providersHeaderAdd")}
+                  </button>
+                </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          </div>
+        )}
+      </div>
+      {confirmDelete &&
+        draft?.originalId &&
+        (() => {
+          const saved = providers.find((provider) => provider.id === draft.originalId);
+          return (
+            <Dialog
+              title={t("providersDeleteTitle")}
+              confirmLabel={t("providersDeleteTitle")}
+              tone="danger"
+              onCancel={() => setConfirmDelete(false)}
+              onConfirm={() => {
+                setConfirmDelete(false);
+                void removeProvider();
+              }}
+            >
+              <p>{t("providersDeleteBody", { name: saved?.name ?? draft.originalId ?? "" })}</p>
+              <dl className="mt-3 grid grid-cols-[72px_1fr] gap-x-3 gap-y-1 rounded-md border border-border bg-surface p-3 text-xs">
+                <dt>{t("providersBaseUrl")}</dt>
+                <dd className="break-all font-mono text-foreground">{saved?.baseUrl ?? "—"}</dd>
+                <dt>{t("providersDeleteModels")}</dt>
+                <dd className="text-foreground">{saved?.models.length ?? 0}</dd>
+              </dl>
+            </Dialog>
+          );
+        })()}
+      {pendingSwitch !== null && (
+        <Dialog
+          title={t("providersSwitchTitle")}
+          confirmLabel={t("settingsDiscardConfirm")}
+          tone="warning"
+          onCancel={() => setPendingSwitch(null)}
+          onConfirm={() => {
+            const target = pendingSwitch;
+            setPendingSwitch(null);
+            if (target.kind === "new") {
+              startNewProvider();
+              return;
+            }
+            if (target.kind === "oauth") {
+              openOauthLogin();
+              return;
+            }
+            if (target.kind === "close") {
+              setDraft(null);
+              setSelectedId(null);
+              baselineRef.current = null;
+              return;
+            }
+            // Resolve against the live list; the provider may have vanished
+            // (host reload) between opening and confirming the dialog.
+            const live = providers.find((provider) => provider.id === target.id);
+            if (live) selectProvider(live);
+          }}
+        >
+          <p>
+            {t("providersSwitchBody", { name: draft?.name?.trim() || t("providersThisProvider") })}
+          </p>
+        </Dialog>
+      )}
+    </div>
+  );
+}

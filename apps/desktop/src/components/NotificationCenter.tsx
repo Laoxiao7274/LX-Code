@@ -1,0 +1,245 @@
+import { useEffect, useRef, useState } from "react";
+import { AlertCircle, AlertTriangle, Bell, CheckCircle2, Info, Trash2, X } from "lucide-react";
+import gsap from "gsap";
+import { useGSAP } from "@gsap/react";
+import { useT } from "../lib/i18n/use-t";
+import { useAppStore, type AppNotification } from "../lib/stores/app-store";
+
+function levelStyle(level: string) {
+  switch (level) {
+    case "error":
+      return { icon: AlertCircle, color: "text-danger", label: "Error" };
+    case "warning":
+      return { icon: AlertTriangle, color: "text-warning", label: "Warning" };
+    case "success":
+      return { icon: CheckCircle2, color: "text-success", label: "Success" };
+    default:
+      return { icon: Info, color: "text-accent", label: "Information" };
+  }
+}
+
+function notificationTime(createdAt: number) {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(createdAt);
+}
+
+export function NotificationPanel({
+  notifications,
+  onDismiss,
+  onClear,
+}: {
+  notifications: AppNotification[];
+  onDismiss: (id: string) => void;
+  onClear: () => void;
+}) {
+  const t = useT();
+  const panelRef = useRef<HTMLElement>(null);
+  useGSAP(() => {
+    if (!panelRef.current) return;
+    gsap.fromTo(panelRef.current, { opacity: 0, y: -8, scale: 0.98 }, { opacity: 1, y: 0, scale: 1, duration: 0.2, ease: "power3.out", overwrite: true });
+  }, []);
+  return (
+    <section
+      ref={panelRef}
+      role="dialog"
+      aria-label={t("notifCenterTitle")}
+      className="fixed left-3 top-14 z-[70] flex max-h-[min(32rem,calc(100vh-4.25rem))] w-[min(25rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-lg border border-border bg-surface-raised shadow-xl"
+    >
+      <header className="flex h-10 shrink-0 items-center border-b border-border px-3">
+        <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{t("notifCenterTitle")}</h2>
+        {notifications.length > 0 && (
+          <button
+            type="button"
+            title={t("notifCenterClearAll")}
+            aria-label={t("notifCenterClearAll")}
+            onClick={onClear}
+            className="flex size-7 items-center justify-center rounded text-muted hover:bg-surface-overlay hover:text-foreground"
+          >
+            <Trash2 size={14} />
+          </button>
+        )}
+      </header>
+      {notifications.length === 0 ? (
+        <div className="flex min-h-28 items-center justify-center px-4 text-sm text-muted">
+          {t("notifCenterEmpty")}
+        </div>
+      ) : (
+        <ol className="min-h-0 overflow-y-auto">
+          {[...notifications].reverse().map((notification) => {
+            const style = levelStyle(notification.level);
+            const Icon = style.icon;
+            return (
+              <li
+                key={notification.id}
+                className="flex gap-2.5 border-b border-border/70 px-3 py-2.5 last:border-b-0"
+              >
+                <Icon
+                  size={16}
+                  aria-label={style.label}
+                  className={`mt-0.5 shrink-0 ${style.color}`}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-sm leading-5 text-foreground">
+                    {notification.message}
+                  </p>
+                  <time
+                    dateTime={new Date(notification.createdAt).toISOString()}
+                    className="mt-1 block text-[11px] text-muted"
+                  >
+                    {notificationTime(notification.createdAt)}
+                  </time>
+                </div>
+                <button
+                  type="button"
+                  title={t("notifCenterDismiss")}
+                  aria-label={t("notifCenterDismiss")}
+                  onClick={() => onDismiss(notification.id)}
+                  className="flex size-7 shrink-0 items-center justify-center rounded text-muted hover:bg-surface-overlay hover:text-foreground"
+                >
+                  <X size={14} />
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+    </section>
+  );
+}
+
+export function NotificationCenter() {
+  const t = useT();
+  const notifications = useAppStore((state) => state.notifications);
+  const dismissNotification = useAppStore((state) => state.dismissNotification);
+  const clearNotifications = useAppStore((state) => state.clearNotifications);
+  const [open, setOpen] = useState(false);
+  const [toastId, setToastId] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const previousLatestId = useRef<string | null>(null);
+  const latest = notifications.at(-1) ?? null;
+  const latestId = latest?.id ?? null;
+
+  useEffect(() => {
+    if (!latestId || latestId === previousLatestId.current) return;
+    previousLatestId.current = latestId;
+    setToastId(latestId);
+    const timer = window.setTimeout(() => setToastId(null), 6_000);
+    return () => window.clearTimeout(timer);
+  }, [latestId]);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      // A dialog or modal above us already acted on this Escape.
+      if (event.key === "Escape" && !event.defaultPrevented) setOpen(false);
+    };
+    window.addEventListener("pointerdown", closeOutside);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("pointerdown", closeOutside);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
+  const toast = !open && toastId ? notifications.find((item) => item.id === toastId) : null;
+  const urgentCount = notifications.filter(
+    (notification) => notification.level === "error" || notification.level === "warning",
+  ).length;
+
+  return (
+    <>
+      {/* Bell and panel sit below the Settings overlay (z-40) and modals (z-50);
+        the toast is a sibling so its own z-[70] layer stays on top of both. */}
+      <div ref={rootRef} className="relative z-30">
+        <button
+          type="button"
+          title={t("notifCenterTitle")}
+          aria-label={t("notifCenterLabel", { count: notifications.length })}
+          aria-expanded={open}
+          onClick={() => {
+            setOpen((value) => !value);
+            setToastId(null);
+          }}
+          className={`relative flex size-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-overlay hover:text-foreground ${
+            urgentCount > 0 ? "text-warning" : ""
+          }`}
+        >
+          <Bell size={15} />
+          {notifications.length > 0 && (
+            <span className="absolute right-1.5 top-1 flex min-h-3 min-w-3 items-center justify-center rounded-full bg-danger px-0.5 text-[9px] leading-3 text-white">
+              {notifications.length > 99 ? "99+" : notifications.length}
+            </span>
+          )}
+        </button>
+
+        {open && (
+          <div>
+            <NotificationPanel
+              notifications={notifications}
+              onDismiss={dismissNotification}
+              onClear={clearNotifications}
+            />
+          </div>
+        )}
+      </div>
+      {toast && (
+        <ToastButton
+          toast={toast}
+          t={t}
+          onOpen={() => {
+            setOpen(true);
+            setToastId(null);
+          }}
+          onDismiss={() => setToastId(null)}
+        />
+      )}
+    </>
+  );
+}
+
+function ToastButton({
+  toast,
+  t,
+  onOpen,
+  onDismiss,
+}: {
+  toast: AppNotification;
+  t: ReturnType<typeof useT>;
+  onOpen: () => void;
+  onDismiss: () => void;
+}) {
+  const ref = useRef<HTMLButtonElement>(null);
+  useGSAP(() => {
+    if (!ref.current) return;
+    gsap.fromTo(ref.current, { opacity: 0, x: -16 }, { opacity: 1, x: 0, duration: 0.24, ease: "power3.out", overwrite: true });
+  }, []);
+  const style = levelStyle(toast.level);
+  const Icon = style.icon;
+  return (
+    <button
+      ref={ref}
+      type="button"
+      aria-live="assertive"
+      onClick={onOpen}
+      className="fixed left-3 top-14 z-[70] flex w-[min(25rem,calc(100vw-1.5rem))] items-start gap-2 rounded-lg border border-border bg-surface-raised px-3 py-2.5 text-left shadow-xl"
+    >
+      <Icon size={16} aria-label={style.label} className={`mt-0.5 ${style.color}`} />
+      <span className="min-w-0 flex-1 break-words text-sm leading-5">{toast.message}</span>
+      <X
+        size={14}
+        aria-label={t("notifCenterDismissPreview")}
+        className="mt-0.5 shrink-0 text-muted"
+        onClick={(event) => {
+          event.stopPropagation();
+          onDismiss();
+        }}
+      />
+    </button>
+  );
+}
