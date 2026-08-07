@@ -21,6 +21,7 @@ const AGENT_CORE_PACKAGE = "@earendil-works/pi-agent-core";
 const HOST_MANIFEST_PATH = "packages/pi-host/package.json";
 const ROOT_MANIFEST_PATH = "package.json";
 const DEFAULT_LOCK_PATH = "pnpm-lock.yaml";
+const PNPM_WORKSPACE_PATH = "pnpm-workspace.yaml";
 
 function fail(message) {
   throw new Error(`[release-sdk-evidence] ${message}`);
@@ -193,7 +194,14 @@ export function loadReleaseSdkEvidence(root, runtimeLockOverride) {
   }
 
   const patchKey = `${SDK_PACKAGE}@${sdkVersion}`;
-  const patchRelativePath = rootManifest.pnpm?.patchedDependencies?.[patchKey];
+  // 新版 pnpm 从 pnpm-workspace.yaml 读 patchedDependencies,旧版从 package.json pnpm 字段读,两处都兼容
+  const workspaceManifestPath = join(root, PNPM_WORKSPACE_PATH);
+  const workspaceManifest = existsSync(workspaceManifestPath)
+    ? parse(readFileSync(workspaceManifestPath, "utf8"))
+    : null;
+  const patchRelativePath =
+    workspaceManifest?.patchedDependencies?.[patchKey] ??
+    rootManifest.pnpm?.patchedDependencies?.[patchKey];
   if (typeof patchRelativePath !== "string" || patchRelativePath.length === 0) {
     fail(`root manifest must patch ${patchKey}`);
   }
