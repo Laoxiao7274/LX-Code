@@ -51,6 +51,38 @@ function lockVersion(value) {
   return peerSuffix === -1 ? value : value.slice(0, peerSuffix);
 }
 
+/** 判断 specifier 是否为 semver 范围(如 ^0.6.0、~1.2.3、>=2.0.0),而非精确版本。 */
+function isSemverRange(specifier) {
+  return typeof specifier === "string" && /^[\^~>=<]/.test(specifier.trim());
+}
+
+/** 最小 semver 满足判断:支持 ^、~、精确版本三类常用 specifier。 */
+function semverSatisfies(version, specifier) {
+  if (typeof version !== "string" || typeof specifier !== "string") return false;
+  const v = lockVersion(version);
+  const spec = specifier.trim();
+  const m = /^\^(\d+)\.(\d+)\.(\d+)$/.exec(spec);
+  if (m) {
+    const [major, minor, patch] = [Number(m[1]), Number(m[2]), Number(m[3])];
+    if (major > 0) return compare(v, [major, minor, patch]) >= 0 && compare(v, [major + 1, 0, 0]) < 0;
+    if (minor > 0) return compare(v, [major, minor, patch]) >= 0 && compare(v, [major, minor + 1, 0]) < 0;
+    return compare(v, [major, minor, patch]) >= 0 && compare(v, [major, minor, patch + 1]) < 0;
+  }
+  const t = /^~(\d+)\.(\d+)\.(\d+)$/.exec(spec);
+  if (t) {
+    const [major, minor, patch] = [Number(t[1]), Number(t[2]), Number(t[3])];
+    return compare(v, [major, minor, patch]) >= 0 && compare(v, [major, minor + 1, 0]) < 0;
+  }
+  return lockVersion(v) === spec;
+}
+
+function compare(version, [major, minor, patch]) {
+  const m = /^(\d+)\.(\d+)\.(\d+)/.exec(version);
+  if (!m) return 0;
+  const [a, b, c] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  return a !== major ? a - major : b !== minor ? b - minor : c - patch;
+}
+
 function sortedRecord(record) {
   return Object.fromEntries(Object.entries(record).sort(([a], [b]) => a.localeCompare(b)));
 }
@@ -150,6 +182,10 @@ export function loadReleaseSdkEvidence(root, runtimeLockOverride) {
         fail(
           `pnpm lock must resolve workspace dependency ${name} to a link, got ${resolvedVersion}`,
         );
+      }
+    } else if (isSemverRange(specifier)) {
+      if (!semverSatisfies(resolvedVersion, specifier)) {
+        fail(`pnpm lock resolves ${name} to ${resolvedVersion}, expected ${specifier}`);
       }
     } else if (lockVersion(resolvedVersion) !== specifier) {
       fail(`pnpm lock resolves ${name} to ${resolvedVersion}, expected ${specifier}`);

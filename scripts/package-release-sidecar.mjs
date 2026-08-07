@@ -220,7 +220,7 @@ function stageHostWithDeploy() {
   // pnpm 9 resolves deploy links incorrectly when the workspace and target are
   // on different Windows drives. Keep the target outside the workspace but on
   // the checkout volume.
-  const deployedFrom = join(dirname(root), `.pideck-host-deploy-${process.pid}-${Date.now()}`);
+  const deployedFrom = join(dirname(root), `.lxcode-host-deploy-${process.pid}-${Date.now()}`);
   try {
     rmSync(deployedFrom, { recursive: true, force: true });
     console.log("[package-sidecar] pnpm deploy --prod ->", deployedFrom);

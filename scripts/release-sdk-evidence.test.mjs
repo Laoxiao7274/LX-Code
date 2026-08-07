@@ -47,10 +47,14 @@ test("probes Node-safe runtime entries for every Host production dependency", ()
     evidence.hostManifest.productionDependencies,
   );
 
-  assert.equal(specifiers.length, dependencyNames.length);
+  // 平台二进制包(@colbymchenry/codegraph-win32-x64)无 JS 入口,proveRuntimeImports 跳过
+  const importableNames = dependencyNames.filter(
+    (name) => name !== "@colbymchenry/codegraph-win32-x64",
+  );
+  assert.equal(specifiers.length, importableNames.length);
   assert.deepEqual(
     specifiers,
-    dependencyNames.map((name) =>
+    importableNames.map((name) =>
       name === "pdfjs-dist" ? "pdfjs-dist/legacy/build/pdf.mjs" : name,
     ),
   );
