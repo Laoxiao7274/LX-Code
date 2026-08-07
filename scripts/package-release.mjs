@@ -232,7 +232,7 @@ function validatePackagedRuntime(releaseDir, expectedResourceManifest) {
   }
   if (existsSync(hostPackagePath)) {
     const name = JSON.parse(readFileSync(hostPackagePath, "utf8")).name;
-    if (name !== "pideck-host-release") {
+    if (name !== "lxcode-host-release") {
       errors.push(`packaged pi-host/package.json identity is ${name ?? "missing"}`);
     }
   }
@@ -309,7 +309,7 @@ for (const stalePath of [
   join(bundleRoot, "resources", "pi-host"),
   join(bundleRoot, "resources", "node"),
   join(bundleRoot, "resources", "git"),
-  join(bundleRoot, "pideck.exe"),
+  join(bundleRoot, "lxcode.exe"),
   join(bundleRoot, "bundle", "nsis"),
 ]) {
   rmSync(stalePath, { recursive: true, force: true });
@@ -337,7 +337,7 @@ const tauriStatus = timedStage("build Tauri NSIS candidate", () => {
   return r.status ?? 1;
 });
 
-const desktopExecutable = join(bundleRoot, "pideck.exe");
+const desktopExecutable = join(bundleRoot, "lxcode.exe");
 const installer = timedStage("locate primary bundle output", () =>
   findPrimaryInstaller(bundleRoot),
 );

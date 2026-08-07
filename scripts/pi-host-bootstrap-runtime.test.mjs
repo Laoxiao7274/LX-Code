@@ -105,7 +105,7 @@ function fixture() {
   const { manifest } = detachNodeModulesLinks(nodeModules);
   const runtimeDir = join(payloadDir, "host-runtime");
   writePackage(runtimeDir, {
-    name: "pideck-host-release",
+    name: "lxcode-host-release",
     version: "1.0.0",
     type: "module",
     dependencies,

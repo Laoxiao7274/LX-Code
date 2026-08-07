@@ -381,13 +381,13 @@ writeFileSync(
   ),
 );
 // Force node_modules/@lxcode/protocol → vendor
-const protoLink = join(dest, "node_modules", "@pideck", "protocol");
+const protoLink = join(dest, "node_modules", "@lxcode", "protocol");
 mkdirSync(dirname(protoLink), { recursive: true });
 if (existsSync(protoLink)) rmSync(protoLink, { recursive: true, force: true });
 cpSync(protocolVendor, protoLink, { recursive: true });
 
 const releasePkg = {
-  name: "pideck-host-release",
+  name: "lxcode-host-release",
   version: hostMeta.version,
   private: true,
   type: "module",
@@ -412,7 +412,7 @@ try {
 
 // Layout validation — refuse flatten collision of package.json identities
 const hostPkgName = JSON.parse(readFileSync(join(dest, "package.json"), "utf8")).name;
-if (hostPkgName !== "pideck-host-release") die("pi-host package.json name overwritten");
+if (hostPkgName !== "lxcode-host-release") die("pi-host package.json name overwritten");
 const protocolName = JSON.parse(
   readFileSync(join(dest, "node_modules/@lxcode/protocol/package.json"), "utf8"),
 ).name;
