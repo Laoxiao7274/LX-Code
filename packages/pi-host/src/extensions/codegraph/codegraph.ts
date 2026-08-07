@@ -44,8 +44,22 @@ async function getInstance(cwd: string): Promise<CodeGraphInstance> {
     let cg: CodeGraphInstance;
     if (cgIsInitialized(cwd)) {
       cg = await CodeGraph.open(cwd);
+      // 自愈:已存在但为空的库(旧版 init 不带 index 留下的历史遗留),
+      // 补一次全量索引,否则查询永远空。
+      try {
+        if (cg.getStats().fileCount === 0) {
+          await ensureCodegraphConfig(cwd);
+          await cg.indexAll();
+        }
+      } catch {
+        // 自愈失败不致命,库仍可用(只是可能仍空)
+      }
     } else {
-      cg = await CodeGraph.init(cwd);
+      // 首次 init 必须带 { index: true },否则 SDK 只建空库不扫描文件,
+      // 所有查询(searchNodes/getNodesByName/getCallers/...)都将返回空。
+      // 同时先确保排除配置存在,避免把 node_modules 等第三方目录也扫进来。
+      await ensureCodegraphConfig(cwd);
+      cg = await CodeGraph.init(cwd, { index: true });
     }
     // 起 FileWatcher 自动增量同步(文件变化自动 reindex)
     try {
