@@ -70,7 +70,14 @@ function withStderr(message, stderr) {
 assert(existsSync(nodePath), `Staged Node is missing: ${nodePath}`);
 assert(existsSync(hostEntry), `Staged Host entry is missing: ${hostEntry}`);
 
-const tempRoot = mkdtempSync(join(tmpdir(), "pideck-staged-smoke-"));
+// Windows CI 上 pnpm .pnpm 路径 + patch_hash 叠加易超 260 MAX_PATH,
+// 用更短的 temp 根路径(C:\s\)避开长路径问题
+const smokeTempBase =
+  process.platform === "win32"
+    ? (process.env.SMOKE_TEMP_BASE ?? "C:\\smoke")
+    : tmpdir();
+mkdirSync(smokeTempBase, { recursive: true });
+const tempRoot = mkdtempSync(join(smokeTempBase, "h-"));
 const agentDir = join(tempRoot, "agent");
 const workspaceDir = join(tempRoot, "workspace");
 const hostCacheDir = join(tempRoot, "host-cache");
