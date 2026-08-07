@@ -340,7 +340,19 @@ export function createAgentHandlers(
       // and let the real request surface the truth instead of blocking on a
       // false negative.
       const currentModel = g.agentSession.model;
-      if (currentModel) {
+      // 无模型(未配 provider 或删光了所有 provider)时直接拦截,返回友好提示,而不是
+      // 把空 model 传给 SDK 让它内部抛 "No model selected" 原始错误(会变成转录里一条
+      // 红色 error 消息)。MODEL_NOT_FOUND 让前端走 pushNotification toast 提示去设置。
+      if (!currentModel) {
+        operationLock.release(ctx.id);
+        return {
+          error: createHostError(
+            "MODEL_NOT_FOUND",
+            "No model configured. Add a provider and select a model from Settings → Providers, then try again.",
+          ),
+        };
+      }
+      {
         let authConfigured: boolean | undefined;
         try {
           authConfigured =

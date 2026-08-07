@@ -364,6 +364,35 @@ describe("agent.prompt auth preflight", () => {
   });
 });
 
+describe("agent.prompt no-model preflight", () => {
+  it("rejects with MODEL_NOT_FOUND when no model is configured instead of letting the SDK throw", async () => {
+    // stableHandlerFixture 默认 model: undefined(未配 provider 或删光了所有 provider)。
+    const fixture = stableHandlerFixture(Promise.resolve());
+    (fixture.factory as unknown as { deps: unknown }).deps = {
+      modelRuntime: { checkAuth: vi.fn() },
+    };
+
+    const outcome = await createAgentHandlers(fixture.factory)["agent.prompt"]!({
+      id: "prompt-no-model",
+      context: {},
+      params: { text: "hello" },
+    } as never);
+
+    expect("error" in outcome).toBe(true);
+    if (!("error" in outcome)) return;
+    expect(outcome.error.code).toBe("MODEL_NOT_FOUND");
+    // 不该进 startDetachedPrompt → session.prompt(会让 SDK 抛原始错)
+    expect(fixture.session.prompt).not.toHaveBeenCalled();
+    // 锁必须释放,不能卡住后续操作
+    expect(fixture.sessionOperationLock.isHeld()).toBe(false);
+    // 也不该探测 auth(无模型时 auth 检查无意义)
+    expect(
+      (fixture.factory as unknown as { deps: { modelRuntime: { checkAuth: ReturnType<typeof vi.fn> } } }).deps
+        .modelRuntime.checkAuth,
+    ).not.toHaveBeenCalled();
+  });
+});
+
 describe("agent.prompt extension command provenance", () => {
   it("scopes the accepted run id and invocation to the registered command handler", async () => {
     const gate = deferred();
