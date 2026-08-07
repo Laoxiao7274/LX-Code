@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const tauriDir = join(root, "apps", "desktop", "src-tauri");
-const desktopExe = join(tauriDir, "target", "debug", "pideck.exe");
+const desktopExe = join(tauriDir, "target", "debug", "lxcode.exe");
 const devUrl = "http://localhost:1420/";
 const hostSrc = join(root, "packages", "pi-host", "src");
 const hostDist = join(root, "packages", "pi-host", "dist");
@@ -141,7 +141,7 @@ async function isDesktopViteReady() {
   try {
     const response = await fetch(devUrl);
     if (!response.ok) return false;
-    return (await response.text()).includes("<title>PiDeck</title>");
+    return (await response.text()).includes("<title>LXCode</title>");
   } catch {
     return false;
   }
