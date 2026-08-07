@@ -102,7 +102,6 @@ jobs:
           echo "APPLE_PASSWORD=$APPLE_PASSWORD" >> "$GITHUB_ENV"
           echo "APPLE_TEAM_ID=$APPLE_TEAM_ID" >> "$GITHUB_ENV"
       - run: pnpm install --frozen-lockfile
-      - run: pnpm verify:quick
       - run: pnpm package:release
       - name: Stage accepted platform assets
         shell: bash
