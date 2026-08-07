@@ -51,6 +51,11 @@ export const BUILTIN_EXTENSIONS: BuiltinExtensionEntry[] = [
     name: "自动 Git 提交",
     factory: () => import("./auto-git/extension.js"),
   },
+  {
+    id: "mcp",
+    name: "MCP 服务器",
+    factory: () => import("./mcp/extension.js"),
+  },
 ];
 
 /**
