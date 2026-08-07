@@ -31,22 +31,26 @@ function extractFilePath(input: unknown): string | null {
 
 export default function createAutoGitExtension(pi: ExtensionAPI): void {
   // 会话开始:确保 git 仓库 + 切隔离分支(不阻塞对话,但 auto commit 会等它完成)
+  // cwd 在回调入口(事件分发时 ctx 仍 active)取为局部变量,后续异步任务只用 cwd:
+  // session 切换后旧 ctx 会被 SDK invalidate,再访问 ctx.cwd 会抛 "extension ctx is stale"。
   pi.on("session_start", (_event, ctx) => {
-    sessionFilesByCwd.set(ctx.cwd, new Set());
+    const cwd = ctx.cwd;
+    sessionFilesByCwd.set(cwd, new Set());
     const ready = (async () => {
       try {
-        await ensureGitRepo(ctx.cwd);
-        await ensureAutoBranch(ctx.cwd);
+        await ensureGitRepo(cwd);
+        await ensureAutoBranch(cwd);
       } catch (e) {
         logError("session_start", e instanceof Error ? e.message : String(e));
       }
     })();
-    repoReadyByCwd.set(ctx.cwd, ready);
+    repoReadyByCwd.set(cwd, ready);
   });
 
   // 记录 AI 改动的文件(edit/write)
   pi.on("tool_call", (event, ctx) => {
-    const files = sessionFilesByCwd.get(ctx.cwd);
+    const cwd = ctx.cwd;
+    const files = sessionFilesByCwd.get(cwd);
     if (!files) return;
     if (event.toolName !== "edit" && event.toolName !== "write") return;
     const path = extractFilePath((event as { input?: unknown }).input);
@@ -54,33 +58,38 @@ export default function createAutoGitExtension(pi: ExtensionAPI): void {
   });
 
   // 会话结束:等仓库准备好再 commit(保证 commit 落在隔离分支)
+  // 关键:cwd 必须入口取出。否则 await 期间用户切换 session → 旧 ctx invalidate →
+  // 回调里访问 ctx.cwd 抛 stale;尤其 finally 块的抛错逃出 try/catch,成为
+  // unhandled rejection,会让 host 进程崩溃退出(“Host failed: extension ctx is stale”)。
   pi.on("agent_settled", (_event, ctx) => {
+    const cwd = ctx.cwd;
     void (async () => {
       try {
-        await repoReadyByCwd.get(ctx.cwd);
-        const sessionFiles = [...(sessionFilesByCwd.get(ctx.cwd) ?? [])];
-        await autoCommit(ctx.cwd, sessionFiles);
+        await repoReadyByCwd.get(cwd);
+        const sessionFiles = [...(sessionFilesByCwd.get(cwd) ?? [])];
+        await autoCommit(cwd, sessionFiles);
       } catch {
         // 静默
       } finally {
-        sessionFilesByCwd.delete(ctx.cwd);
-        repoReadyByCwd.delete(ctx.cwd);
+        sessionFilesByCwd.delete(cwd);
+        repoReadyByCwd.delete(cwd);
       }
     })();
   });
 
-  // 会话关闭:等仓库准备好 + 兑底 commit + 清理
+  // 会话关闭:等仓库准备好 + 兑底 commit + 清理(同样入口取 cwd,见 agent_settled 注释)
   pi.on("session_shutdown", (_event, ctx) => {
+    const cwd = ctx.cwd;
     void (async () => {
       try {
-        await repoReadyByCwd.get(ctx.cwd);
-        const sessionFiles = [...(sessionFilesByCwd.get(ctx.cwd) ?? [])];
-        if (sessionFiles.length > 0) await autoCommit(ctx.cwd, sessionFiles);
+        await repoReadyByCwd.get(cwd);
+        const sessionFiles = [...(sessionFilesByCwd.get(cwd) ?? [])];
+        if (sessionFiles.length > 0) await autoCommit(cwd, sessionFiles);
       } catch {
         // 静默
       } finally {
-        sessionFilesByCwd.delete(ctx.cwd);
-        repoReadyByCwd.delete(ctx.cwd);
+        sessionFilesByCwd.delete(cwd);
+        repoReadyByCwd.delete(cwd);
       }
     })();
   });
