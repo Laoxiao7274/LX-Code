@@ -54,6 +54,7 @@ export function summarizeModel(model: Model<any>): ModelSummary {
     modelId: model.id,
     name: model.name ?? model.id,
     thinkingLevels: getSupportedThinkingLevels(model).map(String),
+    reasoning: !!model.reasoning,
   };
 }
 

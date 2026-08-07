@@ -22,6 +22,7 @@ const MODEL: ModelSummary = {
   modelId: "grok-4.5",
   name: "Grok 4.5",
   thinkingLevels: ["off", "high"],
+  reasoning: true,
 };
 
 function host(): HostStatusSnapshot {

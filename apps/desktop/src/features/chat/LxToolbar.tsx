@@ -221,13 +221,29 @@ function LxThinkingSelect() {
   const workspace = useAppStore((s) => s.workspace);
   const session = useAppStore((s) => s.session);
   const setSession = useAppStore((s) => s.setSession);
+  const thinkingLevels = useAppStore((s) => s.thinkingLevels);
+  const pushNotification = useAppStore((s) => s.pushNotification);
   const [open, setOpen] = useState(false);
 
-  // 展示所有思考等级(参考旧版 LXCode),过滤 minimal。选了由 host 处理。
+  // 菜单档位优先用 host 报告的 thinkingLevels(模型实际支持的),没有则回退到全档位。
+  // 过滤 minimal(参考旧版 LXCode)。不支持思考的模型 thinkingLevels 只有 off/空。
+  // 注意:全局 thinkingLevels 在 session.model 未绑定时会是全档(误导),
+  // 所以判断模型是否支持思考优先看 session.model.thinkingLevels(模型真实能力)。
   const fullLevels = ["off", "low", "medium", "high", "xhigh", "max"];
-  const levels = fullLevels.filter((level) => level !== "minimal");
+  const modelLevels = session?.model?.thinkingLevels;
+  const supported = modelLevels && modelLevels.length > 0 ? modelLevels : (thinkingLevels.length > 0 ? thinkingLevels : fullLevels);
+  const levels = supported.filter((level) => level !== "minimal");
   const cur = session?.thinkingLevel ?? "medium";
   const curLabel = thinkingLabel(cur);
+  // 模型是否支持思考:优先用 session.model.reasoning(模型真实能力,可靠)。
+  // fallback:session.model.reasoning 缺失时用 thinkingLevels/modelLevels 含非 off 档位判断。
+  // 注意:全局 thinkingLevels 在 session.model 未绑定时会是全档(不可靠),故 reasoning 优先。
+  const modelReasoning = session?.model?.reasoning;
+  const modelSupportsThinking = modelReasoning !== undefined
+    ? modelReasoning
+    : (modelLevels
+        ? modelLevels.some((l) => l !== "off")
+        : thinkingLevels.length > 0 && thinkingLevels.some((l) => l !== "off"));
 
   async function choose(level: string) {
     if (!host || !workspace || !session) return;
@@ -236,7 +252,17 @@ function LxThinkingSelect() {
       activeSessionContext(host, workspace, session),
       { level },
     );
-    if (res.ok) setSession(res.result);
+    if (res.ok) {
+      setSession(res.result);
+      // 结果导向判断:若 host 返回的实际 thinkingLevel 与用户选的不一致,
+      // 说明被 SDK clamp 了(模型不支持该档位),弹提示告知用户。
+      const actual = res.result?.thinkingLevel;
+      if (actual !== undefined && actual !== level) {
+        pushNotification(t("modelThinkingClamped", { level, actual }), "error");
+      }
+    } else {
+      pushNotification(res.error?.message ?? t("modelThinkingSetFailed"), "error");
+    }
     setOpen(false);
   }
 

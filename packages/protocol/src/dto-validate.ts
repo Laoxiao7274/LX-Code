@@ -236,11 +236,12 @@ export function isWorkspaceSnapshot(value: unknown): boolean {
 function isModelSummary(value: unknown): boolean {
   return (
     isPlainObject(value) &&
-    hasExactKeys(value, ["provider", "modelId", "name"], ["thinkingLevels"]) &&
+    hasExactKeys(value, ["provider", "modelId", "name"], ["thinkingLevels", "reasoning"]) &&
     isString(value.provider) &&
     isString(value.modelId) &&
     isString(value.name) &&
-    (value.thinkingLevels === undefined || isStringArray(value.thinkingLevels))
+    (value.thinkingLevels === undefined || isStringArray(value.thinkingLevels)) &&
+    (value.reasoning === undefined || isBoolean(value.reasoning))
   );
 }
 

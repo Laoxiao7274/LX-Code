@@ -164,6 +164,7 @@ export function buildSessionSnapshot(args: {
         modelId: model.id,
         name: model.name ?? model.id,
         thinkingLevels: session.getAvailableThinkingLevels?.() as string[] | undefined,
+        reasoning: !!model.reasoning,
       }
     : undefined;
 

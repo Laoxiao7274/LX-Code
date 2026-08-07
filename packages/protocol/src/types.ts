@@ -216,6 +216,8 @@ export type ModelSummary = {
   modelId: string;
   name: string;
   thinkingLevels?: string[];
+  /** 是否支持思考(reasoning)。前端据此判断能否切换思考档位。旧快照可能缺该字段。 */
+  reasoning?: boolean;
 };
 
 export type ProviderApi =

@@ -15,6 +15,7 @@ const current: ModelSummary = {
   provider: "muapi",
   modelId: "grok-4.5",
   name: "Grok 4.5",
+  reasoning: true,
 };
 
 describe("includeCurrentModel", () => {
@@ -42,6 +43,7 @@ describe("includeCurrentModel", () => {
         modelId: "grok-composer-2.5-fast",
         name: "Grok Composer",
         thinkingLevels: ["off"],
+        reasoning: false,
       },
     ];
     expect(thinkingLevelsForModel(models, current, ["off"])).toEqual([

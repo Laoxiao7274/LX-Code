@@ -44,6 +44,7 @@ describe("model.changed projection", () => {
         provider: "test-provider",
         modelId: "test-model",
         name: "Test Model",
+        reasoning: true,
       },
       thinkingLevel: "high",
       availableThinkingLevels: ["off", "low", "high"],

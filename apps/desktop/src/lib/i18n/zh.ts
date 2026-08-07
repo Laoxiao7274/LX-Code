@@ -795,6 +795,8 @@ export const zh: Record<MessageKey, string> = {
   modelNoneEnabled: "没有已启用的模型",
   modelSwitchFailed: "无法切换模型",
   modelThinkingSetFailed: "无法设置思考级别",
+  modelThinkingUnsupported: "当前模型不支持思考,无法切换思考级别",
+  modelThinkingClamped: "当前模型不支持“{level}”思考级别,已保持“{actual}”",
   modelSelect: "选择模型",
   modelNone: "未选择模型",
   modelMenuLabel: "模型",

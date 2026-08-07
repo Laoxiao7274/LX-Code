@@ -824,6 +824,8 @@ export const en = {
   modelNoneEnabled: "No enabled models",
   modelSwitchFailed: "Could not switch model",
   modelThinkingSetFailed: "Could not set thinking level",
+  modelThinkingUnsupported: "Current model does not support thinking",
+  modelThinkingClamped: "Current model does not support '{level}' thinking level, kept at '{actual}'",
   modelSelect: "Select model",
   modelNone: "No model",
   modelMenuLabel: "Models",
