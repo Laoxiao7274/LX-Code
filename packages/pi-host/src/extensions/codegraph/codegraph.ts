@@ -10,9 +10,17 @@
  *
  * 移植自旧 LXCode desktop/main/codegraph.ts,去掉 electron 依赖,适配 pi-host 进程。
  */
-import * as CodegraphSDK from "@colbymchenry/codegraph";
+import { createRequire } from "node:module";
 
-// codegraph npm-sdk 是 CommonJS,ESM 用 namespace import 取命名导出。
+// codegraph npm-sdk 是 CommonJS,且其入口 npm-sdk.js 是
+// `module.exports = require(resolveLibrary())` 这种动态转发壳。
+// ESM `import * as` 时 cjs-module-lexer 无法静态分析其命名导出,
+// 导致 namespace 只剩 `default`、CodeGraph/isInitialized 全为 undefined,
+// 工具调用时 `cgIsInitialized(cwd)` 抛 "cgIsInitialized is not a function"。
+// 改用 createRequire 直接 require,拿到真实 module.exports(含全部命名导出);
+// 类型用 `as typeof import(...)` 断言成 d.ts 的 namespace shape,保持类型等价。
+const require = createRequire(import.meta.url);
+const CodegraphSDK = require("@colbymchenry/codegraph") as typeof import("@colbymchenry/codegraph");
 const CodeGraph = CodegraphSDK.CodeGraph;
 const cgIsInitialized = CodegraphSDK.isInitialized;
 type CgNode = import("@colbymchenry/codegraph").Node;
