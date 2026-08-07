@@ -12,6 +12,7 @@ use pi_host::PiHostManager;
 use shell_terminal::ShellTerminalManager;
 use tauri::{webview::WebviewWindowBuilder, Emitter, Listener, Manager};
 use tokio::sync::Mutex;
+use std::path::PathBuf;
 
 pub struct AppState {
     pub settings: Mutex<DesktopSettingsStore>,
@@ -74,6 +75,35 @@ pub fn run() {
             }
 
             let handle = app.handle().clone();
+            // dev 构建:conf 自动建了 label='main' 的窗口(共享 WebView2 user-data-dir,
+            // 与已装实例冲突会导致 WebView2 初始化失败)。这里建一个独立窗口(label='main-cdp'
+            // 避开冲突),用独立 data_directory + 开 CDP 9222,再销毁老窗口。前端用
+            // getCurrentWindow/getCurrentWebview(当前焦点窗口),不依赖 label。
+            #[cfg(debug_assertions)]
+            {
+                eprintln!("[dev-cdp] building main-cdp: independent webview2 data-dir + CDP 9222");
+                match WebviewWindowBuilder::new(
+                    app.handle(),
+                    "main-cdp",
+                    tauri::WebviewUrl::App("index.html".into()),
+                )
+                .title("LXCode")
+                .inner_size(1280.0, 800.0)
+                .min_inner_size(960.0, 600.0)
+                .resizable(true)
+                .decorations(false)
+                .data_directory(PathBuf::from("D:/tmp/lxcode-dev-webview2"))
+                .additional_browser_args("--remote-debugging-port=9222 --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection")
+                .build()
+                {
+                    Ok(_) => eprintln!("[dev-cdp] main-cdp window built with CDP"),
+                    Err(e) => eprintln!("[dev-cdp] build failed: {e}"),
+                }
+                if let Some(old) = app.get_webview_window("main") {
+                    let _ = old.destroy();
+                    eprintln!("[dev-cdp] old main destroyed");
+                }
+            }
             tauri::async_runtime::spawn(async move {
                 let state = handle.state::<AppState>();
                 // start_unlocked never holds the host mutex across the ready-wait,

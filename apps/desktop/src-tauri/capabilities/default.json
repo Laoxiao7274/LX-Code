@@ -2,7 +2,7 @@
   "$schema": "https://scala.tauri.app/config.schema.json",
   "identifier": "default",
   "description": "Default capabilities for LXCode",
-  "webviews": ["main"],
+  "webviews": ["main", "main-cdp"],
   "remote": {
     "urls": ["http://127.0.0.1:1420/*"]
   },
