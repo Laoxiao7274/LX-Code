@@ -153,6 +153,8 @@ export type AppState = EpochState & {
   /** 新项目初始化中(git 仓库 + codegraph 索引),期间禁用输入。 */
   workspaceInitializing: boolean;
   workspaceInitializingMessage: string;
+  /** 切换历史会话中(session.open 进行时),用于主区域显示切换加载动画。 */
+  sessionSwitching: boolean;
   extensionUiRequest: ExtensionUiRequestState | null;
   extensionUiQueue: ExtensionUiRequestState[];
   extensionDecisionGroups: Record<string, ExtensionDecisionGroupState>;
@@ -202,6 +204,7 @@ export type AppState = EpochState & {
   setTools: (t: ToolSnapshot | null) => void;
   setDesktopSettings: (d: DesktopSettings | null) => void;
   setWorkspaceInitializing: (inProgress: boolean, message?: string) => void;
+  setSessionSwitching: (switching: boolean) => void;
   setExtensionUiRequest: (r: ExtensionUiRequestState | null) => void;
   enqueueExtensionUiRequest: (r: ExtensionUiRequestState) => void;
   presentCandidateExtensionUiRequest: (r: ExtensionUiRequestState) => void;
@@ -283,6 +286,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   desktopSettings: null,
   workspaceInitializing: false,
   workspaceInitializingMessage: "",
+  sessionSwitching: false,
   extensionUiRequest: null,
   extensionUiQueue: [],
   extensionDecisionGroups: {},
@@ -602,6 +606,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setTools: (tools) => set({ tools }),
   setDesktopSettings: (desktopSettings) => set({ desktopSettings }),
   setWorkspaceInitializing: (inProgress, message) => set({ workspaceInitializing: inProgress, workspaceInitializingMessage: message ?? "" }),
+  setSessionSwitching: (switching) => set({ sessionSwitching: switching }),
   setExtensionUiRequest: (request) =>
     set((state) => {
       const now = Date.now();

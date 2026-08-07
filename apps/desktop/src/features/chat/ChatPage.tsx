@@ -34,6 +34,7 @@ export function ChatPage() {
   const packageBlocked = resourceReloadBlocked || reconcileBlocked;
   const workspaceInitializing = useAppStore((s) => s.workspaceInitializing);
   const workspaceInitializingMessage = useAppStore((s) => s.workspaceInitializingMessage);
+  const sessionSwitching = useAppStore((s) => s.sessionSwitching);
   const inputBlocked = packageBlocked || workspaceInitializing;
   const isNewConversation = Boolean(
     session && session.messages.length === 0 && session.isIdle,
@@ -104,6 +105,12 @@ export function ChatPage() {
         <div className="flex items-center gap-2 border-b border-accent/30 bg-accent/10 px-4 py-2 text-sm text-accent">
           <RefreshCw size={14} className="animate-spin" />
           {workspaceInitializingMessage || t("workspaceInitializing")}
+        </div>
+      )}
+      {sessionSwitching && (
+        <div className="flex items-center gap-2 border-b border-accent/30 bg-accent/10 px-4 py-2 text-sm text-accent">
+          <RefreshCw size={14} className="animate-spin" />
+          {t("chatSessionSwitching")}
         </div>
       )}
       {session ? (

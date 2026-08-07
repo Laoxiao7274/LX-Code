@@ -569,6 +569,7 @@ export const en = {
   workspacesRemoveAria: "Remove {name} from list",
   notifSetWorkspaceFailed: "Failed to set workspace",
   workspaceInitializing: "Initializing project (creating local git repo + building code index)…",
+  chatSessionSwitching: "Switching session…",
   workspaceInitDone: "Project initialized (git repo + code index ready)",
   workspaceInitPartial: "Project initialization partially complete",
   workspaceInitFail: "Project initialization failed",

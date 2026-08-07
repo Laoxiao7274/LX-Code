@@ -122,6 +122,8 @@ export function SessionList({
       (path, isSuperseded) => performSessionOpenRef.current(path, isSuperseded),
       (running) => {
         if (mounted.current) setSessionOpenPending(running);
+        // 同步全局 sessionSwitching,让 ChatPage 主区域在切换期间显示加载动画。
+        useAppStore.getState().setSessionSwitching(running);
       },
       (error) => {
         const message = error instanceof Error ? error.message : tCurrent("notifOpenSessionFailed");

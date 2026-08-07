@@ -546,6 +546,7 @@ export const zh: Record<MessageKey, string> = {
   workspacesRemoveAria: "从列表移除 {name}",
   notifSetWorkspaceFailed: "切换工作区失败",
   workspaceInitializing: "初始化项目中(创建本地 git 仓库 + 建代码索引)…",
+  chatSessionSwitching: "正在切换会话…",
   workspaceInitDone: "项目初始化完成(git 仓库 + 代码索引就绪)",
   workspaceInitPartial: "项目初始化部分完成",
   workspaceInitFail: "项目初始化失败",
