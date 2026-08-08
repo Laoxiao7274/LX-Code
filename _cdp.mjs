@@ -1,13 +1,17 @@
 import WebSocket from "ws";
 import { writeFileSync } from "node:fs";
-const cdpHttp = "http://127.0.0.1:9222";
+const cdpHttp = "http://127.0.0.1:9223";
 const out = process.argv[2];
 const expr = process.argv[3] || "";
 async function main() {
-  const res = await fetch(`${cdpHttp}/json`);
-  const targets = (await res.json()) ?? [];
-  const page = targets.find((t) => t.type === "page" && (t.url.includes("127.0.0.1:1420") || t.url.includes("tauri.localhost")));
-  if (!page) { console.error("no page target"); process.exit(1); }
+  let page;
+  for (let i = 0; i < 10 && !page; i++) {
+    const res = await fetch(`${cdpHttp}/json`);
+    const targets = (await res.json()) ?? [];
+    page = targets.find((t) => t.type === "page" && t.url.includes("127.0.0.1:1420"));
+    if (!page) await new Promise((r) => setTimeout(r, 500));
+  }
+  if (!page) { console.error("no 1420 page after retries"); process.exit(1); }
   const ws = new WebSocket(page.webSocketDebuggerUrl);
   let id = 0; const pending = new Map();
   const send = (m, p = {}) => new Promise((res, rej) => { const i = ++id; pending.set(i, { res, rej }); ws.send(JSON.stringify({ id: i, method: m, params: p })); });
