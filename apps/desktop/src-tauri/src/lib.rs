@@ -111,7 +111,7 @@ pub fn run() {
                 .min_inner_size(960.0, 600.0)
                 .resizable(true)
                 .decorations(false)
-                .data_directory(PathBuf::from("D:/tmp/lxcode-dev-webview2"))
+                .data_directory(std::env::temp_dir().join("lxcode-dev-webview2"))
                 .additional_browser_args("--remote-debugging-port=9223 --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection")
                 .build()
                 {
