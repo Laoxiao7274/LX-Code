@@ -14,6 +14,20 @@ use tauri::{webview::WebviewWindowBuilder, Emitter, Listener, Manager};
 use tokio::sync::Mutex;
 use std::path::PathBuf;
 
+/// 第二个实例启动时唤起并聚焦已有主窗口。
+/// dev 构建的主窗口 label 是 "main-cdp"(lib.rs 建独立 CDP 窗口后销毁 "main"),
+/// release 是 "main";按存在性优先选其一。
+fn restore_main_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+    let window = app
+        .get_webview_window("main")
+        .or_else(|| app.get_webview_window("main-cdp"));
+    if let Some(window) = window {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}
+
 pub struct AppState {
     pub settings: Mutex<DesktopSettingsStore>,
     pub host: Mutex<PiHostManager>,
@@ -24,6 +38,10 @@ pub struct AppState {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            // 第二个实例进程启动时回调:唤起已有主窗口,本进程随后由插件退出。
+            restore_main_window(app);
+        }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_shell::init())

@@ -215,10 +215,10 @@ pub fn desktop_cleanup_temp_images() -> Result<u32, String> {
         };
         if let Ok(meta) = entry.metadata() {
             if let Ok(modified) = meta.modified() {
-                if now.duration_since(modified).map(|d| d > cutoff).unwrap_or(false) {
-                    if std::fs::remove_file(entry.path()).is_ok() {
-                        removed += 1;
-                    }
+                if now.duration_since(modified).map(|d| d > cutoff).unwrap_or(false)
+                    && std::fs::remove_file(entry.path()).is_ok()
+                {
+                    removed += 1;
                 }
             }
         }
