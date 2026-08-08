@@ -524,28 +524,6 @@ export function App() {
   const sessionRevision = useAppStore((s) => s.session?.revision ?? 0);
   const workspacePath = useAppStore((s) => s.workspace?.canonicalCwd);
 
-  // TEMP: CDP screenshot hook — removed after capture.
-  useEffect(() => {
-    const w = window as unknown as { __lxTestConfirm?: (msg?: string) => void };
-    w.__lxTestConfirm = (msg) => {
-      const s = useAppStore.getState();
-      s.setExtensionUiRequest({
-        requestId: crypto.randomUUID(),
-        kind: "confirm",
-        title: "确认执行方案",
-        message: msg ??
-          "## 方案概要\n\n将修改以下文件:\n\n- `apps/desktop/src/lib/bridge/host-client.ts` — 调整重连退避\n- `packages/pi-host/src/server.ts` — 修复序列 gap 检测\n\n### 步骤\n1. 先读取当前实现\n2. 替换背压策略为 watermark-based\n3. 补充单元测试\n\n> 预计改动约 120 行,验证: `pnpm test`。",
-        context: {
-          expectedHostInstanceId: s.host?.hostInstanceId ?? "",
-          expectedWorkspaceId: s.workspace?.id ?? null,
-          expectedWorkspaceRevision: s.workspace?.revision ?? 0,
-          expectedSessionId: s.session?.sessionId ?? "",
-          expectedSessionRevision: s.session?.revision ?? 0,
-        },
-      });
-    };
-    return () => { delete w.__lxTestConfirm; };
-  }, []);
   const activeSessionPath = useAppStore((s) => s.session?.sessionPath);
   const startupSettled = desktopSettings !== null && !connecting && !rehydrating && !desynchronized;
   const startupPhase = useInitialStartupScreen(startupSettled);
