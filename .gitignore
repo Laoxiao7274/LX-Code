@@ -33,3 +33,10 @@ artifacts/
 
 # 生成图标的临时文件
 /apps/desktop/scripts/tmp/
+
+# auto-git / CDP 测试残留:临时截图与脚本不进版本库
+/_*.png
+/_*.mjs
+/_cdp*
+/_verify*
+/codegraph.json
