@@ -9,7 +9,7 @@ import { writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { BuiltinExtensionInfo, HostMethod } from "@lxcode/protocol";
 import { createHostError } from "@lxcode/protocol";
-import { BUILTIN_EXTENSIONS } from "./extensions/index.js";
+import { BUILTIN_EXTENSIONS, BUILTIN_PATH_EXTENSIONS } from "./extensions/index.js";
 import { readBuiltinExtensionsConfig, invalidateBuiltinExtensionsCache } from "./extensions/builtin-config.js";
 import type { WorkspaceGraphFactory } from "./workspace-graph-factory.js";
 import type { MethodHandler } from "./server.js";
@@ -18,7 +18,9 @@ export function createBuiltinExtensionsHandlers(factory: WorkspaceGraphFactory):
   return {
     "builtinExtensions.list": async (_ctx) => {
       const config = readBuiltinExtensionsConfig(factory.deps.agentDir);
-      const extensions: BuiltinExtensionInfo[] = BUILTIN_EXTENSIONS.map((ext) => ({
+      // inline 工厂扩展 + path 型(第三方 pi 包)扩展共用开关命名空间,一起列出。
+      const all = [...BUILTIN_EXTENSIONS, ...BUILTIN_PATH_EXTENSIONS];
+      const extensions: BuiltinExtensionInfo[] = all.map((ext) => ({
         id: ext.id,
         name: ext.name,
         enabled: config ? config[ext.id] !== false : true,
@@ -27,7 +29,7 @@ export function createBuiltinExtensionsHandlers(factory: WorkspaceGraphFactory):
     },
     "builtinExtensions.setEnabled": async (ctx) => {
       const { extensionId, enabled } = ctx.params as { extensionId: string; enabled: boolean };
-      const exists = BUILTIN_EXTENSIONS.some((ext) => ext.id === extensionId);
+      const exists = [...BUILTIN_EXTENSIONS, ...BUILTIN_PATH_EXTENSIONS].some((ext) => ext.id === extensionId);
       if (!exists) {
         return { error: createHostError("INVALID_REQUEST", `Unknown builtin extension: ${extensionId}`) };
       }

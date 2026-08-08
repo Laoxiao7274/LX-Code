@@ -23,7 +23,7 @@ import type { ProviderOwnerToken } from "./extension-provider-ownership.js";
 import { captureFilesystemFingerprint } from "./filesystem-fingerprint.js";
 import { logger } from "./logger.js";
 import { buildPackageSnapshot } from "./package-snapshot.js";
-import { loadBuiltinExtensionFactories } from "./extensions/load-builtin.js";
+import { loadBuiltinExtensionFactories, loadBuiltinExtensionPaths } from "./extensions/load-builtin.js";
 import { withoutImplicitPackageInstall } from "./offline-package-resolution.js";
 import { buildSessionSnapshot } from "./session-snapshot.js";
 import { createReadAttachmentTool } from "./attachment-tool.js";
@@ -698,11 +698,13 @@ export class WorkspaceLifecycle {
         settingsManager,
       });
       const extensionFactories = await loadBuiltinExtensionFactories(agentDir);
+      const additionalExtensionPaths = await loadBuiltinExtensionPaths(agentDir);
       const resourceLoader = new DefaultResourceLoader({
         cwd: args.canonicalCwd,
         agentDir,
         settingsManager,
         extensionFactories,
+        additionalExtensionPaths,
       });
       // Workspace selection (including the startup preload) must not reach the
       // network; see withoutImplicitPackageInstall.

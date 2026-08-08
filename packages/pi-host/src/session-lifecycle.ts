@@ -23,7 +23,7 @@ import { type GraphOperationKind } from "./locks.js";
 import { extractLatestAssistantText, generateRefinedSessionTitle } from "./session-title.js";
 import type { WorkspaceGraphFactory } from "./workspace-graph-factory.js";
 import type { ManagedSessionInfo, WorkspaceGraph } from "./workspace-graph-types.js";
-import { loadBuiltinExtensionFactories } from "./extensions/load-builtin.js";
+import { loadBuiltinExtensionFactories, loadBuiltinExtensionPaths } from "./extensions/load-builtin.js";
 import { captureActiveSessionState, commitActiveSessionState } from "./session-runtime-cache.js";
 import { sessionStorageDirs as resolveSessionStorageDirs } from "./session-storage.js";
 import { withoutImplicitPackageInstall } from "./offline-package-resolution.js";
@@ -395,13 +395,15 @@ async function createSessionResourceLoader(
   factory: WorkspaceGraphFactory,
   g: WorkspaceGraph,
 ): Promise<DefaultResourceLoader> {
-  // 加载启用的内置扩展工厂(动态 import)
+  // 加载启用的内置扩展:inline 工厂(extensionFactories)+ path 型第三方 pi 包(additionalExtensionPaths)。
   const extensionFactories = await loadBuiltinExtensionFactories(factory.deps.agentDir);
+  const additionalExtensionPaths = await loadBuiltinExtensionPaths(factory.deps.agentDir);
   const resourceLoader = new DefaultResourceLoader({
     cwd: g.canonicalCwd,
     agentDir: factory.deps.agentDir,
     settingsManager: g.settingsManager!,
     extensionFactories,
+    additionalExtensionPaths,
   });
   // Session create/open must not reach the network. Without this the SDK would
   // npm-install or git-clone any configured package missing from disk, in a

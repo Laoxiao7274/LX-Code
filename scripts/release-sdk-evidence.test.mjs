@@ -47,9 +47,14 @@ test("probes Node-safe runtime entries for every Host production dependency", ()
     evidence.hostManifest.productionDependencies,
   );
 
-  // 平台二进制包(@colbymchenry/codegraph-win32-x64)无 JS 入口,proveRuntimeImports 跳过
+  // proveRuntimeImports 跳过两类包:平台二进制包(无 JS 入口)+ Pi extension 包(纯 .ts 源码,由 jiti 加载)。
+  // 与 release-runtime-imports.mjs 的 PLATFORM_BINARY_PACKAGES / PI_EXTENSION_PACKAGES 保持一致。
+  const skippedPackages = new Set([
+    "@colbymchenry/codegraph-win32-x64",
+    "pi-mcp-adapter",
+  ]);
   const importableNames = dependencyNames.filter(
-    (name) => name !== "@colbymchenry/codegraph-win32-x64",
+    (name) => !skippedPackages.has(name),
   );
   assert.equal(specifiers.length, importableNames.length);
   assert.deepEqual(
