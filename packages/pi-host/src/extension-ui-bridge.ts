@@ -638,7 +638,11 @@ export function createExtensionUiContext(opts: ExtensionUiBridgeOptions): Extens
         },
         dialogOpts,
       );
-      return typeof value === "string" ? prepared.responseValues.get(value) : undefined;
+      // 前端 option 模式回传 option.id → 命中 responseValues map 返回原始标签;
+      // freeform 模式回传用户输入的文本本身(非任何 option.id)→ map 未命中,
+      // 原逻辑会丢弃成 undefined。用 `?? value` fallback 让自由文本原样返回。
+      if (typeof value !== "string") return undefined;
+      return prepared.responseValues.get(value) ?? value;
     },
     confirm: async (title, message, dialogOpts) => {
       const value = await requestBlocking(

@@ -65,16 +65,16 @@ export function ExtensionUiModal() {
     }
   }
 
-  const isConfirm = request.kind === "confirm";
+  const isPideck = request.kind === "confirm" || request.kind === "select";
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{
-        background: isConfirm
+        background: isPideck
           ? "radial-gradient(circle at 50% 40%, rgba(47,122,214,0.10), rgba(0,0,0,0.45) 70%)"
           : "rgba(0,0,0,0.50)",
-        backdropFilter: isConfirm ? "blur(6px)" : undefined,
-        WebkitBackdropFilter: isConfirm ? "blur(6px)" : undefined,
+        backdropFilter: isPideck ? "blur(6px)" : undefined,
+        WebkitBackdropFilter: isPideck ? "blur(6px)" : undefined,
       }}
     >
       <div
@@ -85,11 +85,11 @@ export function ExtensionUiModal() {
         aria-busy={controller.submitting}
         tabIndex={-1}
         onKeyDown={handleDialogKeyDown}
-        className={isConfirm
+        className={isPideck
           ? "max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto overscroll-contain rounded-2xl border border-accent/20 bg-surface-raised/80 shadow-2xl shadow-accent/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           : "max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto overscroll-contain rounded-lg border border-border bg-surface-raised p-5 shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
         }
-        style={isConfirm ? { backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)" } : undefined}
+        style={isPideck ? { backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)" } : undefined}
         data-extension-ui-surface="modal"
       >
         <ExtensionUiRequestContent

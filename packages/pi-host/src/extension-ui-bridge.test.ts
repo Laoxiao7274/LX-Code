@@ -135,6 +135,23 @@ describe("extension-ui-bridge", () => {
     await expect(p).resolves.toBe("beta");
   });
 
+  it("select freeform text is returned as-is when not matching any option id", async () => {
+    const events: Array<{ e: HostEventName; p: unknown }> = [];
+    const ui = createExtensionUiContext({
+      emit: (e, p) => events.push({ e, p }),
+      getIdentity: () => id,
+    });
+    const pendingSelect = ui.select("Pick", ["alpha", "beta"], {
+      pideck: { allowFreeform: true },
+    } as never);
+    const req = events.find((x) => x.e === "extensionUi.request")!.p as {
+      requestId: string;
+    };
+    // 前端 freeform 模式回传的是用户输入文本本身(非任何 option.id)
+    respondExtensionUi(req.requestId, "resolved", "user typed custom reply", id);
+    await expect(pendingSelect).resolves.toBe("user typed custom reply");
+  });
+
   it("bounds blocking payloads while preserving selected SDK option values", async () => {
     const events: Array<{ e: HostEventName; p: unknown }> = [];
     const ui = createExtensionUiContext({

@@ -223,7 +223,7 @@ export function ExtensionUiRequestContent({
   );
 
   return (
-    <div className="min-w-0" aria-busy={submitting}>
+    <div className={variant === "modal" && request.kind === "select" ? "min-w-0 p-5" : "min-w-0"} aria-busy={submitting}>
       {request.kind !== "confirm" && (
       <div className="flex min-w-0 items-start gap-2.5">
         {highRisk ? (
@@ -463,6 +463,7 @@ export function ExtensionUiRequestContent({
                   rows={2}
                   value={input}
                   disabled={submitting}
+                  placeholder={t("extUiFeedbackPlaceholder")}
                   aria-describedby={error ? errorId : undefined}
                   aria-invalid={error ? true : undefined}
                   className="min-h-10 min-w-0 flex-1 resize-y rounded-md border border-border bg-surface px-2.5 py-2 text-xs"
