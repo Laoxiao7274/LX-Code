@@ -816,6 +816,98 @@ export function isSessionSnapshot(value: unknown): boolean {
   );
 }
 
+/**
+ * 字段级诊断:逐项检查 SessionSnapshot,返回第一个失败字段的路径。
+ * 用于定位 `Invalid outbound session.snapshot payload` 的根因——
+ * isSessionSnapshot 只返回 boolean,无法知道哪个字段校验不过。
+ * 合法快照返回 null,非法快照返回如 "messages[3]" 或 "contextUsage.breakdown"。
+ */
+export function diagnoseSessionSnapshot(value: unknown): string | null {
+  if (!isPlainObject(value)) return "(not an object)";
+  const requiredKeys = [
+    "sessionId", "cwd", "revision", "isStreaming", "isIdle", "isCompacting",
+    "isRetrying", "thinkingLevel", "autoCompactionEnabled", "autoRetryEnabled",
+    "steeringMode", "followUpMode", "pending", "messages", "tools",
+  ];
+  const optionalKeys = [
+    "sessionPath", "name", "model", "contextUsage", "entries",
+    "leafId", "extensionMessageRenders",
+  ];
+  if (!hasExactKeys(value, requiredKeys, optionalKeys)) {
+    const present = Object.keys(value);
+    const missing = requiredKeys.filter((k) => !(k in value));
+    const unexpected = present.filter((k) => !requiredKeys.includes(k) && !optionalKeys.includes(k));
+    if (missing.length > 0) return `(missing keys: ${missing.join(", ")})`;
+    if (unexpected.length > 0) return `(unexpected keys: ${unexpected.join(", ")})`;
+    return "(keys mismatch)";
+  }
+  if (!isUuid(value.sessionId)) return "sessionId";
+  if (value.sessionPath !== undefined && !isOptionalString(value.sessionPath)) return "sessionPath";
+  if (value.name !== undefined && !isOptionalString(value.name)) return "name";
+  if (!isString(value.cwd)) return "cwd";
+  if (!isSafeRevision(value.revision)) return "revision";
+  if (![value.isStreaming, value.isIdle, value.isCompacting, value.isRetrying].every(isBoolean)) {
+    return ["isStreaming","isIdle","isCompacting","isRetrying"].find(
+      (k) => !isBoolean((value as Record<string, unknown>)[k]),
+    )!;
+  }
+  if (value.model !== undefined && !isModelSummary(value.model)) return "model";
+  if (value.contextUsage !== undefined) {
+    const cu = value.contextUsage as Record<string, unknown>;
+    if (!isPlainObject(cu) || !hasExactKeys(cu, ["tokens", "contextWindow"], ["breakdown"])) return "contextUsage";
+    if (cu.tokens !== null && !isSafeRevision(cu.tokens)) return "contextUsage.tokens";
+    if (!isSafeRevision(cu.contextWindow) || (cu.contextWindow as number) <= 0) return "contextUsage.contextWindow";
+    if (cu.breakdown !== undefined && !isSessionContextBreakdown(cu.breakdown)) return "contextUsage.breakdown";
+  }
+  if (!isString(value.thinkingLevel)) return "thinkingLevel";
+  if (!isBoolean(value.autoCompactionEnabled)) return "autoCompactionEnabled";
+  if (!isBoolean(value.autoRetryEnabled)) return "autoRetryEnabled";
+  if (!["all", "one-at-a-time"].includes(String(value.steeringMode))) return "steeringMode";
+  if (!["all", "one-at-a-time"].includes(String(value.followUpMode))) return "followUpMode";
+  const pending = value.pending as Record<string, unknown>;
+  if (!isPlainObject(pending) || !hasExactKeys(pending, ["revision", "steering", "followUp"])) return "pending";
+  if (!isSafeRevision(pending.revision)) return "pending.revision";
+  if (!isStringArray(pending.steering)) return "pending.steering";
+  if (!isStringArray(pending.followUp)) return "pending.followUp";
+  if (!Array.isArray(value.messages)) return "messages";
+  for (let i = 0; i < value.messages.length; i++) {
+    const msg = value.messages[i] as Record<string, unknown>;
+    if (!isAgentMessage(msg)) {
+      // 下钻:定位是 content / usage / 其他字段导致 isAgentMessage 失败
+      if (!isPlainObject(msg)) return `messages[${i}] (not object)`;
+      if (!isString(msg.role)) return `messages[${i}].role`;
+      if (typeof msg.content !== "string" &&
+          !(Array.isArray(msg.content) && msg.content.every(isSerializableAgentContent))) {
+        if (Array.isArray(msg.content)) {
+          for (let j = 0; j < msg.content.length; j++) {
+            if (!isSerializableAgentContent((msg.content as unknown[])[j])) {
+              return `messages[${i}].content[${j}]`;
+            }
+          }
+        }
+        return `messages[${i}].content`;
+      }
+      if (msg.usage !== undefined && !isSerializableUsage(msg.usage)) return `messages[${i}].usage`;
+      const badKey = Object.entries(msg).find(
+        ([k, v]) => k !== "role" && k !== "content" && v !== undefined && !isJsonValue(v),
+      );
+      return badKey ? `messages[${i}].${badKey[0]}` : `messages[${i}]`;
+    }
+  }
+  if (value.entries !== undefined) {
+    if (!Array.isArray(value.entries)) return "entries";
+    for (let i = 0; i < value.entries.length; i++) {
+      if (!isSessionEntry(value.entries[i])) return `entries[${i}]`;
+    }
+  }
+  if (value.leafId !== undefined && value.leafId !== null && !isString(value.leafId)) return "leafId";
+  if (value.extensionMessageRenders !== undefined && !isExtensionMessageRenderMap(value.extensionMessageRenders)) return "extensionMessageRenders";
+  if (!isToolSnapshot(value.tools)) return "tools";
+  if (value.tools.sessionId !== value.sessionId) return "tools.sessionId mismatch";
+  if (value.tools.sessionRevision !== value.revision) return "tools.sessionRevision mismatch";
+  return null;
+}
+
 function isSessionSummary(value: unknown): boolean {
   return (
     isPlainObject(value) &&

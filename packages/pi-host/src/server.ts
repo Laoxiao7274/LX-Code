@@ -2,6 +2,7 @@ import {
   createFailureResponse,
   createHostError,
   createSuccessResponse,
+  diagnoseSessionSnapshot,
   parseHostRequest,
   validateEventPayload,
   validateSuccessResult,
@@ -169,13 +170,17 @@ export class PiHostServer {
     }
     const validation = validateEventPayload(event, payload);
     if (!validation.ok) {
+      // session.snapshot 失败时打出字段级诊断,定位根因(isSessionSnapshot 只返回 boolean)。
+      const diagnosis =
+        event === "session.snapshot" ? diagnoseSessionSnapshot(payload) : null;
       const error = createHostError("INTERNAL_ERROR", `Invalid outbound ${event} payload`, {
-        details: { event, validation: validation.error.message },
+        details: { event, validation: validation.error.message, ...(diagnosis ? { diagnosis } : {}) },
       });
       this.setFatalError(error);
       logger.error("Rejected invalid outbound Host event", {
         event,
         validation: validation.error.message,
+        ...(diagnosis ? { diagnosis } : {}),
       });
       throw new Error(error.message);
     }

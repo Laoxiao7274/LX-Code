@@ -21,7 +21,7 @@ import {
 } from "./validate.js";
 import { createEvent, createSuccessResponse, createFailureResponse } from "./envelopes.js";
 import { createHostError, HOST_ERROR_CODES } from "./errors.js";
-import { isPackageSnapshot, isSessionSnapshot } from "./dto-validate.js";
+import { isPackageSnapshot, isSessionSnapshot, diagnoseSessionSnapshot } from "./dto-validate.js";
 
 const REQUEST_ID = "00000000-0000-4000-8000-000000000001";
 const RESPONSE_ID = "00000000-0000-4000-8000-000000000002";
@@ -1027,6 +1027,106 @@ describe("context usage breakdown", () => {
       expect(isSessionSnapshot({ ...snapshot, ...extra })).toBe(false);
     },
   );
+});
+
+describe("diagnoseSessionSnapshot", () => {
+  const baseSnapshot = {
+    sessionId: SESSION_ID,
+    cwd: "/p",
+    revision: 1,
+    isStreaming: false,
+    isIdle: true,
+    isCompacting: false,
+    isRetrying: false,
+    thinkingLevel: "off",
+    autoCompactionEnabled: true,
+    autoRetryEnabled: true,
+    steeringMode: "all",
+    followUpMode: "all",
+    pending: { revision: 0, steering: [], followUp: [] },
+    messages: [],
+    tools: {
+      revision: 1,
+      workspaceId: WORKSPACE_ID,
+      sessionId: SESSION_ID,
+      sessionRevision: 1,
+      tools: [],
+      active: [],
+    },
+  };
+
+  it("returns null for a valid snapshot", () => {
+    expect(diagnoseSessionSnapshot(baseSnapshot)).toBeNull();
+  });
+
+  it("returns null for a valid snapshot with optional fields", () => {
+    expect(
+      diagnoseSessionSnapshot({
+        ...baseSnapshot,
+        sessionPath: "/p/s.json",
+        name: "s",
+        entries: [{ id: "e1", type: "message" }],
+        leafId: "e1",
+      }),
+    ).toBeNull();
+  });
+
+  it("locates a missing required key", () => {
+    const { tools, ...withoutTools } = baseSnapshot;
+    expect(diagnoseSessionSnapshot(withoutTools)).toContain("missing keys");
+  });
+
+  it("locates an invalid messages entry", () => {
+    expect(
+      diagnoseSessionSnapshot({
+        ...baseSnapshot,
+        messages: [{ role: "assistant", content: 123 }],
+      }),
+    ).toBe("messages[0].content");
+  });
+
+  it("locates an invalid contextUsage.breakdown", () => {
+    expect(
+      diagnoseSessionSnapshot({
+        ...baseSnapshot,
+        contextUsage: {
+          tokens: 100,
+          contextWindow: 1000,
+          breakdown: { systemPrompt: 20 } as never,
+        },
+      }),
+    ).toBe("contextUsage.breakdown");
+  });
+
+  it("locates an invalid pending.steering", () => {
+    expect(
+      diagnoseSessionSnapshot({
+        ...baseSnapshot, pending: { revision: 0, steering: [1], followUp: [] },
+      }),
+    ).toBe("pending.steering");
+  });
+
+  it("drills into messages[N].usage when usage has extra keys", () => {
+    expect(
+      diagnoseSessionSnapshot({
+        ...baseSnapshot,
+        messages: [
+          { role: "assistant", content: "hi", usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: {}, extra: 1 } as never },
+        ],
+      }),
+    ).toBe("messages[0].usage");
+  });
+
+  it("drills into messages[N].content[M] when a content block is malformed", () => {
+    expect(
+      diagnoseSessionSnapshot({
+        ...baseSnapshot,
+        messages: [
+          { role: "assistant", content: [{ type: "text", text: "ok" }, { type: 42 } as never] },
+        ],
+      }),
+    ).toBe("messages[0].content[1]");
+  });
 });
 
 describe("compile-time maps completeness", () => {

@@ -11,6 +11,7 @@ import {
 } from "./limits.js";
 import {
   hasExactKeys,
+  diagnoseSessionSnapshot,
   isHostErrorRecord,
   isHostStatusSnapshot,
   isPackageSnapshot,
@@ -917,4 +918,7 @@ export const protocolDto = {
   isSessionSnapshot,
   isToolSnapshot,
   isPackageSnapshot,
+  diagnoseSessionSnapshot,
 };
+
+export { diagnoseSessionSnapshot };
