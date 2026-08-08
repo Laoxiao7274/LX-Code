@@ -75,14 +75,15 @@ pub fn run() {
             #[cfg(debug_assertions)]
             {
                 // 主窗口由 conf 声明但 create:false(不自动建),这里手动建并注入
-                // WebView2 --remote-debugging-port=9222,供自动化测试脚本经 CDP 连入
+                // WebView2 --remote-debugging-port=9223,供自动化测试脚本经 CDP 连入
                 // 操控真实 Tauri WebView(带 __TAURI__ IPC)。必须让带 CDP args 的窗口
                 // 首个创建 WebView2 environment,否则被老 environment 复用而忽略 args。
+                // 用 9223 避开已运行的安装版(它占 9222)。
                 // release 不编译本块,且 conf 无 create:false → 自动建窗口,行为不变。
                 if let Some(cfg) = app.config().app.windows.iter().find(|w| w.label == "main") {
-                    eprintln!("[dev-cdp] building main window with --remote-debugging-port=9222");
+                    eprintln!("[dev-cdp] building main window with --remote-debugging-port=9223");
                     match WebviewWindowBuilder::from_config(app.handle(), cfg)?
-                        .additional_browser_args("--remote-debugging-port=9222 --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection")
+                        .additional_browser_args("--remote-debugging-port=9223 --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection")
                         .build() {
                         Ok(_) => eprintln!("[dev-cdp] main window built with CDP"),
                         Err(e) => eprintln!("[dev-cdp] build failed: {e}"),
@@ -95,11 +96,11 @@ pub fn run() {
             let handle = app.handle().clone();
             // dev 构建:conf 自动建了 label='main' 的窗口(共享 WebView2 user-data-dir,
             // 与已装实例冲突会导致 WebView2 初始化失败)。这里建一个独立窗口(label='main-cdp'
-            // 避开冲突),用独立 data_directory + 开 CDP 9222,再销毁老窗口。前端用
+            // 避开冲突),用独立 data_directory + 开 CDP 9223,再销毁老窗口。前端用
             // getCurrentWindow/getCurrentWebview(当前焦点窗口),不依赖 label。
             #[cfg(debug_assertions)]
             {
-                eprintln!("[dev-cdp] building main-cdp: independent webview2 data-dir + CDP 9222");
+                eprintln!("[dev-cdp] building main-cdp: independent webview2 data-dir + CDP 9223");
                 match WebviewWindowBuilder::new(
                     app.handle(),
                     "main-cdp",
@@ -111,7 +112,7 @@ pub fn run() {
                 .resizable(true)
                 .decorations(false)
                 .data_directory(PathBuf::from("D:/tmp/lxcode-dev-webview2"))
-                .additional_browser_args("--remote-debugging-port=9222 --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection")
+                .additional_browser_args("--remote-debugging-port=9223 --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection")
                 .build()
                 {
                     Ok(_) => eprintln!("[dev-cdp] main-cdp window built with CDP"),
