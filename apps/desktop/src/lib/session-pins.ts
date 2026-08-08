@@ -1,4 +1,4 @@
-const SESSION_PINS_KEY_PREFIX = "pideck.sessions.pinned.";
+const SESSION_PINS_KEY_PREFIX = "lxcode.sessions.pinned.";
 
 export function readPinnedSessionIds(workspaceId: string | null | undefined): string[] {
   if (!workspaceId) return [];

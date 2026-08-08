@@ -101,7 +101,7 @@ describe("PiHostServer Extension UI presentation handshake", () => {
         method: "system.hello",
         context: {},
         params: {
-          clientName: "pideck",
+          clientName: "lxcode",
           clientVersion: "0.1.0",
           protocolVersion: 1,
           extensionDecisionPresentation: "auto",

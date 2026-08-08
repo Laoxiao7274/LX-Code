@@ -13,7 +13,7 @@ import { createTestModelServices, putApiKey } from "./test-helpers/model-runtime
 import { refreshModelsLocal } from "./model-runtime-refresh.js";
 import { WorkspaceGraphFactory } from "./workspace-graph-factory.js";
 import type { BackgroundSessionRuntime, WorkspaceGraph } from "./workspace-graph-types.js";
-import { modelBackupDir } from "./pideck-data.js";
+import { modelBackupDir } from "./lxcode-data.js";
 
 const layouts: TempAgentLayout[] = [];
 const httpServers: Server[] = [];
@@ -92,7 +92,7 @@ function draft(models: ProviderDraft["models"]): ProviderDraft {
     baseUrl: "http://127.0.0.1:8317/v1",
     modelsUrl: "https://catalog.example/v1/models",
     api: "openai-responses",
-    headers: { "X-Client": "pideck" },
+    headers: { "X-Client": "lxcode" },
     compat: {
       supportsDeveloperRole: false,
       supportsReasoningEffort: null,
@@ -212,8 +212,8 @@ describe("Provider controller", () => {
     } as never);
     expect("error" in save ? save.error.message : null).toBeNull();
     const afterSave = JSON.parse(readFileSync(join(layout.agentDir, "models.json"), "utf8"));
-    expect(afterSave.pideckEnabledProviders).toEqual(["other"]);
-    expect(afterSave.pideckActiveProvider).toBeUndefined();
+    expect(afterSave.lxcodeEnabledProviders).toEqual(["other"]);
+    expect(afterSave.lxcodeActiveProvider).toBeUndefined();
 
     const enable = await handlers["provider.setEnabled"]!({
       id: "enable-custom",
@@ -222,7 +222,7 @@ describe("Provider controller", () => {
     expect("error" in enable ? enable.error.message : null).toBeNull();
 
     const persisted = JSON.parse(readFileSync(join(layout.agentDir, "models.json"), "utf8"));
-    expect(persisted.pideckEnabledProviders).toEqual(["other", "custom"]);
+    expect(persisted.lxcodeEnabledProviders).toEqual(["other", "custom"]);
     expect(persisted.providers.other.models).toEqual([{ id: "other-model" }]);
 
     const list = await handlers["provider.list"]!({ id: "list-providers", params: null } as never);
@@ -485,6 +485,7 @@ describe("Provider controller", () => {
     expect("error" in outcome && outcome.error.code).toBe("SETTINGS_WRITE_FAILED");
     const persisted = JSON.parse(readFileSync(join(layout.agentDir, "models.json"), "utf8"));
     expect(persisted.providers.custom).toBeDefined();
+    // rollback 未改写文件,仍是输入时的旧 pideck key
     expect(persisted.pideckEnabledProviders).toEqual(["custom"]);
     expect(await credentialStore.readRaw("custom")).toEqual({
       type: "api_key",
@@ -1201,7 +1202,7 @@ describe("Provider controller", () => {
         url: request.url ?? "",
         ...(userAgent ? { userAgent } : {}),
       });
-      if (userAgent === "PiDeck/0.1") {
+      if (userAgent === "LXCode/0.1") {
         response.writeHead(200, { "Content-Type": "text/event-stream" });
         response.end(
           [
@@ -1285,7 +1286,7 @@ describe("Provider controller", () => {
           baseUrl: `http://127.0.0.1:${address.port}`,
           api: "anthropic-messages",
           authHeader: false,
-          headers: { "User-Agent": "PiDeck/0.1" },
+          headers: { "User-Agent": "LXCode/0.1" },
           models: [{ id: "relay-model" }],
         },
       },
@@ -1297,7 +1298,7 @@ describe("Provider controller", () => {
     } as never);
 
     expect("error" in compatibleOutcome ? compatibleOutcome.error.message : null).toBeNull();
-    expect(requests[1]).toEqual({ url: "/v1/messages", userAgent: "PiDeck/0.1" });
+    expect(requests[1]).toEqual({ url: "/v1/messages", userAgent: "LXCode/0.1" });
     if (!("error" in compatibleOutcome)) {
       expect(compatibleOutcome.result).toEqual(
         expect.objectContaining({
@@ -1340,7 +1341,7 @@ describe("Provider controller", () => {
           baseUrl: `http://127.0.0.1:${address.port}`,
           api: "anthropic-messages",
           authHeader: false,
-          headers: { "User-Agent": "PiDeck/0.1" },
+          headers: { "User-Agent": "LXCode/0.1" },
           models: [{ id: "relay-model" }],
         },
       },
@@ -1404,7 +1405,7 @@ describe("Provider controller", () => {
           baseUrl: `http://127.0.0.1:${address.port}`,
           api: "anthropic-messages",
           authHeader: false,
-          headers: { "User-Agent": "PiDeck/0.1" },
+          headers: { "User-Agent": "LXCode/0.1" },
           models: [{ id: "relay-model" }],
         },
       },
@@ -1443,7 +1444,7 @@ describe("Provider controller", () => {
         expect.arrayContaining([
           expect.objectContaining({
             type: "function",
-            function: expect.objectContaining({ name: "pideck_connection_test" }),
+            function: expect.objectContaining({ name: "lxcode_connection_test" }),
           }),
         ]),
       );
@@ -1483,7 +1484,7 @@ describe("Provider controller", () => {
       baseUrl: `http://127.0.0.1:${address.port}/v1`,
       api: "openai-completions",
       authHeader: true,
-      headers: { "User-Agent": "PiDeck/0.1" },
+      headers: { "User-Agent": "LXCode/0.1" },
       models: [{ id: "relay-model", reasoning: true }],
     };
     const automatic = await setup({ providers: { custom: providerConfig } });
@@ -1623,7 +1624,7 @@ describe("Provider login", () => {
       );
     });
     const persisted = JSON.parse(readFileSync(join(layout.agentDir, "models.json"), "utf8"));
-    expect(persisted.pideckEnabledProviders).toContain("anthropic");
+    expect(persisted.lxcodeEnabledProviders).toContain("anthropic");
   });
 
   it("cancels an active login flow and reports a failed done event", async () => {
@@ -1815,7 +1816,7 @@ describe("Provider login", () => {
     } as never);
     expect("error" in enable ? enable.error.message : null).toBeNull();
     let persisted = JSON.parse(readFileSync(join(layout.agentDir, "models.json"), "utf8"));
-    expect(persisted.pideckEnabledProviders).toContain("openai");
+    expect(persisted.lxcodeEnabledProviders).toContain("openai");
 
     const disable = await handlers["provider.setEnabled"]!({
       id: "disable-builtin",
@@ -1823,7 +1824,7 @@ describe("Provider login", () => {
     } as never);
     expect("error" in disable ? disable.error.message : null).toBeNull();
     persisted = JSON.parse(readFileSync(join(layout.agentDir, "models.json"), "utf8"));
-    expect(persisted.pideckEnabledProviders).not.toContain("openai");
+    expect(persisted.lxcodeEnabledProviders).not.toContain("openai");
   });
 
   it("logs out a stored credential and removes the Provider from the enabled list", async () => {
@@ -1846,7 +1847,7 @@ describe("Provider login", () => {
     expect(refresh.mock.calls.every(([options]) => options?.allowNetwork === false)).toBe(true);
     expect(await credentialStore.readRaw("anthropic")).toBeUndefined();
     const persisted = JSON.parse(readFileSync(join(layout.agentDir, "models.json"), "utf8"));
-    expect(persisted.pideckEnabledProviders ?? []).not.toContain("anthropic");
+    expect(persisted.lxcodeEnabledProviders ?? []).not.toContain("anthropic");
   });
 
   it("keeps builtin ids in the enabled filter once the list exists", async () => {
@@ -1902,7 +1903,7 @@ describe("Builtin provider models", () => {
         .sort(),
     ).toEqual([...keep].sort());
     let persisted = JSON.parse(readFileSync(join(layout.agentDir, "models.json"), "utf8"));
-    expect([...persisted.pideckProviderModels.anthropic].sort()).toEqual([...keep].sort());
+    expect([...persisted.lxcodeProviderModels.anthropic].sort()).toEqual([...keep].sort());
     expect(await getProviderModelAllowLists(layout.agentDir)).toEqual({
       anthropic: expect.arrayContaining(keep),
     });
@@ -1913,7 +1914,7 @@ describe("Builtin provider models", () => {
     } as never);
     expect("error" in restore ? restore.error.message : null).toBeNull();
     persisted = JSON.parse(readFileSync(join(layout.agentDir, "models.json"), "utf8"));
-    expect(persisted.pideckProviderModels).toBeUndefined();
+    expect(persisted.lxcodeProviderModels).toBeUndefined();
     expect(await getProviderModelAllowLists(layout.agentDir)).toBeUndefined();
   });
 

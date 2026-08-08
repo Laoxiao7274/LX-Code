@@ -54,7 +54,7 @@ type BrowserDockTab = {
   initialUrl: string;
 };
 
-const DOCK_WIDTH_KEY = "pideck.dock.width.v1";
+const DOCK_WIDTH_KEY = "lxcode.dock.width.v1";
 const DEFAULT_DOCK_WIDTH = 460;
 const MIN_DOCK_WIDTH = 460;
 const MAX_DOCK_WIDTH = 720;
@@ -253,7 +253,7 @@ export function RightDock() {
         if (request.kind === "toggle") {
           const open = !useAppStore.getState().dockOpen;
           setDockOpen(open);
-          setSidebarPref("pideck.dock.open", open);
+          setSidebarPref("lxcode.dock.open", open);
           return;
         }
         const tabId = visibleTabIdsRef.current[request.index];
@@ -261,7 +261,7 @@ export function RightDock() {
         setActiveTab(tabId);
         if (!useAppStore.getState().dockOpen) {
           setDockOpen(true);
-          setSidebarPref("pideck.dock.open", true);
+          setSidebarPref("lxcode.dock.open", true);
         }
       }),
     [setDockOpen],
@@ -270,7 +270,7 @@ export function RightDock() {
   const toggle = () => {
     const next = !dockOpen;
     setDockOpen(next);
-    setSidebarPref("pideck.dock.open", next);
+    setSidebarPref("lxcode.dock.open", next);
   };
 
   const createFiles = () => {
@@ -297,7 +297,7 @@ export function RightDock() {
         createTree();
         if (!useAppStore.getState().dockOpen) {
           setDockOpen(true);
-          setSidebarPref("pideck.dock.open", true);
+          setSidebarPref("lxcode.dock.open", true);
         }
         return true;
       }),
@@ -313,7 +313,7 @@ export function RightDock() {
         createChanges();
         if (!useAppStore.getState().dockOpen) {
           setDockOpen(true);
-          setSidebarPref("pideck.dock.open", true);
+          setSidebarPref("lxcode.dock.open", true);
         }
         return true;
       }),
@@ -343,7 +343,7 @@ export function RightDock() {
         if (!createBrowserTab(url)) return false;
         if (!useAppStore.getState().dockOpen) {
           setDockOpen(true);
-          setSidebarPref("pideck.dock.open", true);
+          setSidebarPref("lxcode.dock.open", true);
         }
         return true;
       }),
@@ -361,7 +361,7 @@ export function RightDock() {
         // 没有 browser tab 且没有 extension 面板时,收回 dock(shell 用户自己管)
         if (browserTabsRef.current.length === 0 && !useAppStore.getState().extensionTerminal) {
           setDockOpen(false);
-          setSidebarPref("pideck.dock.open", false);
+          setSidebarPref("lxcode.dock.open", false);
         }
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -379,7 +379,7 @@ export const MarkdownMessage = memo(function MarkdownMessage({
   const t = useT();
   const reactMessageId = useId();
   const footnotePrefix = useMemo(
-    () => `pideck-md-${reactMessageId.replace(/[^A-Za-z0-9_-]/g, "") || "message"}-`,
+    () => `lxcode-md-${reactMessageId.replace(/[^A-Za-z0-9_-]/g, "") || "message"}-`,
     [reactMessageId],
   );
   const remarkRehypeOptions = useMemo(() => ({ clobberPrefix: footnotePrefix }), [footnotePrefix]);
@@ -405,9 +405,9 @@ export const MarkdownMessage = memo(function MarkdownMessage({
   const openMermaidLink = useCallback(
     (target: EventTarget | null, activation: ChatLinkActivation = {}) => {
       if (!(target instanceof Element)) return false;
-      const anchor = target.closest<Element>("[data-pideck-mermaid-href]");
+      const anchor = target.closest<Element>("[data-lxcode-mermaid-href]");
       if (!anchor || !anchor.closest('[data-streamdown="mermaid"]')) return false;
-      const href = anchor.getAttribute("data-pideck-mermaid-href");
+      const href = anchor.getAttribute("data-lxcode-mermaid-href");
       if (!href || !isSafeExternalUrl(href)) return true;
       openChatLink(href, activation);
       return true;

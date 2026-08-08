@@ -21,7 +21,7 @@ function createManager(): {
   manager: DefaultPackageManager;
   selected: UpdateTarget[];
 } {
-  root = mkdtempSync(join(tmpdir(), "pideck-package-update-scope-"));
+  root = mkdtempSync(join(tmpdir(), "lxcode-package-update-scope-"));
   const settingsManager = {
     getGlobalSettings: () => ({ packages: ["npm:shared-package@^1.0.0"] }),
     getProjectSettings: () => ({ packages: ["npm:shared-package@^2.0.0"] }),
@@ -41,7 +41,7 @@ function createManager(): {
   return { manager, selected };
 }
 
-describe("PiDeck package-manager scoped update patch", () => {
+describe("LXCode package-manager scoped update patch", () => {
   it("updates only the user record for a user-scoped request", async () => {
     const { manager, selected } = createManager();
 

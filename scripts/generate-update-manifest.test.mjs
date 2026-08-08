@@ -130,7 +130,7 @@ test("probes Windows npm through staged Node instead of spawning npm.cmd", () =>
     "win32",
     "x64",
   );
-  const probe = stagedNpmProbe(runtimeTarget, "C:\\pideck\\node");
+  const probe = stagedNpmProbe(runtimeTarget, "C:\\lxcode\\node");
   assert.match(probe.executable, /node\.exe$/u);
   assert.match(probe.args[0], /node_modules[/\\]npm[/\\]bin[/\\]npm-cli\.js$/u);
   assert.equal(probe.args[1], "--version");
@@ -158,7 +158,7 @@ test("refuses mismatched tags, duplicate platforms, and empty signatures", () =>
 });
 
 test("aggregates isolated platform artifacts without overwriting assets", () => {
-  const root = mkdtempSync(join(tmpdir(), "pideck-release-aggregate-"));
+  const root = mkdtempSync(join(tmpdir(), "lxcode-release-aggregate-"));
   try {
     const input = join(root, "input");
     const output = join(root, "output");

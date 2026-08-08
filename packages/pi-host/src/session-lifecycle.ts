@@ -407,7 +407,7 @@ async function createSessionResourceLoader(
   });
   // Session create/open must not reach the network. Without this the SDK would
   // npm-install or git-clone any configured package missing from disk, in a
-  // package manager PiDeck cannot cancel.
+  // package manager LXCode cannot cancel.
   await withoutImplicitPackageInstall(() => resourceLoader.reload());
   return resourceLoader;
 }

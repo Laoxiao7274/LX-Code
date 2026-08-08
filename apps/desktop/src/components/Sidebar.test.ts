@@ -25,7 +25,7 @@ describe("Sidebar", () => {
 
   it("keeps only the hover edge control mounted when the sidebar is collapsed", () => {
     vi.stubGlobal("localStorage", {
-      getItem: (key: string) => (key === "pideck.sidebar.collapsed" ? "1" : null),
+      getItem: (key: string) => (key === "lxcode.sidebar.collapsed" ? "1" : null),
       setItem: vi.fn(),
     });
 

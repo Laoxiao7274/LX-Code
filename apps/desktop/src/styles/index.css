@@ -3,7 +3,7 @@
 @import "@fontsource-variable/jetbrains-mono";
 
 @font-face {
-  font-family: "PiDeck PingFang SC";
+  font-family: "LXCode PingFang SC";
   src: url("../assets/fonts/pingfang-sc/PingFangSC-Regular.woff2") format("woff2");
   font-style: normal;
   font-weight: 400;
@@ -14,7 +14,7 @@
 }
 
 @font-face {
-  font-family: "PiDeck PingFang SC";
+  font-family: "LXCode PingFang SC";
   src: url("../assets/fonts/pingfang-sc/PingFangSC-Medium.woff2") format("woff2");
   font-style: normal;
   font-weight: 500;
@@ -25,7 +25,7 @@
 }
 
 @font-face {
-  font-family: "PiDeck PingFang SC";
+  font-family: "LXCode PingFang SC";
   src: url("../assets/fonts/pingfang-sc/PingFangSC-Semibold.woff2") format("woff2");
   font-style: normal;
   font-weight: 600;
@@ -68,8 +68,8 @@
   --color-accent-foreground: #fff;
   --color-amber-500: var(--color-warning);
   --color-ring: var(--color-accent);
-  --font-sans: "Inter Variable", "PiDeck PingFang SC", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "JetBrains Mono Variable", "PiDeck PingFang SC", ui-monospace, "Cascadia Code", monospace;
+  --font-sans: "Inter Variable", "LXCode PingFang SC", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono Variable", "LXCode PingFang SC", ui-monospace, "Cascadia Code", monospace;
 }
 
 :root {
@@ -610,7 +610,7 @@ textarea:focus-visible {
 }
 
 /* Streamdown 2.5 only marks highlighted lines as blocks when line numbers are
-   enabled. PiDeck hides line numbers, so restore the line layout explicitly. */
+   enabled. LXCode hides line numbers, so restore the line layout explicitly. */
 .chat-markdown [data-streamdown="code-block-body"] pre > code > span {
   display: block;
 }
@@ -674,7 +674,7 @@ textarea:focus-visible {
   height: auto;
 }
 
-svg[data-pideck-mermaid-theme="neutral"] {
+svg[data-lxcode-mermaid-theme="neutral"] {
   background: #ffffff;
   color-scheme: light;
 }

@@ -6,7 +6,7 @@
  * (之前经 pnpm tauri:dev 链路 env 会丢失,改走 dev-fast 直 spawn exe。)
  *
  * 隔离维度:
- *  1. PIDECK_CONFIG_DIR → settings 独立,不影响已装实例
+ *  1. LXCODE_CONFIG_DIR → settings 独立,不影响已装实例
  *  2. agentDir          → host 数据独立,不和 ~/.lxcode 抢
  *  3. CDP 端口 9222     → 供自动化测试脚本连入操控真实 Tauri WebView
  *
@@ -74,7 +74,7 @@ console.log("[dev-iso] host resources synced");
 // 不改 PATH(exe 已编译不需 cargo;改 PATH 格式可能让 spawn 丢弃整个 env)
 const env = {
   ...process.env,
-  PIDECK_CONFIG_DIR: configDir,
+  LXCODE_CONFIG_DIR: configDir,
   WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${cdpPort}`,
 };
 
@@ -93,7 +93,7 @@ if (await viteReady()) {
 
 // 5) 直 spawn exe(env 直接继承 → WebView2 读到 CDP 环境变量)
 console.log(`[dev-iso] 启动 ${desktopExe} (CDP 端口 ${cdpPort})`);
-console.log(`[dev-iso] env check: WEBVIEW2=${env.WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS} PIDECK=${env.PIDECK_CONFIG_DIR}`);
+console.log(`[dev-iso] env check: WEBVIEW2=${env.WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS} LXCODE=${env.LXCODE_CONFIG_DIR}`);
 const desktop = spawn(desktopExe, [], { cwd: tauriDir, stdio: "inherit", windowsHide: false, env });
 
 let stopping = false;

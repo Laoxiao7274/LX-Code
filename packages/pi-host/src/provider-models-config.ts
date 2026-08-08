@@ -8,11 +8,21 @@ export type ModelsConfig = {
   original: string | null;
 };
 
-export const ENABLED_PROVIDERS_KEY = "pideckEnabledProviders";
-export const LEGACY_ACTIVE_PROVIDER_KEY = "pideckActiveProvider";
+export const ENABLED_PROVIDERS_KEY = "lxcodeEnabledProviders";
+export const LEGACY_ACTIVE_PROVIDER_KEY = "lxcodeActiveProvider";
 // Per-builtin-provider model allow-lists: { providerId: modelId[] }. A missing
 // entry means every model of that provider is offered.
-export const PROVIDER_MODELS_KEY = "pideckProviderModels";
+export const PROVIDER_MODELS_KEY = "lxcodeProviderModels";
+
+// 旧品牌 key(pideck*),读取时 fallback 兼容,不丢已存用户设置。
+const LEGACY_ENABLED_PROVIDERS_KEY = "pideckEnabledProviders";
+const LEGACY_LEGACY_ACTIVE_PROVIDER_KEY = "pideckActiveProvider";
+const LEGACY_PROVIDER_MODELS_KEY = "pideckProviderModels";
+
+/** 读 root[key],新 key 优先,旧 pideck* key fallback。 */
+function readKeyWithLegacy(root: JsonObject, key: string, legacyKey: string): unknown {
+  return root[key] !== undefined ? root[key] : root[legacyKey];
+}
 
 export function isObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -53,7 +63,7 @@ export function resolveEnabledProviders(
   // universe is custom providers plus whatever the runtime composes.
   const knownIds = new Set([...customIds, ...extraProviderIds]);
   if (knownIds.size === 0) return [];
-  const configured = config.root[ENABLED_PROVIDERS_KEY];
+  const configured = readKeyWithLegacy(config.root, ENABLED_PROVIDERS_KEY, LEGACY_ENABLED_PROVIDERS_KEY);
   if (Array.isArray(configured)) {
     return [
       ...new Set(
@@ -61,7 +71,7 @@ export function resolveEnabledProviders(
       ),
     ];
   }
-  const legacyActive = config.root[LEGACY_ACTIVE_PROVIDER_KEY];
+  const legacyActive = readKeyWithLegacy(config.root, LEGACY_ACTIVE_PROVIDER_KEY, LEGACY_LEGACY_ACTIVE_PROVIDER_KEY);
   if (typeof legacyActive === "string" && customIds.includes(legacyActive)) {
     return [legacyActive];
   }
@@ -82,7 +92,9 @@ export async function getEnabledProviderIds(
   try {
     const config = await readModelsConfig(join(agentDir, "models.json"));
     const hasCustomProviders = Object.values(config.providers).some(isObject);
-    const hasConfiguredList = Array.isArray(config.root[ENABLED_PROVIDERS_KEY]);
+    const hasConfiguredList = Array.isArray(
+      readKeyWithLegacy(config.root, ENABLED_PROVIDERS_KEY, LEGACY_ENABLED_PROVIDERS_KEY),
+    );
     if (!hasCustomProviders && !hasConfiguredList) return undefined;
     return resolveEnabledProviders(config, preferredProvider, knownProviderIds);
   } catch {
@@ -91,7 +103,7 @@ export async function getEnabledProviderIds(
 }
 
 export function readProviderModelAllowLists(config: ModelsConfig): Record<string, string[]> {
-  const raw = config.root[PROVIDER_MODELS_KEY];
+  const raw = readKeyWithLegacy(config.root, PROVIDER_MODELS_KEY, LEGACY_PROVIDER_MODELS_KEY);
   if (!isObject(raw)) return {};
   const lists: Record<string, string[]> = {};
   for (const [providerId, value] of Object.entries(raw)) {

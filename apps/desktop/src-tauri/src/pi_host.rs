@@ -1047,7 +1047,7 @@ impl PiHostManager {
             }
         }
         cmd.env("PI_CODING_AGENT_DIR", &agent_dir);
-        cmd.env("PIDECK_HOST_CACHE_DIR", &host_cache_dir);
+        cmd.env("LXCODE_HOST_CACHE_DIR", &host_cache_dir);
         cmd.env("LXCODE_CONFIG_DIR", &config_dir);
 
         let mut controlled_path = Vec::<PathBuf>::new();

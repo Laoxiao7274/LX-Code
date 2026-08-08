@@ -72,22 +72,22 @@ export function SidebarLayout({
           ? t("sidebarLoadingSnapshots")
           : host?.phase ?? t("sidebarHostOffline");
   const [sessionsCollapsed, setSessionsCollapsed] = useState(() =>
-    sidebarPref("pideck.sidebar.sessionsCollapsed"),
+    sidebarPref("lxcode.sidebar.sessionsCollapsed"),
   );
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() =>
-    sidebarPref("pideck.sidebar.collapsed"),
+    sidebarPref("lxcode.sidebar.collapsed"),
   );
 
   function toggleSessionsCollapsed() {
     setSessionsCollapsed((current) => {
-      setSidebarPref("pideck.sidebar.sessionsCollapsed", !current);
+      setSidebarPref("lxcode.sidebar.sessionsCollapsed", !current);
       return !current;
     });
   }
 
   function toggleSidebarCollapsed() {
     setSidebarCollapsed((current) => {
-      setSidebarPref("pideck.sidebar.collapsed", !current);
+      setSidebarPref("lxcode.sidebar.collapsed", !current);
       return !current;
     });
   }

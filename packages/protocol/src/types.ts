@@ -290,7 +290,7 @@ export type BuiltinProviderAuthStatus = {
   configured: boolean;
   /** Human-readable auth source, e.g. "OAuth" or "ANTHROPIC_API_KEY". */
   authLabel?: string;
-  /** True when auth.json holds a credential PiDeck can log out of. */
+  /** True when auth.json holds a credential LXCode can log out of. */
   hasStoredCredential: boolean;
   enabled: boolean;
 };

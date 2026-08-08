@@ -27,7 +27,7 @@ import {
   type AttachmentStatus,
   type AttachmentUnit,
 } from "@lxcode/protocol";
-import { attachmentRoot } from "./pideck-data.js";
+import { attachmentRoot } from "./lxcode-data.js";
 import { runAttachmentParserWorker } from "./attachment-parser-runner.js";
 import type { AttachmentParseArgs, AttachmentParseResult } from "./attachment-parser.js";
 import { logger } from "./logger.js";

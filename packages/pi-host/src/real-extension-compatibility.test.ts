@@ -24,10 +24,10 @@ import {
 
 const require = createRequire(import.meta.url);
 const RPIV_V1_ENTRYPOINT = require.resolve(
-  "@pideck-test/rpiv-ask-user-question-v1",
+  "@lxcode-test/rpiv-ask-user-question-v1",
 );
 const RPIV_V2_ENTRYPOINT = require.resolve(
-  "@pideck-test/rpiv-ask-user-question-v2",
+  "@lxcode-test/rpiv-ask-user-question-v2",
 );
 
 type EmittedEvent = { event: HostEventName; payload: unknown };
@@ -75,7 +75,7 @@ async function loadPublishedExtension(
   entrypoint: string,
   sessionId: string,
 ): Promise<LoadedExtension> {
-  const layout = createTempAgentLayout("pideck-real-extension-");
+  const layout = createTempAgentLayout("lxcode-real-extension-");
   const eventBus = createEventBus();
   const promptEvents: unknown[] = [];
   const blockedEvents: unknown[] = [];

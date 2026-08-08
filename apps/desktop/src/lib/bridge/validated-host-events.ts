@@ -70,7 +70,7 @@ export function publishValidatedHostEvent(event: HostEventEnvelope): void {
     try {
       subscriber.handler(event);
     } catch (error) {
-      console.error(`[pideck] ${event.event} subscriber failed`, error);
+      console.error(`[lxcode] ${event.event} subscriber failed`, error);
     }
   }
 }

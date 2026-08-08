@@ -495,7 +495,7 @@ describe("ChangesPanel", () => {
       sha: "f".repeat(40),
       shortSha: "ffffffff",
       parents: ["a".repeat(40)],
-      authorName: "PiDeck Test",
+      authorName: "LXCode Test",
       authoredAt: "2026-08-02T12:00:00+08:00",
       subject: "History change",
       refs: ["HEAD -> main"],

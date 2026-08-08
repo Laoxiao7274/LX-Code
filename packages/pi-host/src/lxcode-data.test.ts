@@ -11,13 +11,14 @@ import { basename, dirname, join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { MIGRATION_ID } from "./migration-backup.js";
 import {
-  migrateLegacyPideckData,
+  hostDataDir,
+  migrateLegacyHostData,
+  migratePideckDirToHost,
   migrationBackupRoot,
   modelBackupDir,
-  pideckDataDir,
   providerJournalRoot,
   sessionArchiveDir,
-} from "./pideck-data.js";
+} from "./lxcode-data.js";
 
 const roots: string[] = [];
 
@@ -26,7 +27,7 @@ afterEach(() => {
 });
 
 function createFixture(): { agentDir: string; cwd: string; safePath: string } {
-  const root = mkdtempSync(join(tmpdir(), "pideck-data-"));
+  const root = mkdtempSync(join(tmpdir(), "lxcode-data-"));
   roots.push(root);
   const agentDir = join(root, "agent");
   const cwd = resolve(root, "workspace");
@@ -41,25 +42,61 @@ function write(path: string, content: string): void {
   writeFileSync(path, content);
 }
 
-describe("PiDeck data paths", () => {
-  it("keeps every PiDeck-owned storage family under one agent namespace", () => {
+describe("host data paths", () => {
+  it("keeps every host-owned storage family under one agent namespace", () => {
     const { agentDir, cwd, safePath } = createFixture();
 
-    expect(pideckDataDir(agentDir)).toBe(join(agentDir, "pideck"));
+    expect(hostDataDir(agentDir)).toBe(join(agentDir, "host"));
     expect(migrationBackupRoot(agentDir, MIGRATION_ID)).toBe(
-      join(agentDir, "pideck", "migration-backups", MIGRATION_ID),
+      join(agentDir, "host", "migration-backups", MIGRATION_ID),
     );
     expect(providerJournalRoot(agentDir)).toBe(
-      join(agentDir, "pideck", "provider-journal"),
+      join(agentDir, "host", "provider-journal"),
     );
-    expect(modelBackupDir(agentDir)).toBe(join(agentDir, "pideck", "model-backups"));
+    expect(modelBackupDir(agentDir)).toBe(join(agentDir, "host", "model-backups"));
     expect(sessionArchiveDir(agentDir, cwd)).toBe(
-      join(agentDir, "pideck", "session-archive", safePath),
+      join(agentDir, "host", "session-archive", safePath),
     );
   });
 });
 
-describe("migrateLegacyPideckData", () => {
+describe("migratePideckDirToHost", () => {
+  it("renames legacy agentDir/pideck to agentDir/host", async () => {
+    const { agentDir } = createFixture();
+    write(join(agentDir, "pideck", "attachments", "a.txt"), "attachment");
+    write(join(agentDir, "pideck", "provider-journal", "j.json"), "journal");
+
+    await migratePideckDirToHost(agentDir);
+
+    expect(readFileSync(join(agentDir, "host", "attachments", "a.txt"), "utf8")).toBe(
+      "attachment",
+    );
+    expect(readFileSync(join(agentDir, "host", "provider-journal", "j.json"), "utf8")).toBe(
+      "journal",
+    );
+    expect(existsSync(join(agentDir, "pideck"))).toBe(false);
+  });
+
+  it("is a no-op when legacy pideck dir does not exist", async () => {
+    const { agentDir } = createFixture();
+    await expect(migratePideckDirToHost(agentDir)).resolves.toBeUndefined();
+    expect(existsSync(join(agentDir, "pideck"))).toBe(false);
+  });
+
+  it("merges into existing host dir without overwriting", async () => {
+    const { agentDir } = createFixture();
+    write(join(agentDir, "pideck", "attachments", "old.txt"), "old");
+    write(join(agentDir, "host", "attachments", "new.txt"), "new");
+
+    await migratePideckDirToHost(agentDir);
+
+    expect(readFileSync(join(agentDir, "host", "attachments", "old.txt"), "utf8")).toBe("old");
+    expect(readFileSync(join(agentDir, "host", "attachments", "new.txt"), "utf8")).toBe("new");
+    expect(existsSync(join(agentDir, "pideck"))).toBe(false);
+  });
+});
+
+describe("migrateLegacyHostData", () => {
   it("adopts all four legacy storage families and is idempotent", async () => {
     const { agentDir, cwd, safePath } = createFixture();
     const legacyMigrationFile = join(
@@ -79,8 +116,8 @@ describe("migrateLegacyPideckData", () => {
     write(unrelatedBackup, "user backup");
     write(legacyArchive, "session");
 
-    await migrateLegacyPideckData(agentDir, MIGRATION_ID);
-    await expect(migrateLegacyPideckData(agentDir, MIGRATION_ID)).resolves.toBeUndefined();
+    await migrateLegacyHostData(agentDir, MIGRATION_ID);
+    await expect(migrateLegacyHostData(agentDir, MIGRATION_ID)).resolves.toBeUndefined();
 
     expect(
       readFileSync(join(migrationBackupRoot(agentDir, MIGRATION_ID), "snapshot", "manifest.json"), "utf8"),
@@ -106,7 +143,7 @@ describe("migrateLegacyPideckData", () => {
     write(join(agentDir, "provider-journal", "legacy-entry", "journal.json"), "legacy");
     write(join(providerJournalRoot(agentDir), "new-entry", "journal.json"), "new");
 
-    await migrateLegacyPideckData(agentDir, MIGRATION_ID);
+    await migrateLegacyHostData(agentDir, MIGRATION_ID);
 
     expect(readFileSync(join(providerJournalRoot(agentDir), "legacy-entry", "journal.json"), "utf8"))
       .toBe("legacy");
@@ -122,8 +159,8 @@ describe("migrateLegacyPideckData", () => {
     write(legacy, "legacy");
     write(target, "target");
 
-    await expect(migrateLegacyPideckData(agentDir, MIGRATION_ID)).rejects.toThrow(
-      /conflicting PiDeck data/i,
+    await expect(migrateLegacyHostData(agentDir, MIGRATION_ID)).rejects.toThrow(
+      /conflicting host data/i,
     );
 
     expect(readFileSync(legacy, "utf8")).toBe("legacy");

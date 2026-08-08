@@ -297,7 +297,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   extensionWidgetsOpen: false,
   lastExtensionWidgetAttentionRunId: null,
   extensionTerminal: null,
-  dockOpen: sidebarPref("pideck.dock.open"),
+  dockOpen: sidebarPref("lxcode.dock.open"),
   dockRestoreOnPanelClose: null,
   packageProgress: null,
   packageRetry: null,

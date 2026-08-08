@@ -19,7 +19,7 @@ afterEach(async () => {
 });
 
 async function tempLayout(): Promise<{ root: string; agentDir: string }> {
-  const root = await mkdtemp(join(tmpdir(), "pideck-attachments-"));
+  const root = await mkdtemp(join(tmpdir(), "lxcode-attachments-"));
   tempDirs.push(root);
   return { root, agentDir: join(root, "agent") };
 }

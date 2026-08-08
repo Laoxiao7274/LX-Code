@@ -166,7 +166,7 @@ describe("unified package resources", () => {
   });
 
   it("keeps shadowed global resources user-only in the independent projection", async () => {
-    const root = mkdtempSync(join(tmpdir(), "pideck-host-shadowed-"));
+    const root = mkdtempSync(join(tmpdir(), "lxcode-host-shadowed-"));
     const agentDir = join(root, "agent");
     const cwd = join(root, "workspace");
     const packageRoot = join(root, "shared-package");
@@ -521,7 +521,7 @@ describe("unified package resources", () => {
   });
 
   it("reads disabled skill name and description from frontmatter", async () => {
-    const root = mkdtempSync(join(tmpdir(), "pideck-host-disabled-skill-"));
+    const root = mkdtempSync(join(tmpdir(), "lxcode-host-disabled-skill-"));
     const skillPath = join(root, "skills", "folder-name", "SKILL.md");
     mkdirSync(join(root, "skills", "folder-name"), { recursive: true });
     writeFileSync(

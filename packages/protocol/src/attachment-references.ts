@@ -1,8 +1,10 @@
 import type { AttachmentSnapshot, AttachmentUnit } from "./types.js";
 
-const OPEN_TAG = '<pideck-attachments version="1">';
-const CLOSE_TAG = "</pideck-attachments>";
-const BLOCK_PATTERN = /<pideck-attachments version="1">\s*([\s\S]*?)\s*<\/pideck-attachments>/gu;
+const OPEN_TAG = '<lxcode-attachments version="1">';
+const CLOSE_TAG = "</lxcode-attachments>";
+// 解析兼容旧品牌标签 <pideck-attachments>(已存会话数据),生成只用新标签 lxcode。
+const BLOCK_PATTERN =
+  /<(?:lxcode|pideck)-attachments version="1">\s*([\s\S]*?)\s*<\/(?:lxcode|pideck)-attachments>/gu;
 
 export type AttachmentReference = {
   id: string;

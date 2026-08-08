@@ -1203,7 +1203,7 @@ describe("Git DTO validation", () => {
       sha: "d".repeat(40),
       shortSha: "dddddddd",
       parents: ["a".repeat(40)],
-      authorName: "PiDeck",
+      authorName: "LXCode",
       authoredAt: "2026-08-02T12:00:00+08:00",
       subject: "Test",
       refs: ["HEAD -> main"],

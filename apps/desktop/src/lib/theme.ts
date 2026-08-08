@@ -1,7 +1,7 @@
 export type AppTheme = "light" | "dark" | "system";
 export type EffectiveTheme = Exclude<AppTheme, "system">;
 
-export const STARTUP_THEME_STORAGE_KEY = "pideck.theme";
+export const STARTUP_THEME_STORAGE_KEY = "lxcode.theme";
 
 export function resolveEffectiveTheme(
   theme: AppTheme,

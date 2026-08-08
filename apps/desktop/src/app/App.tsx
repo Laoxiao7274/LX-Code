@@ -677,7 +677,7 @@ export function App() {
                     useAppStore.getState().desktopSettings?.extensionDecisionPresentation ??
                     "legacy-modal";
                   const status = await hostClient.hello(
-                    "pideck",
+                    "lxcode",
                     await getAppVersion(),
                     configuredPresentation,
                   );
@@ -969,7 +969,7 @@ export function App() {
   return (
     <div
       className="relative flex h-full flex-col overflow-hidden bg-surface text-foreground"
-      data-pideck-app
+      data-lxcode-app
       data-window-platform={windowControlsPlatform}
       data-host-instance-id={hostInstanceId}
       data-session-id={sessionId}

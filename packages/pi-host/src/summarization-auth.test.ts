@@ -42,7 +42,7 @@ afterEach(async () => {
 type CapturedCall = { apiKey?: string; headers?: Record<string, string> };
 
 async function buildCaptureSession() {
-  const root = mkdtempSync(join(tmpdir(), "pideck-summarization-auth-"));
+  const root = mkdtempSync(join(tmpdir(), "lxcode-summarization-auth-"));
   roots.push(root);
   const agentDir = join(root, "agent");
   const cwd = join(root, "project");
@@ -61,7 +61,7 @@ async function buildCaptureSession() {
   const { modelRuntime, modelRegistry } = await createTestModelServices(agentDir);
 
   const faux = createFauxCore({
-    api: "pideck-capture-api",
+    api: "lxcode-capture-api",
     provider: "capture",
     models: [
       {
@@ -86,7 +86,7 @@ async function buildCaptureSession() {
     api: faux.api,
     apiKey: "summarization-auth-key",
     baseUrl: "http://capture.invalid",
-    headers: { "X-PiDeck-Auth-Test": "wired" },
+    headers: { "X-LXCode-Auth-Test": "wired" },
     streamSimple: ((model: never, context: never, options: CapturedCall) => {
       captured.push({ apiKey: options?.apiKey, headers: options?.headers });
       return (faux.streamSimple as (m: never, c: never, o: unknown) => unknown)(
@@ -151,7 +151,7 @@ describe("summarization request auth", () => {
     expect(summarizationCalls.length).toBeGreaterThan(0);
     for (const call of summarizationCalls) {
       expect(call.apiKey).toBe("summarization-auth-key");
-      expect(call.headers).toMatchObject({ "X-PiDeck-Auth-Test": "wired" });
+      expect(call.headers).toMatchObject({ "X-LXCode-Auth-Test": "wired" });
     }
   }, 60_000);
 
@@ -170,7 +170,7 @@ describe("summarization request auth", () => {
     expect(summarizationCalls.length).toBeGreaterThan(0);
     for (const call of summarizationCalls) {
       expect(call.apiKey).toBe("summarization-auth-key");
-      expect(call.headers).toMatchObject({ "X-PiDeck-Auth-Test": "wired" });
+      expect(call.headers).toMatchObject({ "X-LXCode-Auth-Test": "wired" });
     }
   }, 60_000);
 });

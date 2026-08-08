@@ -271,7 +271,7 @@ describe("extension-ui-bridge", () => {
     await expect(pending).resolves.toBe(false);
   });
 
-  it("normalizes namespaced PiDeck presentation metadata", async () => {
+  it("normalizes namespaced LXCode presentation metadata", async () => {
     const events: Array<{ e: HostEventName; p: unknown }> = [];
     const ui = createExtensionUiContext({
       emit: (e, p) => events.push({ e, p }),

@@ -240,7 +240,7 @@ export class HostClient {
   }
 
   async hello(
-    clientName = "pideck",
+    clientName = "lxcode",
     clientVersion = "0.1.0",
     extensionDecisionPresentation: ExtensionDecisionPresentation = "legacy-modal",
   ): Promise<HostStatusSnapshot> {

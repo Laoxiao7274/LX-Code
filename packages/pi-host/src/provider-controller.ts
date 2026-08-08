@@ -43,7 +43,7 @@ import { rebindCurrentSessionModel } from "./model-thinking.js";
 import { withRegisteredGraphMutation } from "./registered-graph-mutation.js";
 import { withStableGraphRead } from "./stable-graph-read.js";
 import { ProviderMutationJournal } from "./provider-journal.js";
-import { modelBackupDir, PIDECK_MODEL_BACKUP_PATTERN } from "./pideck-data.js";
+import { modelBackupDir, LXCODE_MODEL_BACKUP_PATTERN } from "./lxcode-data.js";
 import {
   ENABLED_PROVIDERS_KEY,
   isObject,
@@ -284,7 +284,7 @@ function mergeProvider(existing: JsonObject, draft: ProviderDraft): JsonObject {
     if (Object.keys(compat).length > 0) merged.compat = compat;
     else delete merged.compat;
   }
-  // PiDeck defaults OpenAI Chat Completions Providers to the system role:
+  // LXCode defaults OpenAI Chat Completions Providers to the system role:
   // pi-ai auto-detection sends the developer role to any unrecognized relay,
   // which most OpenAI-compatible endpoints reject.
   if (draft.api === "openai-completions") {
@@ -331,7 +331,7 @@ async function pruneModelsBackups(directory: string): Promise<void> {
 
   const backups = entries.flatMap((entry) => {
     if (!entry.isFile()) return [];
-    const match = PIDECK_MODEL_BACKUP_PATTERN.exec(entry.name);
+    const match = LXCODE_MODEL_BACKUP_PATTERN.exec(entry.name);
     if (!match) return [];
     return [{ name: entry.name, timestamp: Number(match[1]) }];
   });
@@ -792,7 +792,7 @@ function classifyConnectionFailure(
     category = "blocked";
     suggestion =
       provider.api === "anthropic-messages" && !hasHeader(provider.headers, "user-agent")
-        ? "This relay may block the Anthropic SDK fingerprint. Set User-Agent to PiDeck/0.1 and retry."
+        ? "This relay may block the Anthropic SDK fingerprint. Set User-Agent to LXCode/0.1 and retry."
         : "The relay or its WAF rejected the request. Check IP policy, headers, and User-Agent rules.";
   } else if (/\b429\b|rate.?limit|too many requests|quota/.test(lower)) {
     category = "rate_limit";
@@ -858,7 +858,7 @@ async function checkProviderConnection(
     messages: [{ role: "user", content: "Reply with OK.", timestamp: Date.now() }],
     tools: [
       {
-        name: "pideck_connection_test",
+        name: "lxcode_connection_test",
         description: "Return a diagnostic label for the Provider connection test.",
         parameters: {
           type: "object",

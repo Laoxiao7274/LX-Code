@@ -20,7 +20,7 @@ afterEach(() => {
 });
 
 function installFixture(): TempAgentLayout {
-  const layout = createTempAgentLayout("pideck-pi-0807-compat-");
+  const layout = createTempAgentLayout("lxcode-pi-0807-compat-");
   layouts.push(layout);
   cpSync(join(fixtureRoot, "agent"), layout.agentDir, { recursive: true, force: true });
   cpSync(join(fixtureRoot, "workspace"), layout.projectDir, { recursive: true, force: true });
@@ -37,7 +37,7 @@ function installFixture(): TempAgentLayout {
 describe("Pi SDK 0.80.7 compatibility fixtures", () => {
   it("loads sanitized auth, models, settings, and local package resources", async () => {
     const layout = installFixture();
-    // 0.80.7 data read through the 0.82.1 runtime and the PiDeck-owned store.
+    // 0.80.7 data read through the 0.82.1 runtime and the LXCode-owned store.
     const { credentialStore, modelRegistry } = await createTestModelServices(layout.agentDir);
     const settingsManager = SettingsManager.create(layout.projectDir, layout.agentDir, {
       projectTrusted: true,
