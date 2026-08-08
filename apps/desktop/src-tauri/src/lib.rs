@@ -12,7 +12,6 @@ use pi_host::PiHostManager;
 use shell_terminal::ShellTerminalManager;
 use tauri::{webview::WebviewWindowBuilder, Emitter, Listener, Manager};
 use tokio::sync::Mutex;
-use std::path::PathBuf;
 
 /// 第二个实例启动时唤起并聚焦已有主窗口。
 /// dev 构建的主窗口 label 是 "main-cdp"(lib.rs 建独立 CDP 窗口后销毁 "main"),
@@ -119,8 +118,9 @@ pub fn run() {
                     Err(e) => eprintln!("[dev-cdp] build failed: {e}"),
                 }
                 if let Some(old) = app.get_webview_window("main") {
-                    let _ = old.destroy();
-                    eprintln!("[dev-cdp] old main destroyed");
+                    // 不 destroy(会触发 app 退出判断),改为 hide 保留实例避免进程退出
+                    let _ = old.hide();
+                    eprintln!("[dev-cdp] old main hidden (not destroyed to avoid app exit)");
                 }
             }
             tauri::async_runtime::spawn(async move {
