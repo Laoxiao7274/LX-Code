@@ -103,20 +103,23 @@ function sleepSync(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
-function waitForStableFile(path, timeoutMs = 60_000) {
+function waitForStableFile(path, timeoutMs = 300_000) {
   const deadline = Date.now() + timeoutMs;
   let previous = null;
   let matchingSamples = 0;
+  // 大文件(223MB setup.exe)sha256 慢,先用 size+mtime 粗判,稳定后才算 hash
   while (Date.now() < deadline) {
     if (existsSync(path)) {
       const stat = statSync(path);
-      const hash = sha256File(path);
-      const current = `${stat.size}:${stat.mtimeMs}:${hash}`;
-      if (current === previous) {
+      const quick = `${stat.size}:${stat.mtimeMs}`;
+      if (quick === previous) {
         matchingSamples += 1;
-        if (matchingSamples >= 2) return { stat, hash };
+        if (matchingSamples >= 3) {
+          const hash = sha256File(path);
+          return { stat, hash };
+        }
       } else {
-        previous = current;
+        previous = quick;
         matchingSamples = 0;
       }
     }
