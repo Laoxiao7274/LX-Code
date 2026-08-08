@@ -164,7 +164,7 @@ export default function createTestFlowExtension(pi: ExtensionAPI): void {
           "方案确认",
           [EXECUTE, ADJUST, REPLAN],
           {
-            pideck: {
+            lxcode: {
               presentation: "modal",
               risk: "normal",
               allowFreeform: true,

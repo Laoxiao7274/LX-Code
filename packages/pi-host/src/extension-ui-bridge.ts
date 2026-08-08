@@ -248,7 +248,9 @@ function prepareSelectOptions(values: string[]): {
 }
 
 function lxCodeMetadataFromDialogOptions(options: unknown): unknown {
-  return plainRecord(options)?.pideck;
+  // 读取自定义 metadata key:新 lxcode,兼容旧 pideck(第三方扩展可能仍用旧 key)
+  const record = plainRecord(options);
+  return record?.lxcode ?? record?.pideck;
 }
 
 const MAX_TIMER_DELAY_MS = 2_147_483_647;
@@ -501,7 +503,7 @@ export function createExtensionUiContext(opts: ExtensionUiBridgeOptions): Extens
       invocationKind: "unknown",
     };
     const { optionDetails, presentationHint, riskHint, ...requestMetadata } =
-      normalizeLxCodeDialogMetadata(payload.pideck);
+      normalizeLxCodeDialogMetadata(payload.lxcode ?? payload.pideck);
     const options = Array.isArray(payload.options)
       ? payload.options.slice(0, MAX_EXTENSION_UI_OPTIONS).map((option) => {
           const item = option as { id?: unknown; label?: unknown; metadataId?: unknown };
@@ -634,7 +636,7 @@ export function createExtensionUiContext(opts: ExtensionUiBridgeOptions): Extens
         {
           title,
           options: prepared.options,
-          pideck: lxCodeMetadataFromDialogOptions(dialogOpts),
+          lxcode: lxCodeMetadataFromDialogOptions(dialogOpts),
         },
         dialogOpts,
       );
@@ -647,7 +649,7 @@ export function createExtensionUiContext(opts: ExtensionUiBridgeOptions): Extens
     confirm: async (title, message, dialogOpts) => {
       const value = await requestBlocking(
         "confirm",
-        { title, message, pideck: lxCodeMetadataFromDialogOptions(dialogOpts) },
+        { title, message, lxcode: lxCodeMetadataFromDialogOptions(dialogOpts) },
         dialogOpts,
       );
       // 自由输入文本回传:非空字符串 → 透传给调用方(如 confirm_plan 的
@@ -662,7 +664,7 @@ export function createExtensionUiContext(opts: ExtensionUiBridgeOptions): Extens
           title,
           message: placeholder,
           defaultValue: "",
-          pideck: lxCodeMetadataFromDialogOptions(dialogOpts),
+          lxcode: lxCodeMetadataFromDialogOptions(dialogOpts),
         },
         dialogOpts,
       );
@@ -945,7 +947,7 @@ export function createExtensionUiContext(opts: ExtensionUiBridgeOptions): Extens
         {
           title,
           defaultValue: prefill ?? "",
-          pideck: lxCodeMetadataFromDialogOptions(dialogOpts),
+          lxcode: lxCodeMetadataFromDialogOptions(dialogOpts),
         },
         dialogOpts,
       );
