@@ -646,7 +646,10 @@ export function createExtensionUiContext(opts: ExtensionUiBridgeOptions): Extens
         { title, message, pideck: piDeckMetadataFromDialogOptions(dialogOpts) },
         dialogOpts,
       );
-      return value === true;
+      // 自由输入文本回传:非空字符串 → 透传给调用方(如 confirm_plan 的
+      // 反馈),调用方 if(await confirm(...)) 对非空字符串为 truthy;取消或非
+      // 字符串 → boolean。SDK 类型声明 Promise<boolean>,这里运行时透传,用 as 绕类型。
+      return (typeof value === "string" ? value : value === true) as boolean;
     },
     input: async (title, placeholder, dialogOpts) => {
       const value = await requestBlocking(

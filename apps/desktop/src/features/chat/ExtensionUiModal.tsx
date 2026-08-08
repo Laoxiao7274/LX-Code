@@ -86,7 +86,7 @@ export function ExtensionUiModal() {
         tabIndex={-1}
         onKeyDown={handleDialogKeyDown}
         className={isConfirm
-          ? "w-full max-w-sm overflow-hidden rounded-2xl border border-accent/20 bg-surface-raised/80 shadow-2xl shadow-accent/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          ? "max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto overscroll-contain rounded-2xl border border-accent/20 bg-surface-raised/80 shadow-2xl shadow-accent/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           : "max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto overscroll-contain rounded-lg border border-border bg-surface-raised p-5 shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
         }
         style={isConfirm ? { backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)" } : undefined}

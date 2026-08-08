@@ -981,6 +981,8 @@ export const zh: Record<MessageKey, string> = {
   extUiExpiresInHours: "{hours} 小时后过期",
   extUiHighRisk: "高影响操作",
   extUiRetryHint: "回复尚未发送，请检查后重试。",
+  extUiFeedbackLabel: "告诉 AI 你的想法（可选）",
+  extUiFeedbackPlaceholder: "对方案不满意可直接在这里补充说明，留空则按原方案执行…",
   extPresentationFallback: "扩展消息",
   extPresentationAgentActivity: "Agent 协作",
   extPresentationActivity: "扩展活动",

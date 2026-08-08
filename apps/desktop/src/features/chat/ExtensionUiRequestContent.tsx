@@ -12,11 +12,29 @@ import {
 import { useT } from "../../lib/i18n/use-t";
 import type { ExtensionUiRequestState } from "../../lib/stores/extension-ui-state";
 import type { ExtensionUiResponseController } from "./use-extension-ui-response";
+import { MarkdownMessage } from "./MarkdownMessage";
 
 type KnownExtensionUiOrigin = Exclude<
   NonNullable<ExtensionUiRequestState["origin"]>,
   { invocationKind: "unknown" }
 >;
+
+/**
+ * Render the request message body as markdown.
+ *
+ * Agent plans / proposals arrive in `request.message` as markdown (headings,
+ * lists, code blocks). Rendering as raw text made long plans unreadable — see
+ * OpenCode's question-dock which renders plan content as markdown. Falls back
+ * to nothing when the message is empty.
+ */
+function RequestMessage({ message }: { message?: string }) {
+  if (!message) return null;
+  return (
+    <div className="max-h-60 overflow-y-auto overscroll-contain pr-1">
+      <MarkdownMessage content={message} mode="static" className="ext-ui-message" />
+    </div>
+  );
+}
 
 const OPTION_SEARCH_THRESHOLD = 12;
 const OPTION_VIRTUALIZATION_THRESHOLD = 100;
@@ -148,12 +166,14 @@ export function ExtensionUiRequestContent({
   function handleInputKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.nativeEvent.isComposing || submitting) return;
     const shouldSubmit =
-      request.kind === "input"
+      request.kind === "input" || request.kind === "confirm"
         ? event.key === "Enter" && !event.shiftKey
         : event.key === "Enter" && (event.metaKey || event.ctrlKey);
     if (!shouldSubmit) return;
     event.preventDefault();
-    void respond("resolved", input);
+    // confirm 回传自由输入文本;空输入时回传 true(向后兼容纯确认)。
+    const value = request.kind === "confirm" ? (input.trim() ? input : true) : input;
+    void respond("resolved", value);
   }
 
   function renderOption(option: (typeof options)[number], index: number) {
@@ -236,9 +256,9 @@ export function ExtensionUiRequestContent({
             </span>
           </div>
           {request.message && (
-            <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-5 text-muted">
-              {request.message}
-            </p>
+            <div className="mt-1.5">
+              <RequestMessage message={request.message} />
+            </div>
           )}
         </div>
       </div>
@@ -272,16 +292,13 @@ export function ExtensionUiRequestContent({
               >
                 {request.title ?? t("extUiDefaultTitle")}
               </h2>
-              {request.message && (
-                <p className="mt-0.5 truncate text-xs text-muted" title={request.message}>
-                  {request.message}
-                </p>
-              )}
             </div>
             <span className="shrink-0 text-[10px] text-muted">
               <ExpiryLabel expiresAt={request.expiresAt} />
             </span>
           </div>
+
+          <RequestMessage message={request.message} />
 
           {error && (
             <div
@@ -308,7 +325,9 @@ export function ExtensionUiRequestContent({
               type="button"
               disabled={submitting}
               autoFocus={!highRisk}
-              onClick={() => void respond("resolved", true)}
+              onClick={() =>
+                void respond("resolved", input.trim() ? input : true)
+              }
               className={`inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-lg text-xs font-semibold text-white shadow-lg transition-all disabled:cursor-not-allowed disabled:opacity-45 ${
                 highRisk
                   ? "bg-danger shadow-danger/30 hover:bg-danger/90"
@@ -318,6 +337,29 @@ export function ExtensionUiRequestContent({
               <SubmitLabel label={t("extUiConfirm")} submitting={submitting} />
             </button>
           </div>
+
+          {variant === "modal" && (
+            <div className="border-t border-border/70 pt-3">
+              <label
+                htmlFor={fieldId}
+                className="mb-1.5 block text-xs font-medium text-foreground/80"
+              >
+                {t("extUiFeedbackLabel")}
+              </label>
+              <textarea
+                id={fieldId}
+                rows={2}
+                value={input}
+                disabled={submitting}
+                placeholder={t("extUiFeedbackPlaceholder")}
+                aria-describedby={error ? errorId : undefined}
+                aria-invalid={error ? true : undefined}
+                className="min-h-10 w-full resize-y rounded-md border border-border bg-surface px-2.5 py-2 text-xs"
+                onChange={(event) => setInput(event.target.value)}
+                onKeyDown={handleInputKeyDown}
+              />
+            </div>
+          )}
           <p className="text-center text-[10px] text-muted">
             <kbd className="rounded border border-border bg-surface px-1 py-0.5 font-sans">Enter</kbd>
             {t("extUiConfirmHint")}

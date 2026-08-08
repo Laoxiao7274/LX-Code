@@ -498,7 +498,12 @@ describe("Extension presentation surfaces", () => {
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus());
     await user.tab({ shift: true });
-    expect(screen.getByRole("button", { name: "Confirm" })).toHaveFocus();
+    // Modal confirm 现在包含可选 feedback textarea,它是焦点链最后一项;
+    // shift+tab 从首个 focusable(Cancel)wrap 到末尾(feedback textarea)。
+    expect(screen.getByRole("textbox", { name: /tell the AI what you think/i })).toHaveFocus();
+    // 正向 tab 从末尾 wrap 回首个(Cancel)。
+    await user.tab();
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
 
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());

@@ -1012,6 +1012,8 @@ export const en = {
   extUiExpiresInHours: "Expires in {hours}h",
   extUiHighRisk: "High impact",
   extUiRetryHint: "Your response was not sent. Review it and try again.",
+  extUiFeedbackLabel: "Tell the AI what you think (optional)",
+  extUiFeedbackPlaceholder: "Not happy with the plan? Add your notes here. Leave empty to proceed as proposed…",
   extPresentationFallback: "Extension message",
   extPresentationAgentActivity: "Agent coordination",
   extPresentationActivity: "Extension activity",
