@@ -4,3 +4,4 @@ packages:
 
 patchedDependencies:
   "@earendil-works/pi-coding-agent@0.82.1": "patches/@earendil-works__pi-coding-agent@0.82.1.patch"
+  "pi-mcp-adapter@2.21.0": "patches/pi-mcp-adapter@2.21.0.patch"

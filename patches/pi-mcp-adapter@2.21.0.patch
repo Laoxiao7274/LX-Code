@@ -1,0 +1,55 @@
+diff --git a/package.json b/package.json
+index 0f9c209e8b5f43883a06e0115cccd8b5ac47f971..dc515147e8eac5c21ff10ea159ab4162d157ad84 100644
+--- a/package.json
++++ b/package.json
+@@ -3,10 +3,10 @@
+   "version": "2.21.0",
+   "description": "MCP (Model Context Protocol) adapter extension for Pi coding agent",
+   "type": "module",
+-  "types": "./index.ts",
++  "types": "./shim.d.ts",
+   "exports": {
+     ".": {
+-      "types": "./index.ts",
++      "types": "./shim.d.ts",
+       "import": "./index.ts",
+       "default": "./index.ts"
+     },
+diff --git a/sampling-handler.ts b/sampling-handler.ts
+index 40421c71b07a7e8d08cf98ff515e8b712f3256a3..b450485b99d0afca119653fe9fcd2367960ae08c 100644
+--- a/sampling-handler.ts
++++ b/sampling-handler.ts
+@@ -1,4 +1,4 @@
+-import { complete, type Api, type AssistantMessage, type Message, type Model, type TextContent } from "@earendil-works/pi-ai";
++import { complete, type Api, type AssistantMessage, type Message, type Model, type TextContent } from "@earendil-works/pi-ai/compat";
+ import { truncateAtWord } from "./utils.ts";
+ import { throwIfAborted } from "./abort.ts";
+ import type { ExtensionUIContext, ModelRegistry } from "@earendil-works/pi-coding-agent";
+diff --git a/shim.d.ts b/shim.d.ts
+new file mode 100644
+index 0000000..295f4d1
+--- /dev/null
++++ b/shim.d.ts
+@@ -0,0 +1,22 @@
++/**
++ * Type-only shim for pi-mcp-adapter.
++ *
++ * pi-mcp-adapter publishes uncompiled .ts sources (package.json "exports" →
++ * ./index.ts). LXCode's strict tsc would type-check those sources and fail
++ * (TS2835 NodeNext extension rules, TS7006 implicit-any under strict mode).
++ * To avoid that, this shim provides types for the only API LXCode imports
++ * (createMcpAdapter); tsc resolves "types" / "exports"."."."types" → this
++ * file and skips it via skipLibCheck. Runtime still loads the real
++ * ./index.ts via "exports"."."."import" (tsx resolves .ts sources), so the
++ * actual adapter implementation runs unchanged.
++ *
++ * If pi-mcp-adapter's createMcpAdapter signature changes, update this shim.
++ */
++export interface McpAdapterOptions {
++  /** Path to the MCP config file (pi-global override). */
++  configPath?: string;
++}
++
++export declare function createMcpAdapter(options?: McpAdapterOptions): (pi: any) => void;
++
++export default createMcpAdapter;
