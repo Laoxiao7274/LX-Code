@@ -272,3 +272,67 @@ describe("buildSessionSnapshot entry projection", () => {
     expect(validateSuccessResult("session.getSnapshot", snapshot)).toMatchObject({ ok: true });
   });
 });
+
+describe("buildSessionSnapshot compaction summary normalization", () => {
+  it("wraps compactionSummary summary into content for schema compliance", () => {
+    const session = sessionFixture([
+      { role: "compactionSummary", summary: "Earlier work summary", tokensBefore: 100, timestamp: 123 },
+      { role: "user", content: [{ type: "text", text: "hi" }] },
+    ]);
+    const snapshot = buildSessionSnapshot({
+      session,
+      sessionManager: {} as SessionManager,
+      cwd: "C:/workspace",
+      sessionId: SESSION_ID,
+      revision: 1,
+      workspaceId: WORKSPACE_ID,
+      toolRevision: 1,
+    });
+    // compactionSummary 消息应有 content(SDK 原始消息只有 summary,没有 content)
+    expect(snapshot.messages[0]).toMatchObject({
+      role: "compactionSummary",
+      content: [{ type: "text", text: "Earlier work summary" }],
+    });
+    // 保留原始 summary 字段
+    expect((snapshot.messages[0] as { summary?: string }).summary).toBe("Earlier work summary");
+    // 快照通过 protocol 校验
+    expect(validateSuccessResult("session.getSnapshot", snapshot)).toMatchObject({ ok: true });
+  });
+
+  it("wraps branchSummary summary into content for schema compliance", () => {
+    const session = sessionFixture([
+      { role: "branchSummary", summary: "Branch context", tokensBefore: 50, timestamp: 456 },
+    ]);
+    const snapshot = buildSessionSnapshot({
+      session,
+      sessionManager: {} as SessionManager,
+      cwd: "C:/workspace",
+      sessionId: SESSION_ID,
+      revision: 1,
+      workspaceId: WORKSPACE_ID,
+      toolRevision: 1,
+    });
+    expect(snapshot.messages[0]).toMatchObject({
+      role: "branchSummary",
+      content: [{ type: "text", text: "Branch context" }],
+    });
+    expect(validateSuccessResult("session.getSnapshot", snapshot)).toMatchObject({ ok: true });
+  });
+
+  it("leaves regular messages unchanged", () => {
+    const session = sessionFixture([
+      { role: "user", content: "plain string content" },
+    ]);
+    const snapshot = buildSessionSnapshot({
+      session,
+      sessionManager: {} as SessionManager,
+      cwd: "C:/workspace",
+      sessionId: SESSION_ID,
+      revision: 1,
+      workspaceId: WORKSPACE_ID,
+      toolRevision: 1,
+    });
+    expect(snapshot.messages[0]).toMatchObject({ role: "user", content: "plain string content" });
+    expect(validateSuccessResult("session.getSnapshot", snapshot)).toMatchObject({ ok: true });
+  });
+});

@@ -59,6 +59,27 @@ function omitImages(messages: readonly SerializableAgentMessage[]): Serializable
   });
 }
 
+/**
+ * SDK 的 compactionSummary / branchSummary 消息用 `summary` 字段而非 `content`,
+ * 不满足 protocol 的 SerializableAgentMessage schema(content 必填)。
+ * 这里把 summary 包成 content: [{type:"text", text: summary}],让快照校验通过。
+ * 保留原始 summary 字段供前端渲染压缩摘要。
+ */
+function normalizeSummaryMessages(
+  messages: readonly SerializableAgentMessage[],
+): SerializableAgentMessage[] {
+  return messages.map((message) => {
+    if (
+      (message.role === "compactionSummary" || message.role === "branchSummary") &&
+      message.content === undefined &&
+      typeof message.summary === "string"
+    ) {
+      return { ...message, content: [{ type: "text", text: message.summary }] };
+    }
+    return message;
+  });
+}
+
 function recentMessageSuffix(
   snapshot: SessionSnapshot,
   maxSnapshotBytes: number,
@@ -168,8 +189,8 @@ export function buildSessionSnapshot(args: {
       }
     : undefined;
 
-  const messages: SerializableAgentMessage[] = session.messages.map(
-    (m) => toJsonValue(m) as SerializableAgentMessage,
+  const messages: SerializableAgentMessage[] = normalizeSummaryMessages(
+    session.messages.map((m) => toJsonValue(m) as SerializableAgentMessage),
   );
   const contextUsage = session.getContextUsage?.();
   const contextBreakdown = contextUsage
