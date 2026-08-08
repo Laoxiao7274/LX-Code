@@ -122,9 +122,13 @@ export async function analyzeImage(
   if (!auth.ok) {
     return { ok: false, error: `视觉模型鉴权失败: ${auth.error}`, model: modelKey };
   }
-  if (!auth.apiKey) {
-    return { ok: false, error: `视觉模型缺少 API key: ${modelKey}`, model: modelKey };
-  }
+  // authHeader:false 的 provider(如内网无鉴权模型)没有 apiKey 也不发 Authorization,
+  // 这是合法配置——不用强制 key。pi-ai 的 complete 内部 assertRequestAuth 要求
+  // apiKey 或 authorization/x-api-key header,但 LXCode 的 registry 已经按 authHeader
+  // 处理好 headers(authHeader:false 不加 Authorization)。这里直接用 auth 的值,没 key
+  // 时让 pi-ai 用 headers 里的鉴权(如果有)或报错给用户明确提示。
+  const effectiveApiKey = auth.apiKey;
+  const effectiveHeaders = auth.headers;
 
   // 4. 构造请求:图片 + 问题
   const question = input.question?.trim() || "请详细描述这张图片的内容。";
@@ -159,8 +163,8 @@ export async function analyzeImage(
         model as Model<Api>,
         { messages },
         {
-          apiKey: auth.apiKey,
-          headers: auth.headers,
+          apiKey: effectiveApiKey,
+          headers: effectiveHeaders,
           env: auth.env,
           signal: ac.signal,
           cacheRetention: "none",
@@ -175,6 +179,20 @@ export async function analyzeImage(
       .filter((c): c is { type: "text"; text: string } => c.type === "text")
       .map((c) => c.text)
       .join("\n");
+    // 检测 complete 内部错误(pi-ai 的 complete 流式 API 错误放在 response.errorMessage,不抛异常)
+    // 例如无 apiKey 时 assertRequestAuth 报 "No API key for provider: xxx",content 为空,stopReason=error
+    if (response.stopReason === "error" || (!text && response.errorMessage)) {
+      console.error("[vision-tool] 视觉模型返回错误:", response.errorMessage, "stopReason:", response.stopReason, "model:", modelKey);
+      return {
+        ok: false,
+        error: `视觉模型返回错误: ${response.errorMessage || "未知错误(模型未返回内容)"}`,
+        model: modelKey,
+      };
+    }
+    if (!text) {
+      console.error("[vision-tool] 视觉模型返回空内容,model:", modelKey, "stopReason:", response.stopReason);
+      return { ok: false, error: "视觉模型返回了空内容", model: modelKey };
+    }
     return { ok: true, text, model: modelKey };
   } catch (e) {
     return {
