@@ -258,8 +258,8 @@ index a7d5547e62e36d252b90ae083bc847ce97a5bf6d..488155af665a6a3fa6516ec476ee04a8
  export type { BuildSystemPromptOptions } from "../system-prompt.ts";
  export type { AgentToolResult, AgentToolUpdateCallback, ToolExecutionMode };
  export type { AppKeybinding, KeybindingsManager } from "../keybindings.ts";
-+/** Optional PiDeck-only presentation metadata. Other UI modes ignore it. */
-+export interface PiDeckExtensionUIDialogOptions {
++/** Optional LXCode-only presentation metadata. Other UI modes ignore it. */
++export interface LXCodeExtensionUIDialogOptions {
 +    presentation?: "inline" | "modal";
 +    sourceLabel?: string;
 +    correlationId?: string;
@@ -277,8 +277,8 @@ index a7d5547e62e36d252b90ae083bc847ce97a5bf6d..488155af665a6a3fa6516ec476ee04a8
      signal?: AbortSignal;
      /** Timeout in milliseconds. Dialog auto-dismisses with live countdown display. */
      timeout?: number;
-+    /** Declarative presentation hints used by PiDeck's desktop UI. */
-+    pideck?: PiDeckExtensionUIDialogOptions;
++    /** Declarative presentation hints used by LXCode's desktop UI. */
++    lxcode?: LXCodeExtensionUIDialogOptions;
  }
 +/** Host-neutral metadata for one Extension callback invocation. */
 +export type ExtensionInvocationMetadata = {
@@ -356,7 +356,7 @@ index ec83cef50cab5316d6dace51c9229f677aa46713..e585410ec05d2948ed3a01970049f06b
      }): boolean;
      setProgressCallback(callback: ProgressCallback | undefined): void;
 +    /**
-+     * PiDeck patch: required so callers cannot silently skip cancellation.
++     * LXCode patch: required so callers cannot silently skip cancellation.
 +     * Applies to the async npm/git spawn paths; `runCommandSync` can only
 +     * refuse to start after abort.
 +     */
@@ -411,7 +411,7 @@ index 4770478ac4c17dac0e2062917d551000aac8af27..7e5d814c4df5814883163210a72b76c2
      setProgressCallback(callback) {
          this.progressCallback = callback;
      }
-+    // PiDeck patch: let the Host cancel npm/git children. Upstream spawns them
++    // LXCode patch: let the Host cancel npm/git children. Upstream spawns them
 +    // with no signal, so an aborted package operation leaves the child running
 +    // and holds the graph lock until it finishes on its own.
 +    setOperationSignal(signal) {
@@ -562,7 +562,7 @@ index 4770478ac4c17dac0e2062917d551000aac8af27..7e5d814c4df5814883163210a72b76c2
 +        throw new Error(`${command} ${args.join(" ")} failed with ${exitStatus}${output ? `: ${output}` : ""}`);
      }
      runCommandSync(command, args) {
-+        // PiDeck patch: spawnSync cannot be interrupted, so an in-flight sync
++        // LXCode patch: spawnSync cannot be interrupted, so an in-flight sync
 +        // child still runs to completion. Refusing to start a new one after
 +        // abort is the only cancellation this path can honour.
 +        this.operationSignal?.throwIfAborted();

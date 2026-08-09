@@ -80,7 +80,7 @@ if (compacted) {
   const mainSrc = readFileSync(join(res, "pi-host/main.js"), "utf8");
   if (
     !mainSrc.includes("pi-host-bootstrap-runtime.mjs") ||
-    !mainSrc.includes("PIDECK_HOST_CACHE_DIR")
+    !mainSrc.includes("LXCODE_HOST_CACHE_DIR")
   ) {
     errors.push("compacted main.js must delegate extraction to the writable Host cache runtime");
   }

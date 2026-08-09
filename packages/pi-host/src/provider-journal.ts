@@ -32,7 +32,7 @@ import { join } from "node:path";
 import type { ProviderMutationStage } from "@lxcode/protocol";
 import { logger } from "./logger.js";
 import type { FileCredentialStore } from "./credential-store.js";
-import { providerJournalRoot as journalRoot } from "./pideck-data.js";
+import { providerJournalRoot as journalRoot } from "./lxcode-data.js";
 
 const FILE_MODE = 0o600;
 const DIR_MODE = 0o700;

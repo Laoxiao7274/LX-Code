@@ -60,14 +60,14 @@ function matrixIdentity(sessionId = "session-matrix"): HostIdentity {
 }
 
 async function loadMatrix(): Promise<LoadedMatrix> {
-  const layout = createTempAgentLayout("pideck-extension-matrix-");
+  const layout = createTempAgentLayout("lxcode-extension-matrix-");
   const eventBus = createEventBus();
   const busEvents = new Map<string, unknown[]>();
   for (const channel of [
-    "pideck:matrix:shutdown",
-    "pideck:matrix:background-result",
-    "pideck:matrix:plan-result",
-    "pideck:matrix:large-result",
+    "lxcode:matrix:shutdown",
+    "lxcode:matrix:background-result",
+    "lxcode:matrix:plan-result",
+    "lxcode:matrix:large-result",
   ]) {
     eventBus.on(channel, (payload) => {
       const entries = busEvents.get(channel) ?? [];
@@ -203,7 +203,7 @@ describe("Extension behavior-class compatibility matrix", () => {
         type: "session_shutdown",
         reason: "quit",
       });
-      expect(matrix.busEvents.get("pideck:matrix:shutdown")).toEqual([
+      expect(matrix.busEvents.get("lxcode:matrix:shutdown")).toEqual([
         { cleaned: true },
       ]);
       expect(
@@ -438,7 +438,7 @@ describe("Extension behavior-class compatibility matrix", () => {
         matrix.identity,
       );
       await planRun;
-      expect(matrix.busEvents.get("pideck:matrix:plan-result")).toEqual([
+      expect(matrix.busEvents.get("lxcode:matrix:plan-result")).toEqual([
         { next: "Edit plan", plan: "Reviewed matrix plan" },
       ]);
 
@@ -452,7 +452,7 @@ describe("Extension behavior-class compatibility matrix", () => {
       const selected = large.options![148]!;
       respondExtensionUi(large.requestId, "resolved", selected.id, matrix.identity);
       await largeRun;
-      expect(matrix.busEvents.get("pideck:matrix:large-result")).toEqual([
+      expect(matrix.busEvents.get("lxcode:matrix:large-result")).toEqual([
         { selected: "Matrix option 149" },
       ]);
     } finally {
@@ -497,7 +497,7 @@ describe("Extension behavior-class compatibility matrix", () => {
         true,
       );
       await backgroundRun;
-      expect(matrix.busEvents.get("pideck:matrix:background-result")).toEqual([
+      expect(matrix.busEvents.get("lxcode:matrix:background-result")).toEqual([
         { confirmed: true },
       ]);
     } finally {

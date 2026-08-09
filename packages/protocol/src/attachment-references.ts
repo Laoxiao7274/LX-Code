@@ -1,8 +1,8 @@
 import type { AttachmentSnapshot, AttachmentUnit } from "./types.js";
 
-const OPEN_TAG = '<pideck-attachments version="1">';
-const CLOSE_TAG = "</pideck-attachments>";
-const BLOCK_PATTERN = /<pideck-attachments version="1">\s*([\s\S]*?)\s*<\/pideck-attachments>/gu;
+const OPEN_TAG = '<lxcode-attachments version="1">';
+const CLOSE_TAG = "</lxcode-attachments>";
+const BLOCK_PATTERN = /<lxcode-attachments version="1">\s*([\s\S]*?)\s*<\/lxcode-attachments>/gu;
 
 export type AttachmentReference = {
   id: string;

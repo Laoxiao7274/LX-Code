@@ -41,12 +41,12 @@ describe("HostClient hello configuration", () => {
   it("sends and accepts the persisted Extension decision mode", async () => {
     const client = new HostClient();
     const transport = attachTestTransport(client);
-    const pending = client.hello("pideck", "1.2.3", "inline-first");
+    const pending = client.hello("lxcode", "1.2.3", "inline-first");
 
     expect(transport.sent[0]).toMatchObject({
       method: "system.hello",
       params: {
-        clientName: "pideck",
+        clientName: "lxcode",
         clientVersion: "1.2.3",
         protocolVersion: 1,
         extensionDecisionPresentation: "inline-first",

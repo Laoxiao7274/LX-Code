@@ -188,18 +188,18 @@ function stripAnsi(text: string): string {
   return stripVTControlCharacters(text);
 }
 
-type PiDeckDialogOptionDetails = {
+type LXCodeDialogOptionDetails = {
   description?: string;
   destructive?: boolean;
 };
 
-type NormalizedPiDeckDialogMetadata = {
+type NormalizedLXCodeDialogMetadata = {
   presentationHint?: "inline" | "modal";
   sourceLabel?: string;
   correlationId?: string;
   riskHint?: "normal" | "high";
   allowFreeform?: boolean;
-  optionDetails: Map<string, PiDeckDialogOptionDetails>;
+  optionDetails: Map<string, LXCodeDialogOptionDetails>;
 };
 
 function plainRecord(value: unknown): Record<string, unknown> | null {
@@ -247,8 +247,8 @@ function prepareSelectOptions(values: string[]): {
   return { options, responseValues };
 }
 
-function piDeckMetadataFromDialogOptions(options: unknown): unknown {
-  return plainRecord(options)?.pideck;
+function lxcodeMetadataFromDialogOptions(options: unknown): unknown {
+  return plainRecord(options)?.lxcode;
 }
 
 const MAX_TIMER_DELAY_MS = 2_147_483_647;
@@ -258,9 +258,9 @@ function normalizeDialogTimeout(value: unknown): number | undefined {
   return Math.min(MAX_TIMER_DELAY_MS, Math.max(1, Math.floor(value)));
 }
 
-function normalizePiDeckDialogMetadata(value: unknown): NormalizedPiDeckDialogMetadata {
+function normalizeLXCodeDialogMetadata(value: unknown): NormalizedLXCodeDialogMetadata {
   const source = plainRecord(value);
-  const normalized: NormalizedPiDeckDialogMetadata = { optionDetails: new Map() };
+  const normalized: NormalizedLXCodeDialogMetadata = { optionDetails: new Map() };
   if (!source) return normalized;
 
   if (source.presentation === "inline" || source.presentation === "modal") {
@@ -501,7 +501,7 @@ export function createExtensionUiContext(opts: ExtensionUiBridgeOptions): Extens
       invocationKind: "unknown",
     };
     const { optionDetails, presentationHint, riskHint, ...requestMetadata } =
-      normalizePiDeckDialogMetadata(payload.pideck);
+      normalizeLXCodeDialogMetadata(payload.lxcode);
     const options = Array.isArray(payload.options)
       ? payload.options.slice(0, MAX_EXTENSION_UI_OPTIONS).map((option) => {
           const item = option as { id?: unknown; label?: unknown; metadataId?: unknown };
@@ -634,7 +634,7 @@ export function createExtensionUiContext(opts: ExtensionUiBridgeOptions): Extens
         {
           title,
           options: prepared.options,
-          pideck: piDeckMetadataFromDialogOptions(dialogOpts),
+          lxcode: lxcodeMetadataFromDialogOptions(dialogOpts),
         },
         dialogOpts,
       );
@@ -647,7 +647,7 @@ export function createExtensionUiContext(opts: ExtensionUiBridgeOptions): Extens
     confirm: async (title, message, dialogOpts) => {
       const value = await requestBlocking(
         "confirm",
-        { title, message, pideck: piDeckMetadataFromDialogOptions(dialogOpts) },
+        { title, message, lxcode: lxcodeMetadataFromDialogOptions(dialogOpts) },
         dialogOpts,
       );
       // 自由输入文本回传:非空字符串 → 透传给调用方(如 confirm_plan 的
@@ -662,7 +662,7 @@ export function createExtensionUiContext(opts: ExtensionUiBridgeOptions): Extens
           title,
           message: placeholder,
           defaultValue: "",
-          pideck: piDeckMetadataFromDialogOptions(dialogOpts),
+          lxcode: lxcodeMetadataFromDialogOptions(dialogOpts),
         },
         dialogOpts,
       );
@@ -945,7 +945,7 @@ export function createExtensionUiContext(opts: ExtensionUiBridgeOptions): Extens
         {
           title,
           defaultValue: prefill ?? "",
-          pideck: piDeckMetadataFromDialogOptions(dialogOpts),
+          lxcode: lxcodeMetadataFromDialogOptions(dialogOpts),
         },
         dialogOpts,
       );
@@ -957,11 +957,11 @@ export function createExtensionUiContext(opts: ExtensionUiBridgeOptions): Extens
     get theme() {
       return desktopTheme;
     },
-    getAllThemes: () => [{ name: "pideck-stub", path: undefined }],
-    getTheme: (name) => (name === "pideck-stub" ? desktopTheme : undefined),
+    getAllThemes: () => [{ name: "lxcode-stub", path: undefined }],
+    getTheme: (name) => (name === "lxcode-stub" ? desktopTheme : undefined),
     setTheme: () => ({
       success: false,
-      error: "Theme switching is unsupported in PiDeck",
+      error: "Theme switching is unsupported in LXCode",
     }),
     getToolsExpanded: () => false,
     setToolsExpanded: () => {},

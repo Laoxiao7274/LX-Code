@@ -82,7 +82,7 @@ function writeResourceMetadata(resourceDir, archiveBytes, links, graph) {
 }
 
 function fixture() {
-  const root = mkdtempSync(join(tmpdir(), "pideck-host-cache-"));
+  const root = mkdtempSync(join(tmpdir(), "lxcode-host-cache-"));
   const resourceDir = join(root, "resources");
   const payloadDir = join(root, "payload");
   const cacheRoot = join(root, "cache");

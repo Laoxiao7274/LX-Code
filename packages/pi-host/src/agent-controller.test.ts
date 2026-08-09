@@ -258,7 +258,7 @@ describe("session-bound agent handlers", () => {
 
     expect("error" in outcome).toBe(false);
     expect(fixture.session.followUp).toHaveBeenCalledWith(
-      expect.stringContaining("<pideck-attachments version=\"1\">"),
+      expect.stringContaining("<lxcode-attachments version=\"1\">"),
       undefined,
     );
     expect(fixture.session.followUp).toHaveBeenCalledWith(

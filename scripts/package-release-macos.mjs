@@ -181,7 +181,7 @@ try {
 for (const stalePath of [
   join(bundleRoot, "macos"),
   join(bundleRoot, "dmg"),
-  join(tauriRoot, "target/release/pideck"),
+  join(tauriRoot, "target/release/lxcode"),
 ]) {
   rmSync(stalePath, { recursive: true, force: true });
 }
@@ -237,8 +237,8 @@ timed("smoke packaged Host", () =>
   run(process.execPath, [join(root, "scripts/smoke-staged-host.mjs")], {
     env: {
       ...process.env,
-      PIDECK_STAGED_NODE: join(packagedResources.resourceDir, "node/node"),
-      PIDECK_STAGED_HOST_ENTRY: join(packagedResources.resourceDir, "pi-host/main.js"),
+      LXCODE_STAGED_NODE: join(packagedResources.resourceDir, "node/node"),
+      LXCODE_STAGED_HOST_ENTRY: join(packagedResources.resourceDir, "pi-host/main.js"),
     },
   }),
 );

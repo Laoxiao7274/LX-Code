@@ -57,13 +57,13 @@ describe("extension UI real loader + bindExtensions path", () => {
         /* ignore */
       }
     }
-    delete process.env.PIDECK_UI_MARKER;
-    delete process.env.PIDECK_UI_NONCE;
+    delete process.env.LXCODE_UI_MARKER;
+    delete process.env.LXCODE_UI_NONCE;
     delete process.env.PI_CODING_AGENT_DIR;
   });
 
   it("DefaultResourceLoader → AgentSession → bind → handler UI marker", async () => {
-    root = mkdtempSync(join(tmpdir(), "pideck-ui-c6-"));
+    root = mkdtempSync(join(tmpdir(), "lxcode-ui-c6-"));
     const agentDir = join(root, "agent");
     const cwd = join(root, "project");
     const marker = join(root, "ui-marker.txt");
@@ -78,8 +78,8 @@ describe("extension UI real loader + bindExtensions path", () => {
     cpSync(uiFixtureSrc, extDest);
     expect(existsSync(extDest)).toBe(true);
 
-    process.env.PIDECK_UI_MARKER = marker;
-    process.env.PIDECK_UI_NONCE = nonce;
+    process.env.LXCODE_UI_MARKER = marker;
+    process.env.LXCODE_UI_NONCE = nonce;
     process.env.PI_CODING_AGENT_DIR = agentDir;
 
     // Harness must never create the success marker
@@ -251,7 +251,7 @@ describe("extension UI real loader + bindExtensions path", () => {
   }, 60_000);
 
   it("rebuilds a retained Runner before restoring a Todo-like factory widget", async () => {
-    const retainedRoot = mkdtempSync(join(tmpdir(), "pideck-ui-retained-"));
+    const retainedRoot = mkdtempSync(join(tmpdir(), "lxcode-ui-retained-"));
     const agentDir = join(retainedRoot, "agent");
     const cwd = join(retainedRoot, "project");
     mkdirSync(join(agentDir, "extensions"), { recursive: true });

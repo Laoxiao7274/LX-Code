@@ -142,7 +142,7 @@ describe("extension-ui-bridge", () => {
       getIdentity: () => id,
     });
     const pendingSelect = ui.select("Pick", ["alpha", "beta"], {
-      pideck: { allowFreeform: true },
+      lxcode: { allowFreeform: true },
     } as never);
     const req = events.find((x) => x.e === "extensionUi.request")!.p as {
       requestId: string;
@@ -171,7 +171,7 @@ describe("extension-ui-bridge", () => {
       "t".repeat(MAX_EXTENSION_UI_TITLE_LENGTH + 1),
       values,
       {
-        pideck: {
+        lxcode: {
           sourceLabel: "s".repeat(MAX_EXTENSION_UI_SOURCE_LABEL_LENGTH + 1),
           correlationId: "c".repeat(MAX_EXTENSION_UI_CORRELATION_ID_LENGTH + 1),
           optionDetails: [
@@ -250,7 +250,7 @@ describe("extension-ui-bridge", () => {
       getActiveInvocation: () => activeInvocation,
     });
     const pending = ui.confirm("Continue?", "Review changes", {
-      pideck: { sourceLabel: "Untrusted label" },
+      lxcode: { sourceLabel: "Untrusted label" },
     });
     const request = events.find((event) => event.e === "extensionUi.request")!.p as {
       requestId: string;
@@ -271,7 +271,7 @@ describe("extension-ui-bridge", () => {
     await expect(pending).resolves.toBe(false);
   });
 
-  it("normalizes namespaced PiDeck presentation metadata", async () => {
+  it("normalizes namespaced LXCode presentation metadata", async () => {
     const events: Array<{ e: HostEventName; p: unknown }> = [];
     const ui = createExtensionUiContext({
       emit: (e, p) => events.push({ e, p }),
@@ -282,7 +282,7 @@ describe("extension-ui-bridge", () => {
       ["keep", "delete"],
       {
         timeout: 5_000,
-        pideck: {
+        lxcode: {
           presentation: "inline",
           sourceLabel: "\u001b[31mReview\u001b[0m",
           correlationId: "review-1",
@@ -408,7 +408,7 @@ describe("extension-ui-bridge", () => {
     });
 
     const pending = ui.select("Allow command?", ["Allow", "Block"], {
-      pideck: { presentation: "inline", risk: "normal" },
+      lxcode: { presentation: "inline", risk: "normal" },
     } as never);
     const request = events.find((event) => event.e === "extensionUi.request")!.p as {
       requestId: string;

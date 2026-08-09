@@ -12,11 +12,11 @@ if (!root) throw new Error("root element missing");
 
 type AppErrorBoundaryState = { error: Error | null };
 
-const LAST_UI_ERROR_KEY = "pideck.lastUiError";
+const LAST_UI_ERROR_KEY = "lxcode.lastUiError";
 
 function reloadUi(): void {
   const url = new URL(window.location.href);
-  url.searchParams.set("pideck-reload", Date.now().toString());
+  url.searchParams.set("lxcode-reload", Date.now().toString());
   window.location.replace(url);
 }
 

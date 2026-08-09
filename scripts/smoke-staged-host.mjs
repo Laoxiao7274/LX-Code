@@ -40,20 +40,20 @@ assertReleaseProductionManifest(
   "staged release Host manifest",
 );
 const nodePath =
-  process.env.PIDECK_STAGED_NODE ?? join(resources, "node", runtimeTarget.stagedNodeExecutable);
-const hostEntry = process.env.PIDECK_STAGED_HOST_ENTRY ?? join(resources, "pi-host", "main.js");
+  process.env.LXCODE_STAGED_NODE ?? join(resources, "node", runtimeTarget.stagedNodeExecutable);
+const hostEntry = process.env.LXCODE_STAGED_HOST_ENTRY ?? join(resources, "pi-host", "main.js");
 const portableGit = join(resources, "git", "cmd", "git.exe");
 const gitExecutable =
-  process.env.PIDECK_STAGED_GIT ??
+  process.env.LXCODE_STAGED_GIT ??
   (process.platform === "win32" && existsSync(portableGit) ? portableGit : "git");
-const expectedNodeVersion = process.env.PIDECK_EXPECT_NODE_VERSION ?? runtimeTarget.node.version;
-const timeoutMs = parseTimeout(process.env.PIDECK_STAGED_SMOKE_TIMEOUT_MS, 180_000);
+const expectedNodeVersion = process.env.LXCODE_EXPECT_NODE_VERSION ?? runtimeTarget.node.version;
+const timeoutMs = parseTimeout(process.env.LXCODE_STAGED_SMOKE_TIMEOUT_MS, 180_000);
 
 function parseTimeout(value, fallback) {
   if (value === undefined) return fallback;
   const parsed = Number(value);
   if (!Number.isSafeInteger(parsed) || parsed <= 0) {
-    throw new Error(`Invalid PIDECK_STAGED_SMOKE_TIMEOUT_MS: ${value}`);
+    throw new Error(`Invalid LXCODE_STAGED_SMOKE_TIMEOUT_MS: ${value}`);
   }
   return parsed;
 }
@@ -131,7 +131,7 @@ const child = spawn(nodePath, [hostEntry], {
   env: {
     ...process.env,
     PI_CODING_AGENT_DIR: agentDir,
-    PIDECK_HOST_CACHE_DIR: hostCacheDir,
+    LXCODE_HOST_CACHE_DIR: hostCacheDir,
     PATH: controlledPath.join(delimiter),
   },
   stdio: ["pipe", "pipe", "pipe"],

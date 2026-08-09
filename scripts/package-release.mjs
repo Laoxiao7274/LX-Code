@@ -53,7 +53,7 @@ function run(cmd, args) {
 }
 
 function verifiedSourceBuildCommit() {
-  const expected = process.env.PIDECK_VERIFIED_SOURCE_COMMIT?.trim();
+  const expected = process.env.LXCODE_VERIFIED_SOURCE_COMMIT?.trim();
   if (!expected) return null;
   const head = spawnSync("git", ["rev-parse", "HEAD"], {
     cwd: root,
@@ -77,7 +77,7 @@ function verifiedSourceBuildCommit() {
     !requiredBuildOutputs.every(existsSync)
   ) {
     throw new Error(
-      "PIDECK_VERIFIED_SOURCE_COMMIT does not match a clean HEAD with required build outputs",
+      "LXCODE_VERIFIED_SOURCE_COMMIT does not match a clean HEAD with required build outputs",
     );
   }
   return expected;
@@ -228,7 +228,7 @@ function validatePackagedRuntime(releaseDir, expectedResourceManifest) {
     const main = readFileSync(mainPath, "utf8");
     if (
       !main.includes("pi-host-bootstrap-runtime.mjs") ||
-      !main.includes("PIDECK_HOST_CACHE_DIR")
+      !main.includes("LXCODE_HOST_CACHE_DIR")
     ) {
       errors.push("packaged pi-host/main.js is not the writable-cache bootstrap");
     }

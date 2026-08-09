@@ -143,11 +143,11 @@ impl DesktopSettingsStore {
     }
 
     pub fn load(app: &AppHandle) -> Result<Self, String> {
-        let dir = match std::env::var_os("PIDECK_CONFIG_DIR") {
+        let dir = match std::env::var_os("LXCODE_CONFIG_DIR") {
             Some(value) => {
                 let path = PathBuf::from(value);
                 if !path.is_absolute() {
-                    return Err("PIDECK_CONFIG_DIR must be an absolute path".into());
+                    return Err("LXCODE_CONFIG_DIR must be an absolute path".into());
                 }
                 path
             }

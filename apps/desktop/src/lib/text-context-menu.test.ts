@@ -11,8 +11,8 @@ describe("text context-menu actions", () => {
     input.setSelectionRange(6, 11);
     const onInput = vi.fn();
     input.addEventListener("input", onInput);
-    insertTextAtSelection(input, "PiDeck");
-    expect(input.value).toBe("hello PiDeck");
+    insertTextAtSelection(input, "LXCode");
+    expect(input.value).toBe("hello LXCode");
     expect(onInput).toHaveBeenCalledOnce();
   });
 

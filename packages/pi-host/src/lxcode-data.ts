@@ -3,35 +3,35 @@ import { dirname, join, resolve as pathResolve } from "node:path";
 
 const DIR_MODE = 0o700;
 
-export const PIDECK_MODEL_BACKUP_PATTERN = /^models-(\d+)-[0-9a-f]{8}\.bak$/u;
+export const LXCODE_MODEL_BACKUP_PATTERN = /^models-(\d+)-[0-9a-f]{8}\.bak$/u;
 
 export function workspaceStorageKey(cwd: string): string {
   const resolvedCwd = pathResolve(cwd);
   return `--${resolvedCwd.replace(/^[/\\]/, "").replace(/[/\\:]/g, "-")}--`;
 }
 
-export function pideckDataDir(agentDir: string): string {
-  return join(pathResolve(agentDir), "pideck");
+export function lxcodeDataDir(agentDir: string): string {
+  return join(pathResolve(agentDir), "lxcode");
 }
 
 export function migrationBackupRoot(agentDir: string, migrationId: string): string {
-  return join(pideckDataDir(agentDir), "migration-backups", migrationId);
+  return join(lxcodeDataDir(agentDir), "migration-backups", migrationId);
 }
 
 export function providerJournalRoot(agentDir: string): string {
-  return join(pideckDataDir(agentDir), "provider-journal");
+  return join(lxcodeDataDir(agentDir), "provider-journal");
 }
 
 export function modelBackupDir(agentDir: string): string {
-  return join(pideckDataDir(agentDir), "model-backups");
+  return join(lxcodeDataDir(agentDir), "model-backups");
 }
 
 function sessionArchiveRoot(agentDir: string): string {
-  return join(pideckDataDir(agentDir), "session-archive");
+  return join(lxcodeDataDir(agentDir), "session-archive");
 }
 
 export function attachmentRoot(agentDir: string): string {
-  return join(pideckDataDir(agentDir), "attachments");
+  return join(lxcodeDataDir(agentDir), "attachments");
 }
 
 export function sessionArchiveDir(agentDir: string, cwd: string): string {
@@ -78,7 +78,7 @@ async function moveLegacyTree(source: string, target: string): Promise<void> {
 
   const currentTargetKind = await pathKind(target);
   if (sourceKind !== "directory" || currentTargetKind !== "directory") {
-    throw new Error(`Conflicting PiDeck data at ${source} and ${target}`);
+    throw new Error(`Conflicting LXCode data at ${source} and ${target}`);
   }
 
   await ensurePrivateDirectory(target);
@@ -98,16 +98,24 @@ async function removeEmptyDirectory(path: string): Promise<void> {
 }
 
 /**
- * Adopt data written by older PiDeck versions. Every source and destination is
+ * Adopt data written by older LXCode versions. Every source and destination is
  * inside one agent directory, so successful renames stay on the same volume.
  * The operation is restartable and never overwrites conflicting recovery data.
  */
-export async function migrateLegacyPideckData(
+export async function migrateLegacyLxcodeData(
   agentDir: string,
   migrationId: string,
 ): Promise<void> {
   const resolvedAgentDir = pathResolve(agentDir);
-  await ensurePrivateDirectory(pideckDataDir(resolvedAgentDir));
+  // Adopt the data directory written by older PiDeck versions (named "pideck").
+  // Run before ensurePrivateDirectory so a fresh lxcode dir is not pre-created —
+  // a pre-created empty dir would force a merge instead of a cheap rename when
+  // pideck exists. moveLegacyTree is a no-op when pideck is absent (fresh install).
+  await moveLegacyTree(
+    join(resolvedAgentDir, "pideck"),
+    lxcodeDataDir(resolvedAgentDir),
+  );
+  await ensurePrivateDirectory(lxcodeDataDir(resolvedAgentDir));
 
   await moveLegacyTree(
     join(resolvedAgentDir, "backups", migrationId),
@@ -124,7 +132,7 @@ export async function migrateLegacyPideckData(
   const targetModelBackupDir = modelBackupDir(resolvedAgentDir);
   await ensurePrivateDirectory(targetModelBackupDir);
   for (const entry of backups) {
-    if (!entry.isFile() || !PIDECK_MODEL_BACKUP_PATTERN.test(entry.name)) continue;
+    if (!entry.isFile() || !LXCODE_MODEL_BACKUP_PATTERN.test(entry.name)) continue;
     await moveLegacyTree(
       join(resolvedAgentDir, entry.name),
       join(targetModelBackupDir, entry.name),

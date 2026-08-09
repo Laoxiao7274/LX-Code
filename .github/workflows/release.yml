@@ -79,15 +79,15 @@ jobs:
           done
           if [[ "$present" -eq 0 ]]; then
             echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
-            echo "PIDECK_MACOS_SIGNING_MODE=ad-hoc" >> "$GITHUB_ENV"
+            echo "LXCODE_MACOS_SIGNING_MODE=ad-hoc" >> "$GITHUB_ENV"
             exit 0
           fi
           if [[ "$present" -ne "${#values[@]}" ]]; then
             echo "Apple release secrets must be configured as a complete set." >&2
             exit 1
           fi
-          keychain="$RUNNER_TEMP/pideck-build.keychain-db"
-          certificate="$RUNNER_TEMP/pideck-developer-id.p12"
+          keychain="$RUNNER_TEMP/lxcode-build.keychain-db"
+          certificate="$RUNNER_TEMP/lxcode-developer-id.p12"
           printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$certificate"
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$keychain"
           security default-keychain -s "$keychain"
@@ -97,7 +97,7 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$keychain"
           security find-identity -v -p codesigning "$keychain"
           echo "APPLE_SIGNING_IDENTITY=$APPLE_SIGNING_IDENTITY_SECRET" >> "$GITHUB_ENV"
-          echo "PIDECK_MACOS_SIGNING_MODE=developer-id" >> "$GITHUB_ENV"
+          echo "LXCODE_MACOS_SIGNING_MODE=developer-id" >> "$GITHUB_ENV"
           echo "APPLE_ID=$APPLE_ID" >> "$GITHUB_ENV"
           echo "APPLE_PASSWORD=$APPLE_PASSWORD" >> "$GITHUB_ENV"
           echo "APPLE_TEAM_ID=$APPLE_TEAM_ID" >> "$GITHUB_ENV"

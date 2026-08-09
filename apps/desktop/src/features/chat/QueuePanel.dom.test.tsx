@@ -207,7 +207,7 @@ describe("QueuePanel Run Now", () => {
     render(<QueuePanel />);
 
     expect(screen.getByText("review this")).toBeVisible();
-    expect(screen.queryByText(/pideck-attachments/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/lxcode-attachments/)).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Edit" }));
     const editor = screen.getByRole("textbox", { name: "Edit queued message" });
     await user.clear(editor);
@@ -216,7 +216,7 @@ describe("QueuePanel Run Now", () => {
 
     const queued = request.mock.calls[0]?.[2] as { followUp: string[] };
     expect(queued.followUp[0]).toContain("review carefully");
-    expect(queued.followUp[0]).toContain("<pideck-attachments");
+    expect(queued.followUp[0]).toContain("<lxcode-attachments");
     expect(queued.followUp[0]).toContain("brief.pdf");
   });
 });

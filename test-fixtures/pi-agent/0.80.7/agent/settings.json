@@ -1,5 +1,5 @@
 {
-  "defaultProvider": "pideck-fixture",
+  "defaultProvider": "lxcode-fixture",
   "defaultModel": "fixture-model",
   "defaultThinkingLevel": "high",
   "steeringMode": "one-at-a-time",

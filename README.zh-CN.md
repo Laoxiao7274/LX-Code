@@ -1,19 +1,19 @@
 <div align="center">
 
-# PiDeck
+# LXCode
 
 **[Pi Coding Agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) 的原生桌面应用**
 
 与你的编码智能体对话、实时查看工具调用、管理会话/模型/Packages —— 全部在一个可视化工作空间里。
 
-[![CI](https://github.com/Skitre/PiDeck/actions/workflows/p0.yml/badge.svg)](https://github.com/Skitre/PiDeck/actions/workflows/p0.yml)
-[![Release](https://img.shields.io/github/v/release/Skitre/PiDeck?include_prereleases)](https://github.com/Skitre/PiDeck/releases)
+[![CI](https://github.com/Skitre/LXCode/actions/workflows/p0.yml/badge.svg)](https://github.com/Skitre/LXCode/actions/workflows/p0.yml)
+[![Release](https://img.shields.io/github/v/release/Skitre/LXCode?include_prereleases)](https://github.com/Skitre/LXCode/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey)](#下载安装)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
 [English](./README.md) | [简体中文](./README.zh-CN.md)
 
-<img src="docs/assets/readme/hero.png" alt="PiDeck 主窗口 —— 流式对话与右侧面板" width="840">
+<img src="docs/assets/readme/hero.png" alt="LXCode 主窗口 —— 流式对话与右侧面板" width="840">
 
 </div>
 
@@ -34,16 +34,16 @@
 
 ## 下载安装
 
-从[最新 Release](https://github.com/Skitre/PiDeck/releases) 下载对应平台的安装包:
+从[最新 Release](https://github.com/Skitre/LXCode/releases) 下载对应平台的安装包:
 
 | 平台 | 文件 |
 |---|---|
-| Windows 11 x64 | `PiDeck_<version>_x64-setup.exe` |
-| macOS Apple Silicon | `PiDeck_<version>_aarch64.dmg` |
-| macOS Intel | `PiDeck_<version>_x64.dmg` |
+| Windows 11 x64 | `LXCode_<version>_x64-setup.exe` |
+| macOS Apple Silicon | `LXCode_<version>_aarch64.dmg` |
+| macOS Intel | `LXCode_<version>_x64.dmg` |
 
 这些安装包属于早期开发候选版,尚不是已验收、经平台认证的公开发行版。
-PiDeck 会自动检查并原地安装更新。
+LXCode 会自动检查并原地安装更新。
 
 > **早期测试版说明。** Windows 候选包尚未通过已验收的 Authenticode
 > 签名;macOS 候选包可能使用 ad-hoc 签名,而不是 Developer ID 签名与公证。
@@ -52,12 +52,12 @@ PiDeck 会自动检查并原地安装更新。
 
 ## 与 Pi CLI 协同,但不依赖它
 
-PiDeck 内置 Pi SDK(当前为 `0.82.1`)和独立的 Node 运行时,开箱即用:
+LXCode 内置 Pi SDK(当前为 `0.82.1`)和独立的 Node 运行时,开箱即用:
 不需要全局安装 `pi` 命令行或 Node;Windows 版还内置了 Git。
 
 如果你同时使用 Pi CLI,两者共享 `~/.pi/agent` 和各工作区 `.pi` 目录中的
 数据:会话与历史、认证与模型设置、已安装的 Packages。建议让 CLI 版本与
-PiDeck 固定的 SDK 版本保持接近,并避免同时在两个应用中编辑同一个会话。
+LXCode 固定的 SDK 版本保持接近,并避免同时在两个应用中编辑同一个会话。
 
 ## 从源码构建
 
@@ -68,7 +68,7 @@ macOS 的工具链一键安装步骤见[开发指南](./docs/operations/developm
 ```bash
 pnpm install --frozen-lockfile
 pnpm build
-pnpm --filter @pideck/desktop run tauri:dev
+pnpm --filter @lxcode/desktop run tauri:dev
 ```
 
 首次启动需要编译 Tauri 应用,可能耗时数分钟;后续启动复用构建缓存。验证

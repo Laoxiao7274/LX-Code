@@ -54,13 +54,13 @@ export function WorkspacePicker() {
   const pushNotification = useAppStore((s) => s.pushNotification);
   const [pending, setPending] = useState(false);
   const [collapsed, setCollapsed] = useState(() =>
-    sidebarPref("pideck.sidebar.workspacesCollapsed"),
+    sidebarPref("lxcode.sidebar.workspacesCollapsed"),
   );
   const requestRef = useRef(0);
 
   function toggleCollapsed() {
     setCollapsed((current) => {
-      setSidebarPref("pideck.sidebar.workspacesCollapsed", !current);
+      setSidebarPref("lxcode.sidebar.workspacesCollapsed", !current);
       return !current;
     });
   }

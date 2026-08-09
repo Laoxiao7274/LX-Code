@@ -680,7 +680,7 @@ describe("WorkspaceGraphFactory multi-Session routing", () => {
 
 describe("WorkspaceGraphFactory retained Workspace recovery", () => {
   function setup(providerOwnership?: ExtensionProviderOwnership) {
-    const root = mkdtempSync(join(tmpdir(), "pideck-retained-workspace-"));
+    const root = mkdtempSync(join(tmpdir(), "lxcode-retained-workspace-"));
     const agentDir = join(root, "agent");
     const currentDir = join(root, "current");
     const retainedDir = join(root, "retained");
