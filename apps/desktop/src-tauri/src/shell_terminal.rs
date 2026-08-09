@@ -375,6 +375,10 @@ fn pty_size(cols: u16, rows: u16) -> PtySize {
 fn configure_terminal_environment(command: &mut CommandBuilder) {
     command.env("TERM", TERMINAL_TERM);
     command.env("COLORTERM", TERMINAL_COLORTERM);
+    // 禁止内置终端里的 git 走交互凭证提示:便携 git 配的 credential helper
+    // (wincred) 在凭据库未命中时会调 GCM 弹 GUI 认证窗,在终端里十分突兀。
+    // 设 0 后未命中直接在终端报错(fatal: could not read Username),用户在终端自行配 token。
+    command.env("GIT_TERMINAL_PROMPT", "0");
 }
 
 pub(crate) fn validate_terminal_cwd(raw: &str) -> Result<PathBuf, String> {
