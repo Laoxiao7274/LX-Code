@@ -220,6 +220,17 @@ export function Transcript() {
     };
   }, [hidden]);
 
+  // 最后一条 user 消息的 id:用户发新消息时它变化,用来强制回到底部。
+  // 切换会话时 sessionKey 变(下面的 effect 会重置),不会误触发这里。
+  const lastUserMessageId = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const msg = messages[i]!;
+      if (msg.role === "user" && typeof msg.id === "string") return msg.id;
+    }
+    return null;
+  }, [messages]);
+  const prevUserMessageIdRef = useRef<string | null | undefined>(undefined);
+
   const lastAssistantRow = [...rows].reverse().find((row) => row.role === "assistant");
   const streamingAssistantKey = findStreamingAssistantKey(
     rows,
@@ -239,6 +250,19 @@ export function Transcript() {
     alignToBottom();
     scheduleBottomAlignment();
   }, [alignToBottom, scheduleBottomAlignment, sessionKey, updateFollowing]);
+
+  // 用户发了新消息(最后一条 user 消息 id 变化)时,强制回到底部并恢复跟随。
+  // 解决:用户往上滚看过历史(following=false)后再发消息,视图不自动滚底的 bug。
+  // 用 ref 区分“同会话内新消息”与“切换会话”,只在同会话内 id 变化才触发。
+  useLayoutEffect(() => {
+    const prev = prevUserMessageIdRef.current;
+    prevUserMessageIdRef.current = lastUserMessageId;
+    if (prev === undefined) return; // 首次挂载/切换会话后的首次,交给 sessionKey effect
+    if (prev === lastUserMessageId) return; // 未变
+    updateFollowing(true);
+    alignToBottom();
+    scheduleBottomAlignment();
+  }, [alignToBottom, lastUserMessageId, scheduleBottomAlignment, updateFollowing]);
 
   useLayoutEffect(() => {
     if (followingRef.current) scheduleBottomAlignment();
