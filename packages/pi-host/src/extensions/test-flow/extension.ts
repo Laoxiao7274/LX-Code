@@ -3,13 +3,11 @@
  *
  * before_agent_start 注入 systemPrompt,要求 agent:
  *  1. Plan:先给方案(改哪些文件/怎么做/测试方式),不要直接动手
- *  2. Confirm:调 confirm_plan 工具弹窗(按方案执行 / 调整后再执行 / 重新规划),等用户选择
+ *  2. Confirm:在对话里向用户询问是否执行,等用户回复(不弹窗、不调工具)
  *  3. Execute:用户确认执行后才动手
  *  4. Verify:执行完调 run_verify 工具跑自动化测试,过才算完成
  *
- * 注册两个工具:
- *  - confirm_plan:ctx.ui.select 多选项弹窗(执行/调整/重新规划 + 自由输入),
- *    返回用户选择,agent 据此决定下一步
+ * 注册一个工具:
  *  - run_verify:检测项目类型(Web/WebView/Tauri),引导对应测试方式
  *    (chrome-devtools MCP / npm test / dev 模式 + CDP)
  */
@@ -74,9 +72,8 @@ function buildWorkflowHint(cwd: string, pkg: PackageJson | null): string {
     "- 不要一上来就动手改文件或跑命令。先讲清楚你要做什么。",
     "",
     "### 2. Confirm(等用户确认)",
-    "- 方案讲完后,调用 confirm_plan 工具(把方案摘要放进 message 参数)弹窗让用户选择。",
-    "- 弹窗提供三个选项:按方案执行 / 调整后再执行 / 重新规划;用户也可在输入框补充说明。",
-    "- 工具返回值含义:返回『用户已确认』→ 开始执行;返回『调整/补充说明』→ 按补充调整后重新 confirm_plan;返回『重新规划』→ 重新给方案;返回『取消』→ 停止。",
+    "- 方案讲完后,直接在对话里向用户询问是否按此方案执行,等用户回复。",
+    "- 用户确认 → 开始执行;用户要调整 → 按补充调整后重新询问;用户要重新规划 → 重新给方案;用户取消 → 停止。",
     "- 简单的只读问答/解释类任务不需要确认,但只要涉及改代码/跑命令就必须确认。",
     "",
     "### 3. Execute(执行)",
@@ -135,84 +132,6 @@ export default function createTestFlowExtension(pi: ExtensionAPI): void {
     const hint = buildWorkflowHint(ctx.cwd, readPackageJson(ctx.cwd));
     if (!hint) return;
     return { systemPrompt: event.systemPrompt + hint };
-  });
-
-  // 方案确认工具:多选项弹窗(执行/调整/重新规划 + 自由输入)。
-  // 方案已在对话里给出,弹窗只做选择确认,不重复方案。
-  const EXECUTE = "按方案执行";
-  const ADJUST = "调整后再执行";
-  const REPLAN = "重新规划";
-  pi.registerTool({
-    name: "confirm_plan",
-    label: "方案确认",
-    description:
-      `改代码前向用户确认方案。方案你已经在上文讲清楚了,这里只需传一句简短确认语(如"是否开始执行?"),弹窗会显示这句并给三个选项:按方案执行 / 调整后再执行 / 重新规划,用户还可在输入框补充说明。不要把整个方案塞进 message。涉及改代码/跑命令的任务必须先调此工具确认。返回值会说明用户的选择,据此决定下一步。`,
-    promptSnippet: "Confirm plan with user before editing",
-    promptGuidelines: [
-      "Call confirm_plan with a short confirmation prompt (e.g. \"是否开始执行?\") after presenting your plan above",
-      "Do NOT paste the full plan into message — it's already in the conversation",
-      "Return value tells you the user's choice: confirmed → execute; adjust/feedback → adjust per feedback then re-confirm; replan → give a new plan; cancelled → stop",
-      "Skip for read-only/explanation tasks; required for any code change or command execution",
-    ],
-    parameters: Type.Object({
-      message: Type.Optional(Type.String({ description: `简短确认语,如"是否开始执行?"。不传则默认"是否按此方案执行?"` })),
-    }),
-    async execute(_id, params, _signal, _onUpdate, ctx) {
-      const message = String(params.message ?? "").trim() || "是否按此方案执行?";
-      try {
-        const choice = await ctx.ui.select(
-          "方案确认",
-          [EXECUTE, ADJUST, REPLAN],
-          {
-            lxcode: {
-              presentation: "modal",
-              risk: "normal",
-              allowFreeform: true,
-              optionDetails: [
-                { id: EXECUTE, description: "按上方方案立即开始改代码" },
-                { id: ADJUST, description: "在下方输入框补充修改意见" },
-                { id: REPLAN, description: "放弃当前方案,重新给出方案" },
-              ],
-            },
-          } as never,
-        );
-        // choice === undefined:用户取消/超时
-        // choice === EXECUTE:确认执行
-        // choice === ADJUST:调整(无补充文本)
-        // choice === REPLAN:重新规划
-        // 其他(自由输入文本):用户的补充说明
-        let text: string;
-        let confirmed = false;
-        let action: "execute" | "adjust" | "replan" | "cancel";
-        if (choice === undefined) {
-          text = "用户已取消,停止执行。";
-          action = "cancel";
-        } else if (choice === EXECUTE) {
-          text = "用户已确认,按方案开始执行。";
-          confirmed = true;
-          action = "execute";
-        } else if (choice === ADJUST) {
-          text = "用户选择调整方案。请在下方补充说明需要调整的地方,我会据此修改方案后重新确认。";
-          action = "adjust";
-        } else if (choice === REPLAN) {
-          text = "用户要求重新规划,请重新给出方案。";
-          action = "replan";
-        } else {
-          // 自由输入:用户的补充说明文本
-          text = `用户补充说明:${choice}。请按补充说明调整方案后重新确认。`;
-          action = "adjust";
-        }
-        return {
-          content: [{ type: "text", text }],
-          details: { confirmed, action, choice },
-        };
-      } catch (e) {
-        return {
-          content: [{ type: "text", text: `确认弹窗失败: ${e instanceof Error ? e.message : e}` }],
-          details: { confirmed: false, error: String(e) },
-        };
-      }
-    },
   });
 
   // 验证工具:检测项目类型,引导对应测试方式
