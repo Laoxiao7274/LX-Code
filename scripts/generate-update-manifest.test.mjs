@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -226,12 +226,19 @@ test("aggregates isolated platform artifacts without overwriting assets", () => 
       "darwin-aarch64",
       "windows-x86_64",
     ]);
-    assert.equal(
-      JSON.parse(readFileSync(join(output, "installer-manifest.json"), "utf8")).version,
-      "0.1.1",
-    );
+    // release 输出只留安装包 + 签名 + latest.json;内部清单不上传到 GitHub Release。
+    assert.ok(existsSync(join(output, "latest.json")), "latest.json 必须存在(updater 端点拉这个)");
+    assert.ok(!existsSync(join(output, "installer-manifest.json")), "聚合清单不应进 release 输出");
     for (const fixture of fixtures) {
-      assert.equal(readFileSync(join(output, fixture.primaryName), "utf8"), `primary:${fixture.updaterPlatform}`);
+      assert.ok(existsSync(join(output, fixture.primaryName)), `安装包 ${fixture.primaryName} 必须存在`);
+      assert.ok(
+        !existsSync(join(output, `installer-manifest-${fixture.updaterPlatform}.json`)),
+        `平台清单不应进 release 输出`,
+      );
+      assert.ok(
+        !existsSync(join(output, `release-platform-${fixture.updaterPlatform}.json`)),
+        `平台描述符不应进 release 输出`,
+      );
     }
   } finally {
     rmSync(root, { recursive: true, force: true });
