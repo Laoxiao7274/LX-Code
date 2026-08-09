@@ -2,7 +2,8 @@
  * codegraph pi 扩展 —— 让 AI agent 能用 LXCode 内置的代码图谱。
  *
  * 纯后端,无 UI。进程内 SDK 模式(不走 MCP),session_start 自动建索引+watch,
- * session_shutdown 关实例。注册 codegraph_explore 工具(默认)+ callers/callees 窄工具。
+ * session_shutdown 关实例。只注册 codegraph_explore 一个工具(对齐官方 v0.9.9 单工具
+ * 设计):一次调用返回相关符号源码 + 调用链(callees)+ 影响面(callers)。
  *
  * 挂载:pi-host 的 createSessionResourceLoader 给 DefaultResourceLoader 传
  * extensionFactories: [{ name: "codegraph", factory: createCodegraphExtension }]。
@@ -14,8 +15,6 @@ import {
   ensureCodegraphIndexed,
   closeCodegraph,
   formatExploreResult,
-  getCallers,
-  getCallees,
 } from "./codegraph.js";
 
 export default function createCodegraphExtension(pi: ExtensionAPI): void {
@@ -71,51 +70,4 @@ export default function createCodegraphExtension(pi: ExtensionAPI): void {
     },
   });
 
-  // 窄工具:callers(谁调用了某符号)
-  pi.registerTool({
-    name: "codegraph_callers",
-    label: "查找调用者",
-    description: "查找所有调用了指定符号(函数/方法)的地方。修改函数前用,看影响面。",
-    promptSnippet: "Find callers of a symbol",
-    promptGuidelines: [
-      "Use codegraph_callers before modifying a function to see call sites",
-    ],
-    parameters: Type.Object({
-      symbol: Type.String({ description: "函数/方法/类名" }),
-    }),
-    async execute(_id, params, _signal, _onUpdate, ctx) {
-      try {
-        await ensureCodegraphIndexed(ctx.cwd);
-        const callers = await getCallers(ctx.cwd, String(params.symbol ?? ""));
-        if (callers.length === 0) return { content: [{ type: "text", text: `No callers found for "${params.symbol}"` }], details: {} };
-        return { content: [{ type: "text", text: callers.join("\n") }], details: { callers } };
-      } catch (e) {
-        return { content: [{ type: "text", text: `codegraph_callers 失败: ${e instanceof Error ? e.message : e}` }], details: {} };
-      }
-    },
-  });
-
-  // 窄工具:callees(某符号调用了谁)
-  pi.registerTool({
-    name: "codegraph_callees",
-    label: "查找被调用者",
-    description: "查找指定符号(函数/方法)调用的所有其他函数。理解执行路径、依赖时用。",
-    promptSnippet: "Find callees of a symbol",
-    promptGuidelines: [
-      "Use codegraph_callees to understand what a function depends on",
-    ],
-    parameters: Type.Object({
-      symbol: Type.String({ description: "函数/方法/类名" }),
-    }),
-    async execute(_id, params, _signal, _onUpdate, ctx) {
-      try {
-        await ensureCodegraphIndexed(ctx.cwd);
-        const callees = await getCallees(ctx.cwd, String(params.symbol ?? ""));
-        if (callees.length === 0) return { content: [{ type: "text", text: `No callees found for "${params.symbol}"` }], details: {} };
-        return { content: [{ type: "text", text: callees.join("\n") }], details: { callees } };
-      } catch (e) {
-        return { content: [{ type: "text", text: `codegraph_callees 失败: ${e instanceof Error ? e.message : e}` }], details: {} };
-      }
-    },
-  });
 }
