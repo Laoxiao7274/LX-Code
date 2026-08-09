@@ -139,6 +139,13 @@ function resetExtensionTerminal(state: {
 
 export type SettingsSection = "general" | "shortcuts" | "providers" | "usecases" | "webSearch" | "automationTest" | "builtinExtensions" | "packages" | "usage" | "host";
 
+/**
+ * 模块级 recovery 触发器:App.tsx 启动时注册真实的 scheduleRecovery,
+ * 各 UI 处收到 STALE_REVISION 时经 store.requestRecovery() 调用,不弹错误而是重连。
+ * 用模块变量而非 state,避免无谓的重渲染(handler 不影响视图)。
+ */
+let recoveryHandler: ((reason: string) => void) | null = null;
+
 export type AppState = EpochState & {
   page: NavPage;
   /** Section the Settings overlay should open on (null = default "general"). */
@@ -252,6 +259,10 @@ export type AppState = EpochState & {
   setConnecting: (v: boolean) => void;
   setRehydrating: (v: boolean) => void;
   markDesynchronized: (reason: string) => void;
+  /** 触发 Host recovery(重新 hello + rehydrate)。App.tsx 启动时注册实现。 */
+  requestRecovery: (reason: string) => void;
+  /** 注册/清除真实的 recovery 触发器(App.tsx 拥有 scheduleRecovery)。 */
+  setRecoveryHandler: (handler: ((reason: string) => void) | null) => void;
   noteSequence: (sequence: number) => "apply" | "drop" | "gap";
   completeRehydrate: (snap: {
     host?: HostStatusSnapshot | null;
@@ -917,6 +928,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   markDesynchronized: (reason) => {
     const next = epochMarkDesync(epochSlice(get()), reason);
     set({ ...next });
+  },
+
+  requestRecovery: (reason) => {
+    recoveryHandler?.(reason);
+  },
+  setRecoveryHandler: (handler) => {
+    recoveryHandler = handler;
   },
 
   noteSequence: (sequence) => {

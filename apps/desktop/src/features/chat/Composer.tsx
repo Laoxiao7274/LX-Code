@@ -1251,6 +1251,11 @@ export function Composer({
                 : null
               : null,
         });
+      } else if (error?.code === "STALE_REVISION") {
+        // 前端 workspace/session 快照过期(Host 侧已重建/切换):触发 recovery
+        // 重新 hello + rehydrate,不弹错误、保留草稿,recovery 完成后用户重发即可。
+        useAppStore.getState().requestRecovery(error.message);
+        return;
       } else {
         pushNotification(error?.message ?? fallback, "error");
       }

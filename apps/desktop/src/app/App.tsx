@@ -841,6 +841,8 @@ export function App() {
           useAppStore.getState().markDesynchronized(reason);
           scheduleRecovery(hostClient.getHostInstanceId(), reason);
         };
+        // 暴露给各 UI(store.requestRecovery):收到 STALE_REVISION 时重连而非弹错。
+        useAppStore.getState().setRecoveryHandler(requestRecovery);
 
         let transportRepair: Promise<void> | null = null;
         const repairTransport = (transportError: Error) => {
@@ -913,6 +915,7 @@ export function App() {
       cancelPendingAgentEvents();
       unsub();
       unsubTransportError();
+      useAppStore.getState().setRecoveryHandler(null);
       hostClient.detach("application unmounted");
     };
   }, []);
