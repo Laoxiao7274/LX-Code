@@ -41,7 +41,7 @@ describe("attachment reference blocks", () => {
   });
 
   it("ignores malformed and non-UUID reference data", () => {
-    const text = '<pideck-attachments version="1">[{"id":"bad"}]</pideck-attachments>';
+    const text = '<lxcode-attachments version="1">[{"id":"bad"}]</lxcode-attachments>';
     expect(parseAttachmentReferences(text)).toEqual([]);
   });
 });

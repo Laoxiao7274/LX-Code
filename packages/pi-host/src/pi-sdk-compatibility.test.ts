@@ -47,25 +47,25 @@ describe("Pi SDK 0.80.7 compatibility fixtures", () => {
     // so a resolving read is itself the assertion that the file parsed.
     expect(await credentialStore.list()).toEqual(
       expect.arrayContaining([
-        { providerId: "pideck-fixture", type: "api_key" },
-        { providerId: "pideck-fixture-oauth", type: "oauth" },
+        { providerId: "lxcode-fixture", type: "api_key" },
+        { providerId: "lxcode-fixture-oauth", type: "oauth" },
       ]),
     );
-    expect(await credentialStore.readRaw("pideck-fixture")).toEqual({
+    expect(await credentialStore.readRaw("lxcode-fixture")).toEqual({
       type: "api_key",
-      key: "pideck-fixture-api-key-never-real",
-      env: { PIDECK_FIXTURE_ACCOUNT: "pideck-fixture-account-never-real" },
+      key: "lxcode-fixture-api-key-never-real",
+      env: { LXCODE_FIXTURE_ACCOUNT: "lxcode-fixture-account-never-real" },
     });
-    expect(await credentialStore.readRaw("pideck-fixture-oauth")).toMatchObject({
+    expect(await credentialStore.readRaw("lxcode-fixture-oauth")).toMatchObject({
       type: "oauth",
-      refresh: "pideck-fixture-refresh-never-real",
-      access: "pideck-fixture-access-never-real",
+      refresh: "lxcode-fixture-refresh-never-real",
+      access: "lxcode-fixture-access-never-real",
     });
 
     expect(modelRegistry.getError()).toBeUndefined();
-    const model = modelRegistry.find("pideck-fixture", "fixture-model");
+    const model = modelRegistry.find("lxcode-fixture", "fixture-model");
     expect(model).toMatchObject({
-      provider: "pideck-fixture",
+      provider: "lxcode-fixture",
       id: "fixture-model",
       reasoning: true,
       contextWindow: 32768,
@@ -74,17 +74,17 @@ describe("Pi SDK 0.80.7 compatibility fixtures", () => {
     const requestAuth = await modelRegistry.getApiKeyAndHeaders(model!);
     expect(requestAuth).toEqual({
       ok: true,
-      apiKey: "pideck-fixture-api-key-never-real",
+      apiKey: "lxcode-fixture-api-key-never-real",
       headers: {
-        "X-Fixture-Token": "pideck-fixture-header-never-real",
-        Authorization: "Bearer pideck-fixture-api-key-never-real",
+        "X-Fixture-Token": "lxcode-fixture-header-never-real",
+        Authorization: "Bearer lxcode-fixture-api-key-never-real",
       },
-      env: { PIDECK_FIXTURE_ACCOUNT: "pideck-fixture-account-never-real" },
+      env: { LXCODE_FIXTURE_ACCOUNT: "lxcode-fixture-account-never-real" },
     });
 
     expect(settingsManager.drainErrors()).toEqual([]);
     expect(settingsManager.getGlobalSettings()).toMatchObject({
-      defaultProvider: "pideck-fixture",
+      defaultProvider: "lxcode-fixture",
       defaultModel: "fixture-model",
       defaultThinkingLevel: "high",
     });
@@ -138,7 +138,7 @@ describe("Pi SDK 0.80.7 compatibility fixtures", () => {
     );
     expect(opened.buildSessionContext()).toMatchObject({
       thinkingLevel: "high",
-      model: { provider: "pideck-fixture", modelId: "fixture-model" },
+      model: { provider: "lxcode-fixture", modelId: "fixture-model" },
     });
     expect(opened.buildSessionContext().messages).toEqual(
       expect.arrayContaining([

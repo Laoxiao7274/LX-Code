@@ -1,0 +1,10 @@
+import { explore, formatExploreResult } from "./src/extensions/codegraph/codegraph.ts";
+const r = await explore(process.cwd(), "migrateLegacyLxcodeData", 6);
+const out = formatExploreResult(r);
+console.log(out.slice(0, 1200));
+console.log("\n=== 验证断言 ===");
+console.log("callPaths 字段存在:", "callPaths" in r);
+console.log("callPaths 非空:", r.callPaths.length > 0);
+console.log("callPaths 样例:", r.callPaths.slice(0, 3));
+console.log("输出含 Call paths 段:", out.includes("**Call paths — what these call (dependencies)**"));
+console.log("输出含 Blast radius 段:", out.includes("**Blast radius"));

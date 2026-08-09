@@ -229,6 +229,8 @@ export interface ExploreResult {
   files: number;
   /** 影响面:哪些符号依赖这些(改前必看)。 */
   blastRadius: string[];
+  /** 调用链:这些符号调用了谁(依赖了什么)。 */
+  callPaths: string[];
   /** 相关文件源码(带行号,按文件分组)。 */
   sections: SourceSection[];
 }
@@ -257,7 +259,7 @@ export async function explore(cwd: string, query: string, maxFiles = 6, registry
     }
   }
   if (candidates.length === 0) {
-    return { query, found: 0, files: 0, blastRadius: [], sections: [] };
+    return { query, found: 0, files: 0, blastRadius: [], callPaths: [], sections: [] };
   }
 
   // 1.5 语义重排:配了嵌入模型(useCases.embed)就用向量对候选重排,让最语义相关的排前面
@@ -297,6 +299,7 @@ export async function explore(cwd: string, query: string, maxFiles = 6, registry
   // 3. 每个文件读源码(主符号函数体带行号)+ 影响面 + 调用链
   const sections: SourceSection[] = [];
   const blastRadiusSet = new Set<string>();
+  const callPathsSet = new Set<string>();
   for (const [file, nodes] of fileToSymbols) {
     const symbolNames = nodes.map((n) => n.name);
     const main = nodes[0]!;
@@ -317,6 +320,15 @@ export async function explore(cwd: string, query: string, maxFiles = 6, registry
       } catch {
         // 忽略单个符号查询失败
       }
+      // 调用链:它调用了谁(直接依赖)
+      try {
+        const callees = cg.getCallees(n.id, 1);
+        for (const c of callees) {
+          callPathsSet.add(`${n.name} → ${c.node.name} (${c.node.filePath}:${c.node.startLine})`);
+        }
+      } catch {
+        // 忽略单个符号查询失败
+      }
     }
   }
 
@@ -325,6 +337,7 @@ export async function explore(cwd: string, query: string, maxFiles = 6, registry
     found: candidates.length,
     files: sections.length,
     blastRadius: [...blastRadiusSet].slice(0, 15),
+    callPaths: [...callPathsSet].slice(0, 15),
     sections,
   };
 }
@@ -341,6 +354,12 @@ export function formatExploreResult(r: ExploreResult): string {
     lines.push("**Blast radius — what depends on these (update/verify before editing)**");
     lines.push("");
     for (const b of r.blastRadius) lines.push(`- ${b}`);
+    lines.push("");
+  }
+  if (r.callPaths.length > 0) {
+    lines.push("**Call paths — what these call (dependencies)**");
+    lines.push("");
+    for (const c of r.callPaths) lines.push(`- ${c}`);
     lines.push("");
   }
   lines.push("**Source Code**");

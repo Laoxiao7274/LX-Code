@@ -29,7 +29,7 @@ import { join, relative } from "node:path";
 import { logger } from "./logger.js";
 import { migrationBackupRoot } from "./lxcode-data.js";
 
-export const MIGRATION_ID = "pideck-sdk-0.80.7-to-0.82.1";
+export const MIGRATION_ID = "lxcode-sdk-0.80.7-to-0.82.1";
 
 const FILE_MODE = 0o600;
 const DIR_MODE = 0o700;

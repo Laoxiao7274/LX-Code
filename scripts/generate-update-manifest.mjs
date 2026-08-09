@@ -249,8 +249,8 @@ export function aggregateRelease({ inputDir, outputDir, tag, repo, publishedAt }
     if (signature !== value.signature.trim()) {
       fail(`signature content drifted for ${value.updaterPlatform}`);
     }
-    copyDescriptorAsset(descriptor, value.packageManifestName, value.packageManifestSha256);
-    copyDescriptorAsset(descriptor, basename(descriptor.path));
+    // 内部清单(packageManifest / release-platform 描述符)仅留作 CI artifact 校验,
+    // 不复制进 release 输出——GitHub Release 页面只放用户需要的安装包 + 签名 + latest.json。
   }
 
   const manifest = buildUpdateManifest({
@@ -261,31 +261,6 @@ export function aggregateRelease({ inputDir, outputDir, tag, repo, publishedAt }
     publishedAt,
   });
   writeFileSync(join(outputDir, "latest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
-  writeFileSync(
-    join(outputDir, "installer-manifest.json"),
-    `${JSON.stringify(
-      {
-        schemaVersion: 2,
-        tag,
-        version,
-        generatedAt: publishedAt,
-        platforms: Object.fromEntries(
-          descriptors.map(({ value }) => [
-            value.updaterPlatform,
-            {
-              primaryName: value.primaryName,
-              primarySha256: value.primarySha256,
-              updaterName: value.updaterName,
-              updaterSha256: value.updaterSha256,
-              packageManifestName: value.packageManifestName,
-            },
-          ]),
-        ),
-      },
-      null,
-      2,
-    )}\n`,
-  );
   return { manifest, descriptors: descriptors.map(({ value }) => value), outputDir };
 }
 

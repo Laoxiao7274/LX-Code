@@ -1,0 +1,14 @@
+{
+  "exclude": [
+    "**/node_modules/**",
+    "**/.venv/**",
+    "**/venv/**",
+    "**/site-packages/**",
+    "**/__pycache__/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/.git/**",
+    "**/.next/**",
+    "**/.cache/**"
+  ]
+}
