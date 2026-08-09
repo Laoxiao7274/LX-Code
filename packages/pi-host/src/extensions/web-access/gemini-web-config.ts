@@ -9,7 +9,6 @@ interface GeminiWebConfig {
 	allowBrowserCookies?: boolean;
 }
 
-let cachedConfig: GeminiWebConfig | null = null;
 
 export function normalizeChromeProfile(value: unknown): string | undefined {
 	if (typeof value !== "string") return undefined;
@@ -18,10 +17,8 @@ export function normalizeChromeProfile(value: unknown): string | undefined {
 }
 
 function loadConfig(): GeminiWebConfig {
-	if (cachedConfig) return cachedConfig;
 	if (!existsSync(CONFIG_PATH)) {
-		cachedConfig = {};
-		return cachedConfig;
+		return {};
 	}
 
 	const rawText = readFileSync(CONFIG_PATH, "utf-8");
@@ -33,11 +30,10 @@ function loadConfig(): GeminiWebConfig {
 		throw new Error(`Failed to parse ${CONFIG_PATH}: ${message}`);
 	}
 
-	cachedConfig = {
+	return {
 		chromeProfile: normalizeChromeProfile(raw.chromeProfile),
 		allowBrowserCookies: raw.allowBrowserCookies === true,
 	};
-	return cachedConfig;
 }
 
 export function getChromeProfileFromConfig(): string | undefined {

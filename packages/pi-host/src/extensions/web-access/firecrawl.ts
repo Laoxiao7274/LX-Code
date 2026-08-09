@@ -36,13 +36,10 @@ interface FirecrawlScrapeData {
 	metadata?: { title?: unknown };
 }
 
-let cachedConfig: FirecrawlConfig | null = null;
 
 function loadConfig(): FirecrawlConfig {
-	if (cachedConfig) return cachedConfig;
 	if (!existsSync(CONFIG_PATH)) {
-		cachedConfig = {};
-		return cachedConfig;
+		return {};
 	}
 	const raw = readFileSync(CONFIG_PATH, "utf8");
 	let parsed: unknown;
@@ -55,13 +52,9 @@ function loadConfig(): FirecrawlConfig {
 	if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
 		throw new Error(`Invalid config in ${CONFIG_PATH}: expected a JSON object`);
 	}
-	cachedConfig = parsed as FirecrawlConfig;
-	return cachedConfig;
+	return parsed as FirecrawlConfig;
 }
 
-export function clearFirecrawlConfigCache(): void {
-	cachedConfig = null;
-}
 
 function normalizeBaseUrl(value: unknown): string | null {
 	if (typeof value !== "string") return null;

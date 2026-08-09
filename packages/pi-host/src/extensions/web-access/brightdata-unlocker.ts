@@ -27,7 +27,6 @@ interface BrightDataConfig {
 	brightdataUnlockerZone?: unknown;
 }
 
-let cachedConfig: BrightDataConfig | null = null;
 
 // V8's JSON.parse message quotes a slice of the source text around the offending
 // token — `JSON.parse('{"brightdataApiKey": bd-live-abc123}')` reports
@@ -44,10 +43,8 @@ function parseFailureDetail(err: unknown): string {
 }
 
 function loadConfig(): BrightDataConfig {
-	if (cachedConfig) return cachedConfig;
 	if (!existsSync(CONFIG_PATH)) {
-		cachedConfig = {};
-		return cachedConfig;
+		return {};
 	}
 	const raw = readFileSync(CONFIG_PATH, "utf8");
 	let parsed: unknown;
@@ -59,13 +56,9 @@ function loadConfig(): BrightDataConfig {
 	if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
 		throw new Error(`Invalid config in ${CONFIG_PATH}: expected a JSON object`);
 	}
-	cachedConfig = parsed as BrightDataConfig;
-	return cachedConfig;
+	return parsed as BrightDataConfig;
 }
 
-export function clearBrightDataUnlockerConfigCache(): void {
-	cachedConfig = null;
-}
 
 function normalizeZone(value: unknown): string | null {
 	if (typeof value !== "string") return null;

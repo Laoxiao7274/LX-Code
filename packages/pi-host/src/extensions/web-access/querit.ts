@@ -65,13 +65,10 @@ interface QueritSearchOptions extends SearchOptions {
 	includeContent?: boolean;
 }
 
-let cachedConfig: WebSearchConfig | null = null;
 
 function loadConfig(): WebSearchConfig {
-	if (cachedConfig) return cachedConfig;
 	if (!existsSync(CONFIG_PATH)) {
-		cachedConfig = {};
-		return cachedConfig;
+		return {};
 	}
 
 	const raw = readFileSync(CONFIG_PATH, "utf-8");
@@ -85,8 +82,7 @@ function loadConfig(): WebSearchConfig {
 	if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
 		throw new Error(`Invalid config in ${CONFIG_PATH}: expected a JSON object`);
 	}
-	cachedConfig = parsed as WebSearchConfig;
-	return cachedConfig;
+	return parsed as WebSearchConfig;
 }
 
 async function getApiKey(signal?: AbortSignal): Promise<string> {

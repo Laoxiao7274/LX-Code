@@ -53,7 +53,6 @@ interface GitHubCloneConfig {
 
 const cloneCache = new Map<string, CachedClone>();
 
-let cachedConfig: GitHubCloneConfig | null = null;
 
 function normalizeEnabled(value: unknown, fallback: boolean): boolean {
 	return typeof value === "boolean" ? value : fallback;
@@ -85,7 +84,6 @@ function normalizeClonePath(value: unknown, fallback: string): string {
 }
 
 function loadGitHubConfig(): GitHubCloneConfig {
-	if (cachedConfig) return cachedConfig;
 
 	const defaults: GitHubCloneConfig = {
 		enabled: true,
@@ -95,8 +93,7 @@ function loadGitHubConfig(): GitHubCloneConfig {
 	};
 
 	if (!existsSync(CONFIG_PATH)) {
-		cachedConfig = defaults;
-		return cachedConfig;
+		return defaults;
 	}
 
 	const rawText = readFileSync(CONFIG_PATH, "utf-8");
@@ -109,13 +106,12 @@ function loadGitHubConfig(): GitHubCloneConfig {
 	}
 
 	const gc = raw.githubClone ?? {};
-	cachedConfig = {
+	return {
 		enabled: normalizeEnabled(gc.enabled, defaults.enabled),
 		maxRepoSizeMB: normalizePositiveNumber(gc.maxRepoSizeMB, defaults.maxRepoSizeMB),
 		cloneTimeoutSeconds: normalizePositiveNumber(gc.cloneTimeoutSeconds, defaults.cloneTimeoutSeconds),
 		clonePath: normalizeClonePath(gc.clonePath, defaults.clonePath),
 	};
-	return cachedConfig;
 }
 
 const NON_CODE_SEGMENTS = new Set([
@@ -714,5 +710,4 @@ export function clearCloneCache(): void {
 		}
 	}
 	cloneCache.clear();
-	cachedConfig = null;
 }

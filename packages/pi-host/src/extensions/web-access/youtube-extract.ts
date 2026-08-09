@@ -50,13 +50,10 @@ function normalizeEnabled(value: unknown, fallback: boolean): boolean {
 }
 
 const defaults: YouTubeConfig = { enabled: true, preferredModel: "gemini-3.6-flash" };
-let cachedConfig: YouTubeConfig | null = null;
 
 function loadYouTubeConfig(): YouTubeConfig {
-	if (cachedConfig) return cachedConfig;
 	if (!existsSync(CONFIG_PATH)) {
-		cachedConfig = { ...defaults };
-		return cachedConfig;
+		return { ...defaults };
 	}
 
 	const rawText = readFileSync(CONFIG_PATH, "utf-8");
@@ -69,11 +66,10 @@ function loadYouTubeConfig(): YouTubeConfig {
 	}
 
 	const yt = raw.youtube ?? {};
-	cachedConfig = {
+	return {
 		enabled: normalizeEnabled(yt.enabled, defaults.enabled),
 		preferredModel: normalizePreferredModel(yt.preferredModel, defaults.preferredModel),
 	};
-	return cachedConfig;
 }
 
 export function isYouTubeURL(url: string): { isYouTube: boolean; videoId: string | null } {

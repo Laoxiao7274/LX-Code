@@ -38,19 +38,15 @@ interface WebSearchConfig {
 	perplexityApiKey?: unknown;
 }
 
-let cachedConfig: WebSearchConfig | null = null;
 
 function loadConfig(): WebSearchConfig {
-	if (cachedConfig) return cachedConfig;
 	if (!existsSync(CONFIG_PATH)) {
-		cachedConfig = {};
-		return cachedConfig;
+		return {};
 	}
 
 	const content = readFileSync(CONFIG_PATH, "utf-8");
 	try {
-		cachedConfig = JSON.parse(content) as WebSearchConfig;
-		return cachedConfig;
+		return JSON.parse(content) as WebSearchConfig;
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		throw new Error(`Failed to parse ${CONFIG_PATH}: ${message}`);
