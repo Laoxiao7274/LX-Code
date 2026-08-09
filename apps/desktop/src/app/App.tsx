@@ -890,11 +890,14 @@ export function App() {
         unsubTransportError = hostClient.onTransportError(repairTransport);
         hostClient.attach(transport);
 
+        // 兼底:若 host.ready 事件迟迟未到,主动发 hello 连接。首次启动 Host 要预加载
+        // (品牌迁移 + codegraph 索引 + 扩展),通常几秒内发 host.ready 走事件驱动路径连上;
+        // 这里只在事件异常丢失时才抢跑,故给 30s 宽限期,避免和 Host 启动竞争导致 hello timeout。
         window.setTimeout(() => {
           if (!hostClient.getHostInstanceId()) {
             scheduleRecovery(null, "bootstrap hello");
           }
-        }, 1500);
+        }, 30_000);
       } catch (err) {
         if (!cancelled) {
           const message = err instanceof Error ? err.message : String(err);
