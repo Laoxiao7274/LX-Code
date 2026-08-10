@@ -304,6 +304,13 @@ async function main(): Promise<void> {
       error: message,
       stack: reason instanceof Error ? reason.stack : undefined,
     });
+    // 诊断:写崩溃日志到文件(stderr 抓不到)
+    try {
+      const { appendFileSync: ap } = require("node:fs");
+      const { join: jp } = require("node:path");
+      const { homedir: hm } = require("node:os");
+      ap(jp(hm(), ".lxcode", "host-crash.log"), `[unhandledRejection ${new Date().toISOString()}] ${message}\n${reason instanceof Error ? reason.stack : String(reason)}\n\n`);
+    } catch {}
     void server.requestFatalShutdown(
       createHostError("INTERNAL_ERROR", `Unhandled asynchronous failure: ${message}`),
       "unhandled promise rejection",
@@ -314,6 +321,13 @@ async function main(): Promise<void> {
       error: err instanceof Error ? err.message : String(err),
       stack: err instanceof Error ? err.stack : undefined,
     });
+    // 诊断:写崩溃日志
+    try {
+      const { appendFileSync: ap } = require("node:fs");
+      const { join: jp } = require("node:path");
+      const { homedir: hm } = require("node:os");
+      ap(jp(hm(), ".lxcode", "host-crash.log"), `[uncaughtException ${new Date().toISOString()}] ${err instanceof Error ? err.message : String(err)}\n${err instanceof Error ? err.stack : ""}\n\n`);
+    } catch {}
     process.exit(1);
   });
   process.once("SIGINT", () => {
