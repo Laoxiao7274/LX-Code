@@ -4,7 +4,7 @@ import type { WorkspaceGraphFactory } from "./workspace-graph-factory.js";
 import { WorkspaceFileService } from "./workspace-files.js";
 import type { GitService } from "./git-service.js";
 import { ensureGitRepo, ensureAutoBranch } from "./extensions/auto-git/auto-git.js";
-import { indexProjectCodegraph, getCodegraphStatus } from "./extensions/codegraph/codegraph.js";
+import { ensureCodegraphIndexed, getCodegraphStatus } from "./extensions/codegraph/codegraph.js";
 
 export function createWorkspaceHandlers(
   factory: WorkspaceGraphFactory,
@@ -103,11 +103,13 @@ export function createWorkspaceHandlers(
       // 1. 创建本地 git 仓库 + 切隔离分支(auto-git)
       let gitOk = false;
       try { gitOk = await ensureGitRepo(cwd); if (gitOk) gitOk = await ensureAutoBranch(cwd); } catch { /* 静默 */ }
-      // 2. codegraph 建索引
+      // 2. codegraph 索引(幂等:已索引直接复用,不强制重建。避免每次切换都 rm -rf + 全量重扫)
       let codegraphOk = false;
+      let codegraphMessage = "";
       try {
-        const r = await indexProjectCodegraph(cwd);
+        const r = await ensureCodegraphIndexed(cwd);
         codegraphOk = r.ok;
+        codegraphMessage = r.message;
       } catch { /* 静默 */ }
       const messages: string[] = [];
       if (!gitOk) messages.push("git 仓库初始化失败");
@@ -116,7 +118,9 @@ export function createWorkspaceHandlers(
         result: {
           git: gitOk,
           codegraph: codegraphOk,
-          message: messages.length === 0 ? "初始化完成" : messages.join("; "),
+          // 透传 codegraph 的幂等状态("已打开索引"=复用旧索引,"首次索引完成"=新建)。
+          // 前端据此决定是否弹通知:已索引的工作区不弹,避免每次切换都扰。
+          message: messages.length === 0 ? codegraphMessage || "初始化完成" : messages.join("; "),
         },
       };
     },

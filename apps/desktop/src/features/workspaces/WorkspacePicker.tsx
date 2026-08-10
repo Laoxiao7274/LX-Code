@@ -103,11 +103,15 @@ export function WorkspacePicker() {
       );
       if (res.ok) {
         const { git, codegraph, message } = res.result;
-        if (git && codegraph) {
-          pushNotification(t("workspaceInitDone"), "info");
-        } else {
+        // message 含“已打开索引”=幂等命中(切回已访问工作区,未做事),不弹通知扰用户。
+        // 只在首次索引完成 或 部分失败时弹。
+        const alreadyIndexed = typeof message === "string" && message.includes("已打开索引");
+        if (!git || !codegraph) {
           pushNotification(`${t("workspaceInitPartial")}: ${message}`, "warning");
+        } else if (!alreadyIndexed) {
+          pushNotification(t("workspaceInitDone"), "info");
         }
+        // alreadyIndexed 且都 ok:静默,不弹
       } else {
         pushNotification(res.error?.message ?? t("workspaceInitFail"), "warning");
       }
