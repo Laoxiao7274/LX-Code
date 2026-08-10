@@ -1,0 +1,6 @@
+releases/
+data/latest.json
+data/versions.json
+.env
+*.log
+node_modules/
