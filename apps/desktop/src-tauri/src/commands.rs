@@ -25,11 +25,16 @@ pub async fn desktop_settings_patch(
 ) -> Result<DesktopSettings, String> {
     let mut store = state.settings.lock().await;
     let next = store.patch(patch)?;
-    // Propagate agentDir / autoRestart to host manager
-    let mut host = state.host.lock().await;
-    host.set_agent_dir(store.resolved_agent_dir());
-    host.set_auto_restart_once(store.settings.auto_restart_host_once);
-    host.set_initial_workspace(&store);
+    // Pool 模式:同步 agentDir / autoRestart / initialWorkspace 到所有已 spawn 的 host。
+    let mut pool = state.host_pool.lock().await;
+    let hosts: Vec<_> = pool.hosts_iter().cloned().collect();
+    drop(pool);
+    for host in hosts {
+        let mut mgr = host.lock().await;
+        mgr.set_agent_dir(store.resolved_agent_dir());
+        mgr.set_auto_restart_once(store.settings.auto_restart_host_once);
+        mgr.set_initial_workspace(&store);
+    }
     Ok(next)
 }
 
@@ -321,21 +326,51 @@ fn looks_binary_text(text: &str) -> bool {
 }
 
 #[tauri::command]
-pub async fn pi_host_send(state: State<'_, AppState>, line: String) -> Result<(), String> {
-    let mut host = state.host.lock().await;
-    host.send_line(line).await
+pub async fn pi_host_send(state: State<'_, AppState>, line: String, workspace: Option<String>) -> Result<(), String> {
+    // Pool 模式:按 workspace 路由(未指定则用 active host)。
+    let ws = workspace.map(std::path::PathBuf::from);
+    let pool = state.host_pool.lock().await;
+    pool.send_line(line, ws).await
 }
 
 #[tauri::command]
-pub async fn pi_host_restart(state: State<'_, AppState>) -> Result<(), String> {
-    // Holds the host mutex only for spawn/commit, not across the ready-wait.
-    crate::pi_host::start_unlocked(&state.host, crate::pi_host::StartKind::ManualRestart).await
+pub async fn pi_host_restart(state: State<'_, AppState>, workspace: Option<String>) -> Result<(), String> {
+    // Pool 模式:重启指定 workspace 的 host(未指定则 active)。
+    let pool = state.host_pool.lock().await;
+    let active_ws = pool.active_workspace().map(|p| p.to_path_buf());
+    drop(pool);
+    let target = match workspace.map(std::path::PathBuf::from) {
+        Some(ws) => ws,
+        None => active_ws.ok_or("no active host to restart")?,
+    };
+    // 取目标 host(若不存在则先 switch 创建)
+    let mut pool = state.host_pool.lock().await;
+    let settings = state.settings.lock().await;
+    let (_, host) = pool.switch(target, &settings).await?;
+    drop(settings);
+    drop(pool);
+    crate::pi_host::start_unlocked(&host, crate::pi_host::StartKind::ManualRestart).await
 }
 
 #[tauri::command]
 pub async fn pi_host_status(state: State<'_, AppState>) -> Result<bool, String> {
-    let mut host = state.host.lock().await;
-    Ok(host.is_running())
+    let pool = state.host_pool.lock().await;
+    Ok(pool.is_any_running())
+}
+
+/// Pool 模式:切换 active workspace。若该 workspace 的 host 不存在则 spawn。
+/// 返回 (是否首次spawn, canonical workspace path)。
+#[tauri::command]
+pub async fn pi_host_switch_workspace(
+    state: State<'_, AppState>,
+    cwd: String,
+) -> Result<(bool, String), String> {
+    let mut pool = state.host_pool.lock().await;
+    let settings = state.settings.lock().await;
+    let (is_new, _host) = pool.switch(std::path::PathBuf::from(cwd), &settings).await?;
+    drop(settings);
+    let active = pool.active_workspace().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
+    Ok((is_new, active))
 }
 
 #[tauri::command]

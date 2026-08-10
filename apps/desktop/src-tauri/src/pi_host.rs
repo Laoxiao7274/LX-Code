@@ -1,4 +1,5 @@
 use crate::desktop_settings::DesktopSettingsStore;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
@@ -456,9 +457,9 @@ pub struct PiHostManager {
     child: Option<Child>,
     stdin: Option<Arc<Mutex<ChildStdin>>>,
     agent_dir: PathBuf,
-    /// Workspace the Host preloads before announcing ready, so the expensive
-    /// first graph build overlaps WebView/frontend startup.
-    initial_workspace: Option<PathBuf>,
+    /// 该 host 绑定的固定 workspace(Pool 模式:每个 host 进程服务一个 workspace,不再进程内切换)。
+    /// 启动时以 --workspace=<cwd> 传给 host,host 预加载后即固定。
+    workspace: PathBuf,
     /// Restarts performed for the current host epoch (reset after stable ready).
     restart_count: Arc<AtomicU32>,
     auto_restart_once: bool,
@@ -792,12 +793,13 @@ impl Drop for HostChildSession {
 
 impl PiHostManager {
     pub fn new(app: AppHandle, settings: &DesktopSettingsStore) -> Self {
+        // 兼容旧调用:未指定 workspace 时用 initial_workspace_from 兜底(Pool 之外的单例路径)。
         Self {
             app,
             child: None,
             stdin: None,
             agent_dir: settings.resolved_agent_dir(),
-            initial_workspace: Self::initial_workspace_from(settings),
+            workspace: Self::initial_workspace_from(settings).unwrap_or_else(|| PathBuf::from(".")),
             restart_count: Arc::new(AtomicU32::new(0)),
             auto_restart_once: settings.settings.auto_restart_host_once,
             shutting_down: Arc::new(AtomicBool::new(false)),
@@ -827,8 +829,39 @@ impl PiHostManager {
             .map(PathBuf::from)
     }
 
+    /// Pool 模式:创建一个绑定指定 workspace 的 host manager。
+    pub fn new_for_workspace(app: AppHandle, settings: &DesktopSettingsStore, workspace: PathBuf) -> Self {
+        Self {
+            app,
+            child: None,
+            stdin: None,
+            agent_dir: settings.resolved_agent_dir(),
+            workspace,
+            restart_count: Arc::new(AtomicU32::new(0)),
+            auto_restart_once: settings.settings.auto_restart_host_once,
+            shutting_down: Arc::new(AtomicBool::new(false)),
+            last_stderr: Arc::new(Mutex::new(Vec::new())),
+            host_instance_id: None,
+            auto_restart_armed: Arc::new(AtomicBool::new(true)),
+            child_generation: Arc::new(AtomicU32::new(0)),
+            stdout_task: None,
+            stderr_task: None,
+            #[cfg(windows)]
+            windows_job: None,
+            #[cfg(unix)]
+            unix_process_group: None,
+        }
+    }
+
+    /// 该 host 绑定的 workspace(canonical cwd)。
+    pub fn workspace(&self) -> &Path {
+        &self.workspace
+    }
+
     pub fn set_initial_workspace(&mut self, settings: &DesktopSettingsStore) {
-        self.initial_workspace = Self::initial_workspace_from(settings);
+        if let Some(ws) = Self::initial_workspace_from(settings) {
+            self.workspace = ws;
+        }
     }
 
     pub fn set_auto_restart_once(&mut self, v: bool) {
@@ -1041,10 +1074,9 @@ impl PiHostManager {
             cmd.current_dir(&work_dir);
         }
         cmd.arg(format!("--agent-dir={}", agent_dir.display()));
-        if let Some(ws) = self.initial_workspace.as_ref() {
-            if ws.is_dir() {
-                cmd.arg(format!("--initial-cwd={}", ws.display()));
-            }
+        // Pool 模式:host 绑定固定 workspace,以 --workspace 传入(host 预加载后不再进程内切换)。
+        if self.workspace.is_dir() {
+            cmd.arg(format!("--workspace={}", self.workspace.display()));
         }
         cmd.env("PI_CODING_AGENT_DIR", &agent_dir);
         cmd.env("LXCODE_HOST_CACHE_DIR", &host_cache_dir);
@@ -1192,6 +1224,8 @@ impl PiHostManager {
         let auto_restart_once = self.auto_restart_once;
         let app_for_restart = self.app.clone();
         let stdout_generation = Arc::clone(&self.child_generation);
+        // Pool:该 host 绑定的 workspace,用于 stdout 多路复用标记。
+        let workspace_tag = self.workspace.to_string_lossy().to_string();
         #[cfg(unix)]
         let unix_process_group_for_monitor = unix_process_group.clone();
 
@@ -1223,7 +1257,12 @@ impl PiHostManager {
                                 }
                             }
                             let is_hello_response = payload.contains("\"method\":\"system.hello\"");
-                            let emitted = app_out.emit("pi-host-stdout", payload);
+                            // Pool 多路复用:给每条 host 输出打上 workspace 标记,前端按 workspace 分发。
+                            let tagged = serde_json::json!({
+                                "workspace": workspace_tag,
+                                "line": payload,
+                            }).to_string();
+                            let emitted = app_out.emit("pi-host-stdout", tagged);
                             if is_hello_response {
                                 eprintln!(
                                     "[lxcode] system.hello response emitted to WebView: {}",
@@ -1288,23 +1327,26 @@ impl PiHostManager {
                     let _ = app_out.emit(
                         "pi-host-stdout",
                         serde_json::json!({
-                            "protocolVersion": 1,
-                            "event": "host.fatal",
-                            "sequence": 1,
-                            "timestamp": chrono_like_now(),
-                            "hostInstanceId": "00000000-0000-4000-8000-000000000002",
-                            "workspaceId": null,
-                            "workspaceRevision": 0,
-                            "sessionId": null,
-                            "sessionRevision": 0,
-                            "packageRevision": 0,
-                            "payload": {
-                                "error": {
-                                    "code": "INTERNAL_ERROR",
-                                    "message": msg,
-                                    "retryable": will_restart
+                            "workspace": workspace_tag,
+                            "line": serde_json::json!({
+                                "protocolVersion": 1,
+                                "event": "host.fatal",
+                                "sequence": 1,
+                                "timestamp": chrono_like_now(),
+                                "hostInstanceId": "00000000-0000-4000-8000-000000000002",
+                                "workspaceId": null,
+                                "workspaceRevision": 0,
+                                "sessionId": null,
+                                "sessionRevision": 0,
+                                "packageRevision": 0,
+                                "payload": {
+                                    "error": {
+                                        "code": "INTERNAL_ERROR",
+                                        "message": msg,
+                                        "retryable": will_restart
+                                    }
                                 }
-                            }
+                            }).to_string()
                         })
                         .to_string(),
                     );
@@ -1682,7 +1724,7 @@ pub enum StartKind {
 /// and commit phases — never across the (up to 180 s) host.ready wait, so IPC
 /// commands and app exit stay responsive if the sidecar hangs.
 pub async fn start_unlocked(
-    host: &tokio::sync::Mutex<PiHostManager>,
+    host: &Arc<Mutex<PiHostManager>>,
     kind: StartKind,
 ) -> Result<(), String> {
     let pending = {
@@ -1818,4 +1860,141 @@ fn chrono_like_now() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0)
+}
+
+/// Host Pool:按 workspace 管理多个 host 进程,每个 host 绑定一个固定 workspace。
+/// - 切工作区 = 切 active 指针 + 必要时 spawn,不再进程内换血(避免切换出错 fatal)。
+/// - 后台 host 继续跑(agent 不中断),切回秒切。
+/// - LRU 淘汰最久未用的 host(上限 MAX_HOSTS),控内存(每个 idle host ~30-50MB)。
+/// - stdout 多路复用:每个 host 输出带 workspace 标记,前端按 workspace 分发。
+/// daintree/VS Code 均采用此架构(见调研)。
+pub struct PiHostPool {
+    app: AppHandle,
+    /// workspace canonical cwd → host manager。每个 host 绑定一个 workspace。
+    hosts: HashMap<PathBuf, Arc<Mutex<PiHostManager>>>,
+    /// 当前 active workspace(前端的消息发给这个 host)。
+    active: Option<PathBuf>,
+    /// LRU 顺序:最近访问在末尾。超 MAX_HOSTS 淘汰最久未用。
+    lru: std::collections::VecDeque<PathBuf>,
+    /// host 上限(内存安全:idle host ~30-50MB,5 个 ~150-250MB,IDE 标准)。
+    max_hosts: usize,
+}
+
+impl PiHostPool {
+    pub const MAX_HOSTS: usize = 5;
+
+    pub fn new(app: AppHandle) -> Self {
+        Self {
+            app,
+            hosts: HashMap::new(),
+            active: None,
+            lru: std::collections::VecDeque::new(),
+            max_hosts: Self::MAX_HOSTS,
+        }
+    }
+
+    /// 当前 active workspace。
+    pub fn active_workspace(&self) -> Option<&Path> {
+        self.active.as_deref()
+    }
+
+    /// 当前 active host 的 manager(消息路由目标)。
+    pub fn active_host(&self) -> Option<Arc<Mutex<PiHostManager>>> {
+        self.active.as_ref().and_then(|ws| self.hosts.get(ws).cloned())
+    }
+
+    /// 切换 active workspace。若该 workspace 的 host 不存在,spawn 之。
+    /// 返回 (是否首次spawn, active host)。调用方需对返回的 host 执行 hello/rehydrate。
+    pub async fn switch(&mut self, workspace: PathBuf, settings: &DesktopSettingsStore) -> Result<(bool, Arc<Mutex<PiHostManager>>), String> {
+        let key = canonicalize_path(workspace.clone());
+        let is_new = !self.hosts.contains_key(&key);
+        if is_new {
+            // LRU 淘汰:超上限时 shutdown 最久未用的 host
+            while self.hosts.len() >= self.max_hosts {
+                if let Some(evict) = self.lru.front().cloned() {
+                    // 不淘汰当前 active(虽然正在切走,但先保护)
+                    if Some(&evict) == self.active.as_ref() {
+                        // active 在队首说明只有它一个,跳过
+                        break;
+                    }
+                    self.lru.pop_front();
+                    if let Some(host) = self.hosts.remove(&evict) {
+                        let mut mgr = host.lock().await;
+                        mgr.shutdown_for_app_exit().await;
+                    }
+                } else {
+                    break;
+                }
+            }
+            let mgr = PiHostManager::new_for_workspace(self.app.clone(), settings, key.clone());
+            let arc = Arc::new(Mutex::new(mgr));
+            self.hosts.insert(key.clone(), arc);
+        }
+        // 切 active
+        self.active = Some(key.clone());
+        // LRU touch:移到末尾
+        self.lru.retain(|p| p != &key);
+        self.lru.push_back(key.clone());
+        let host = self.hosts.get(&key).cloned().expect("just inserted");
+        Ok((is_new, host))
+    }
+
+    /// 按 workspace 路由发送消息。workspace=None 用 active。
+    pub async fn send_line(&self, line: String, workspace: Option<PathBuf>) -> Result<(), String> {
+        let key = match workspace {
+            Some(ws) => canonicalize_path(ws),
+            None => match &self.active {
+                Some(a) => a.clone(),
+                None => return Err("no active host".into()),
+            },
+        };
+        let host = self.hosts.get(&key).cloned().ok_or_else(|| format!("no host for workspace {key:?}"))?;
+        let mut mgr = host.lock().await;
+        mgr.send_line(line).await
+    }
+
+    /// 关闭所有 host(app 退出用)。
+    pub async fn shutdown_all(&mut self) {
+        let hosts = std::mem::take(&mut self.hosts);
+        self.lru.clear();
+        self.active = None;
+        for (_, host) in hosts {
+            let mut mgr = host.lock().await;
+            mgr.shutdown_for_app_exit().await;
+        }
+    }
+
+    /// 关闭指定 workspace 的 host(workspace 删除/归档时)。
+    pub async fn shutdown_workspace(&mut self, workspace: &Path) {
+        let key = canonicalize_path(workspace.to_path_buf());
+        if let Some(host) = self.hosts.remove(&key) {
+            self.lru.retain(|p| p != &key);
+            if Some(&key) == self.active.as_ref() {
+                self.active = None;
+            }
+            let mut mgr = host.lock().await;
+            mgr.shutdown_for_app_exit().await;
+        }
+    }
+
+    /// 是否有任意 host 在跑(用于状态查询)。
+    pub fn is_any_running(&self) -> bool {
+        // 同步检查 active host 是否在跑(不阻塞)。
+        if let Some(host) = self.active_host() {
+            if let Ok(mut mgr) = host.try_lock() {
+                return mgr.is_running();
+            }
+        }
+        false
+    }
+
+    /// 遍历所有 host(供 settings 同步等)。
+    pub fn hosts_iter(&self) -> impl Iterator<Item = &Arc<Mutex<PiHostManager>>> {
+        self.hosts.values()
+    }
+
+    /// 访问内部 hosts map(供 restart 取指定 host)。
+    pub fn hosts(&self) -> &HashMap<PathBuf, Arc<Mutex<PiHostManager>>> {
+        &self.hosts
+    }
 }

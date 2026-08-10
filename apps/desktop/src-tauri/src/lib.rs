@@ -8,7 +8,7 @@ mod shell_terminal;
 mod system_tray;
 
 use desktop_settings::DesktopSettingsStore;
-use pi_host::PiHostManager;
+use pi_host::PiHostPool;
 use shell_terminal::ShellTerminalManager;
 use tauri::{webview::WebviewWindowBuilder, Emitter, Listener, Manager};
 use tokio::sync::Mutex;
@@ -29,7 +29,7 @@ fn restore_main_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
 
 pub struct AppState {
     pub settings: Mutex<DesktopSettingsStore>,
-    pub host: Mutex<PiHostManager>,
+    pub host_pool: Mutex<pi_host::PiHostPool>,
     pub terminals: Mutex<ShellTerminalManager>,
     pub browsers: Mutex<BrowserSurfaceManager>,
 }
@@ -59,10 +59,10 @@ pub fn run() {
 
             let mut settings = DesktopSettingsStore::load(app.handle())?;
             settings.ensure_default_project_workspace()?;
-            let host = PiHostManager::new(app.handle().clone(), &settings);
+            let host_pool = pi_host::PiHostPool::new(app.handle().clone());
             app.manage(AppState {
                 settings: Mutex::new(settings),
-                host: Mutex::new(host),
+                host_pool: Mutex::new(host_pool),
                 terminals: Mutex::new(ShellTerminalManager::new()),
                 browsers: Mutex::new(BrowserSurfaceManager::new()),
             });
@@ -125,36 +125,44 @@ pub fn run() {
             }
             tauri::async_runtime::spawn(async move {
                 let state = handle.state::<AppState>();
-                // start_unlocked never holds the host mutex across the ready-wait,
-                // so IPC commands and app exit stay responsive during startup.
-                if let Err(e) =
-                    pi_host::start_unlocked(&state.host, pi_host::StartKind::Fresh).await
-                {
-                    eprintln!("[lxcode] failed to start host: {e}");
-                    // Surface to UI as host.fatal so the banner shows the real cause
-                    let _ = handle.emit(
-                        "pi-host-stdout",
-                        serde_json::json!({
-                            "protocolVersion": 1,
-                            "event": "host.fatal",
-                            "sequence": 1,
-                            "timestamp": 0,
-                            "hostInstanceId": "00000000-0000-4000-8000-000000000001",
-                            "workspaceId": null,
-                            "workspaceRevision": 0,
-                            "sessionId": null,
-                            "sessionRevision": 0,
-                            "packageRevision": 0,
-                            "payload": {
-                                "error": {
-                                    "code": "INTERNAL_ERROR",
-                                    "message": e,
-                                    "retryable": true
-                                }
-                            }
-                        })
-                        .to_string(),
-                    );
+                // Pool 模式:首次启动用 initial workspace(default/last)切过去,spawn 对应 host。
+                let settings = state.settings.lock().await;
+                let initial_ws = settings.settings.default_workspace.clone()
+                    .or_else(|| settings.settings.last_workspace.clone());
+                drop(settings);
+                if let Some(ws) = initial_ws {
+                    let ws_path = ws.clone();
+                    let mut pool = state.host_pool.lock().await;
+                    let settings = state.settings.lock().await;
+                    if let Err(e) = pool.switch(ws_path.into(), &settings).await {
+                        eprintln!("[lxcode] failed to start initial host: {e}");
+                        let _ = handle.emit(
+                            "pi-host-stdout",
+                            serde_json::json!({
+                                "workspace": ws,
+                                "line": serde_json::json!({
+                                    "protocolVersion": 1,
+                                    "event": "host.fatal",
+                                    "sequence": 1,
+                                    "timestamp": 0,
+                                    "hostInstanceId": "00000000-0000-4000-8000-000000000001",
+                                    "workspaceId": null,
+                                    "workspaceRevision": 0,
+                                    "sessionId": null,
+                                    "sessionRevision": 0,
+                                    "packageRevision": 0,
+                                    "payload": {
+                                        "error": {
+                                            "code": "INTERNAL_ERROR",
+                                            "message": e,
+                                            "retryable": true
+                                        }
+                                    }
+                                }).to_string()
+                            })
+                            .to_string(),
+                        );
+                    }
                 }
             });
 
@@ -164,37 +172,38 @@ pub fn run() {
                 let handle = handle_ar.clone();
                 tauri::async_runtime::spawn(async move {
                     let state = handle.state::<AppState>();
-                    eprintln!("[lxcode] auto-restarting Host once after crash");
-                    if let Err(e) = pi_host::start_unlocked(
-                        &state.host,
-                        pi_host::StartKind::AutoRestartAfterCrash,
-                    )
-                    .await
-                    {
-                        eprintln!("[lxcode] auto-restart failed: {e}");
-                        let _ = handle.emit(
-                            "pi-host-stdout",
-                            serde_json::json!({
-                                "protocolVersion": 1,
-                                "event": "host.fatal",
-                                "sequence": 1,
-                                "timestamp": 0,
-                                "hostInstanceId": "00000000-0000-4000-8000-000000000003",
-                                "workspaceId": null,
-                                "workspaceRevision": 0,
-                                "sessionId": null,
-                                "sessionRevision": 0,
-                                "packageRevision": 0,
-                                "payload": {
-                                    "error": {
-                                        "code": "INTERNAL_ERROR",
-                                        "message": format!("Auto-restart failed: {e}"),
-                                        "retryable": false
+                    eprintln!("[lxcode] auto-restarting active Host once after crash");
+                    // Pool 模式:重启 active workspace 的 host(崩溃的那个)。
+                    let pool = state.host_pool.lock().await;
+                    let active = pool.active_host();
+                    drop(pool);
+                    if let Some(host) = active {
+                        if let Err(e) = pi_host::start_unlocked(&host, pi_host::StartKind::AutoRestartAfterCrash).await {
+                            eprintln!("[lxcode] auto-restart failed: {e}");
+                            let _ = handle.emit(
+                                "pi-host-stdout",
+                                serde_json::json!({
+                                    "protocolVersion": 1,
+                                    "event": "host.fatal",
+                                    "sequence": 1,
+                                    "timestamp": 0,
+                                    "hostInstanceId": "00000000-0000-4000-8000-000000000003",
+                                    "workspaceId": null,
+                                    "workspaceRevision": 0,
+                                    "sessionId": null,
+                                    "sessionRevision": 0,
+                                    "packageRevision": 0,
+                                    "payload": {
+                                        "error": {
+                                            "code": "INTERNAL_ERROR",
+                                            "message": format!("Auto-restart failed: {e}"),
+                                            "retryable": false
+                                        }
                                     }
-                                }
-                            })
-                            .to_string(),
-                        );
+                                })
+                                .to_string(),
+                            );
+                        }
                     }
                 });
             });
@@ -215,6 +224,7 @@ pub fn run() {
             commands::pi_host_send,
             commands::pi_host_restart,
             commands::pi_host_status,
+            commands::pi_host_switch_workspace,
             commands::shell_terminal_create,
             commands::shell_terminal_profiles,
             commands::shell_terminal_write,
@@ -252,8 +262,8 @@ pub fn run() {
                     let mut terminals = state.terminals.lock().await;
                     terminals.shutdown_all();
                     drop(terminals);
-                    let mut host = state.host.lock().await;
-                    host.shutdown_for_app_exit().await;
+                    let mut host_pool = state.host_pool.lock().await;
+                    host_pool.shutdown_all().await;
                 });
             }
             _ => {}
