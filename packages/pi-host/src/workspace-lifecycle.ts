@@ -210,6 +210,7 @@ export class WorkspaceLifecycle {
     }
 
     let previousGraph: WorkspaceGraph | null = null;
+    let previousIdentity: HostIdentity | null = null;
     try {
       operation.signal.throwIfAborted();
       if (this.sessionRuntimeCache.hasBusySessions()) {
@@ -281,7 +282,7 @@ export class WorkspaceLifecycle {
         return { error: built.error };
       }
 
-      const previousIdentity = server.getIdentity();
+      previousIdentity = server.getIdentity();
       this.context.setGraph(built.graph);
       server.identity.workspaceId = workspaceId;
       server.identity.workspaceRevision = revision;
@@ -300,7 +301,7 @@ export class WorkspaceLifecycle {
         await this.disposeGraph(built.graph);
         if (previousGraph) {
           this.context.setGraph(previousGraph);
-          this.restoreIdentity(server, previousIdentity);
+          this.restoreIdentity(server, previousIdentity!);
           this.resumeGraphProviders(previousGraph);
           server.setPhase("ready");
           server.setLastError(undefined);
@@ -320,8 +321,8 @@ export class WorkspaceLifecycle {
       }
 
       if (previousGraph) await this.retainGraph(previousGraph, operation.signal);
-      if (previousIdentity.sessionId && previousIdentity.sessionId !== server.identity.sessionId) {
-        await this.context.deps.attachmentStore?.discardSessionDrafts(previousIdentity.sessionId);
+      if (previousIdentity!.sessionId && previousIdentity!.sessionId !== server.identity.sessionId) {
+        await this.context.deps.attachmentStore?.discardSessionDrafts(previousIdentity!.sessionId);
       }
       server.setPhase("ready");
       server.setLastError(undefined);
@@ -333,8 +334,51 @@ export class WorkspaceLifecycle {
         ...(built.graph.sessionSnapshot ? { session: built.graph.sessionSnapshot } : {}),
       };
     } catch (err) {
-      if (previousGraph && this.context.getGraph() === previousGraph) {
+      // 对称回滚:与 activateOnce 内层 catch 一致。
+      // 走到这里说明在 setGraph(built.graph)+改 identity 之后、retainGraph/discardSessionDrafts
+      // 等尾步抛错。此时 graph/identity 可能已半改,必须完整恢复,否则永久 mismatch(只能重启 host)。
+      const currentGraph = this.context.getGraph();
+      if (previousGraph && currentGraph === previousGraph) {
+        // 还没 setGraph,只可能 suspend 过 previous 的 providers
         this.resumeGraphProviders(previousGraph);
+      } else if (previousGraph) {
+        // 已 setGraph(built.graph):恢复 graph + identity + providers。
+        // previousIdentity 在 setGraph 后、identity 改写前捕获,这里用来回滚 identity。
+        this.context.setGraph(previousGraph);
+        this.restoreIdentity(server, previousIdentity!);
+        this.resumeGraphProviders(previousGraph);
+        // dispose 半成品 graph,释放它的 extension UI / providers / session 资源
+        try {
+          if (currentGraph && currentGraph !== previousGraph) {
+            await this.disposeGraph(currentGraph);
+          }
+        } catch {
+          /* dispose 失败不掩盖原始错误 */
+        }
+        server.setPhase("ready");
+      } else {
+        // 无 previousGraph(首次切工作区失败):正式提交失败状态,emit 让前端能同步 identity。
+        // 不依赖 try 内变量(它们在 try 作用域不可见),用当前 identity 快照兜底。
+        const fallbackError = createHostError(
+          "WORKSPACE_SWITCH_FAILED",
+          err instanceof Error ? err.message : "Workspace switch cancelled",
+          { retryable: operation.signal.aborted },
+        );
+        try {
+          await this.commitWorkspaceFailure({
+            previousGraph: null,
+            workspaceId: randomUUID(),
+            cwd,
+            canonicalCwd: cwd,
+            revision: server.identity.workspaceRevision + 1,
+            sessionRevision: server.identity.sessionRevision,
+            packageRevision: server.identity.packageRevision + 1,
+            error: fallbackError,
+            signal: operation.signal,
+          });
+        } catch {
+          /* commitWorkspaceFailure 自身失败也不掩盖原始错误 */
+        }
       }
       return {
         error: createHostError(
