@@ -182,7 +182,7 @@ describe("WorkspaceGraphFactory multi-Session routing", () => {
     factory.getSessionOperationLock(session).release("in-flight-prompt");
   });
 
-  it("retains a lock-held idle session as a busy background runtime", () => {
+  it("retains a lock-held idle session as a busy background runtime", async () => {
     const factory = new WorkspaceGraphFactory({} as GraphFactoryDeps);
     const session = fakeSession(true, ACTIVE_SESSION_ID);
     const graph = fakeWorkspaceGraph("C:/workspace", WORKSPACE_ID, session);
@@ -190,7 +190,7 @@ describe("WorkspaceGraphFactory multi-Session routing", () => {
     const extensionUiCleanup = vi.fn();
     expect(factory.getSessionOperationLock(session).tryAcquire("in-flight-prompt")).toBe(true);
 
-    const runtime = factory.retainBusySession(graph, {
+    const runtime = await factory.retainBusySession(graph, {
       sessionId: ACTIVE_SESSION_ID,
       sessionRevision: 4,
       sessionManager: {} as never,
@@ -497,7 +497,7 @@ describe("WorkspaceGraphFactory multi-Session routing", () => {
     }
   });
 
-  it("promotes a lock-held idle background Runtime and disposes the previous idle Session", async () => {
+  it("promotes a lock-held busy background Runtime and retains the previous idle Session", async () => {
     const identity = {
       hostInstanceId: HOST_ID,
       workspaceId: WORKSPACE_ID,
@@ -579,7 +579,10 @@ describe("WorkspaceGraphFactory multi-Session routing", () => {
       expect.objectContaining({ sessionId: BACKGROUND_SESSION_ID, sessionRevision: 6 }),
     );
     expect(replayState).toHaveBeenCalledOnce();
-    expect(foreground.dispose).toHaveBeenCalledTimes(1);
+    // idle foreground 现在保留进 background(LRU 切换缓存),切回可 promote 秒切,不 dispose。
+    expect(foreground.dispose).not.toHaveBeenCalled();
+    expect(graph.backgroundSessions.has(ACTIVE_SESSION_ID)).toBe(true);
+    expect(graph.backgroundSessions.has(BACKGROUND_SESSION_ID)).toBe(false);
     expect(emitted).toEqual([
       "session.snapshot",
       "agent.toolsChanged",

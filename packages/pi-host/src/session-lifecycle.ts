@@ -612,7 +612,7 @@ export async function createSession(
     });
     markStep("buildSessionSnapshot");
 
-    const retainedPrevious = factory.retainBusySession(g, prev);
+    const retainedPrevious = await factory.retainBusySession(g, prev);
 
     // Temporarily commit candidate identity so blocking Extension UI can respond,
     // but do not publish a ready Session until bindExtensions has completed.
@@ -910,7 +910,7 @@ export async function openSession(
 
       const prev = captureActiveSessionState(g, server.identity);
 
-      const retainedPrevious = factory.retainBusySession(g, prev);
+      const retainedPrevious = await factory.retainBusySession(g, prev);
 
       commitActiveSessionState(g, server.identity, {
         sessionManager,

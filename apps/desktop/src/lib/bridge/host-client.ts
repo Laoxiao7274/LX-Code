@@ -14,6 +14,8 @@ import {
 export type HostTransport = {
   send: (line: string, workspace?: string) => void | Promise<void>;
   onMessage: (handler: (line: string) => void) => () => void;
+  /** Pool 模式:通知 transport 当前 active workspace,用于过滤其他 host 的事件。 */
+  setActiveWorkspace?: (ws: string | null) => void;
   /** Tear down transport-owned resources (e.g. native Tauri event listeners). */
   dispose?: () => void;
 };
@@ -68,8 +70,17 @@ export class HostClient {
 
   /** Pool 模式:当前 active workspace(路由发送用)。 */
   private activeWorkspace: string | null = null;
+  /**
+   * Pool 切换 active workspace。切回一个仍存活的 pool host 是合法的重新激活,
+   * 不应被 retiredHostInstanceIds 永久拒绝(该集合为单 host 生命周期模型设计,
+   * 在 Pool 下会把切走时被 B 的 host.ready 标记 retired 的 A 永久拉黑,
+   * 导致 A→B→A 时 hello A 返回 A 的 instance 却抛 "retired Host instance")。
+   * 切换 active 即重新以目标 host 为权威,清空旧的 retired 标记。
+   */
   setActiveWorkspace(ws: string | null): void {
     this.activeWorkspace = ws;
+    this.retiredHostInstanceIds.clear();
+    this.transport?.setActiveWorkspace?.(ws);
   }
 
   detach(reason = "transport detached"): void {

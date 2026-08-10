@@ -25,6 +25,14 @@ import type { BackgroundSessionRuntime, WorkspaceGraph } from "./workspace-graph
 
 export const SESSION_DISPOSAL_STEP_TIMEOUT_MS = 15_000;
 
+/**
+ * 每个 workspace graph 最多保留的 idle session runtime 数(LRU 切换缓存)。
+ * 切换 session 时旧 idle session 保留到 backgroundSessions,切回时 promote 秒切
+ * (跳过 createAgentSession + resourceLoader.reload —— session.open 的主要耗时)。
+ * 超限淘汰最旧 idle(busy session 始终保留,不淘汰)。
+ */
+export const MAX_RETAINED_IDLE_SESSIONS = 3;
+
 type DisposalStepResult =
   { status: "completed" } | { status: "failed"; error: unknown } | { status: "timed_out" };
 
@@ -300,19 +308,32 @@ export class SessionRuntimeCache {
     }
   }
 
-  retainBusySession(
+  /**
+   * 切换 session 时保留旧 session runtime 到 backgroundSessions。
+   * - busy session 始终保留(切回时 agent 还在跑,不能 dispose)。
+   * - idle session 也保留(有限 LRU),切回时 promote 秒切(跳过 createAgentSession +
+   *   resourceLoader.reload,这俩是 session.open 的主要耗时)。
+   * 超过 MAX_RETAINED_IDLE_SESSIONS 时淘汰最旧 idle background(Map 插入顺序 = LRU)。
+   */
+  async retainBusySession(
     graph: WorkspaceGraph,
     previous: ActiveSessionState,
-  ): BackgroundSessionRuntime | null {
+  ): Promise<BackgroundSessionRuntime | null> {
     if (
       !previous.sessionId ||
       !previous.sessionManager ||
       !previous.agentSession ||
       !previous.resourceLoader ||
-      !previous.sessionSnapshot ||
-      !this.isSessionBusy(previous.agentSession)
+      !previous.sessionSnapshot
     ) {
       return null;
+    }
+    const isBusy = this.isSessionBusy(previous.agentSession);
+    if (!isBusy) {
+      const idleCount = this.countIdleBackgroundSessions(graph);
+      if (idleCount >= MAX_RETAINED_IDLE_SESSIONS) {
+        await this.evictOldestIdleBackground(graph);
+      }
     }
     const runtime: BackgroundSessionRuntime = {
       sessionId: previous.sessionId,
@@ -331,6 +352,24 @@ export class SessionRuntimeCache {
     };
     graph.backgroundSessions.set(runtime.sessionId, runtime);
     return runtime;
+  }
+
+  private countIdleBackgroundSessions(graph: WorkspaceGraph): number {
+    let count = 0;
+    for (const runtime of graph.backgroundSessions.values()) {
+      if (!this.isSessionBusy(runtime.agentSession)) count += 1;
+    }
+    return count;
+  }
+
+  private async evictOldestIdleBackground(graph: WorkspaceGraph): Promise<void> {
+    // Map 保持插入顺序 = LRU;淘汰第一个 idle background(busy 不淘汰)。
+    for (const runtime of graph.backgroundSessions.values()) {
+      if (!this.isSessionBusy(runtime.agentSession)) {
+        await this.disposeBackgroundRuntime(graph, runtime);
+        return;
+      }
+    }
   }
 
   async disposeBackgroundSessionRuntimeIfIdle(
@@ -376,7 +415,7 @@ export class SessionRuntimeCache {
     }
 
     const previous = captureActiveSessionState(graph, server.identity);
-    const retainedPrevious = this.retainBusySession(graph, previous);
+    const retainedPrevious = await this.retainBusySession(graph, previous);
     graph.backgroundSessions.delete(runtime.sessionId);
     const sessionRevision = server.identity.sessionRevision + 1;
     const promotedIdentity: HostIdentity = {

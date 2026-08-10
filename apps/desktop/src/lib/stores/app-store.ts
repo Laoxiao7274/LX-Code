@@ -144,7 +144,7 @@ export type SettingsSection = "general" | "shortcuts" | "providers" | "usecases"
  * 各 UI 处收到 STALE_REVISION 时经 store.requestRecovery() 调用,不弹错误而是重连。
  * 用模块变量而非 state,避免无谓的重渲染(handler 不影响视图)。
  */
-let recoveryHandler: ((reason: string) => void) | null = null;
+let recoveryHandler: ((reason: string, targetHostId?: string | null) => void) | null = null;
 
 export type AppState = EpochState & {
   page: NavPage;
@@ -259,10 +259,15 @@ export type AppState = EpochState & {
   setConnecting: (v: boolean) => void;
   setRehydrating: (v: boolean) => void;
   markDesynchronized: (reason: string) => void;
-  /** 触发 Host recovery(重新 hello + rehydrate)。App.tsx 启动时注册实现。 */
-  requestRecovery: (reason: string) => void;
+  /** 触发 Host recovery(重新 hello + rehydrate)。App.tsx 启动时注册实现。
+   *  targetHostId 传 null 表示 “bootstrap”:接受任意 host identity(用于 Pool 切工作区——
+   *  目标 host 可能是刚 spawn 的新进程,也可能是池里已存活的旧进程,旧 instanceId
+   *  在 hostClient 里尚未更新,传 null 绕过 expectedHostId 校验)。不传则用当前 hostClient id。n   */
+  requestRecovery: (reason: string, targetHostId?: string | null) => void;
   /** 注册/清除真实的 recovery 触发器(App.tsx 拥有 scheduleRecovery)。 */
-  setRecoveryHandler: (handler: ((reason: string) => void) | null) => void;
+  setRecoveryHandler: (
+    handler: ((reason: string, targetHostId?: string | null) => void) | null,
+  ) => void;
   noteSequence: (sequence: number) => "apply" | "drop" | "gap";
   completeRehydrate: (snap: {
     host?: HostStatusSnapshot | null;
@@ -930,8 +935,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ ...next });
   },
 
-  requestRecovery: (reason) => {
-    recoveryHandler?.(reason);
+  requestRecovery: (reason, targetHostId) => {
+    recoveryHandler?.(reason, targetHostId);
   },
   setRecoveryHandler: (handler) => {
     recoveryHandler = handler;

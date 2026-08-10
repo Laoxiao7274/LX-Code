@@ -1,6 +1,19 @@
 import type { HostTransport } from "./host-client";
 
 /**
+ * 归一化 workspace 路径用于比较:小写 + 正斜杠 + 去掉 \\?\ verbatim 前缀。
+ * Rust 侧 workspace_tag = canonicalize_path(stripped),前端 activeWorkspace 可能来自
+ * settings 原始路径或 Rust 返回的 canonical,两者形式可能不同(C:\ vs C:/、大小写),
+ * 归一化后才能稳定匹配。
+ */
+function normalizeWorkspace(ws: string): string {
+  let s = ws;
+  if (s.startsWith("\\\\?\\")) s = s.slice(4);
+  if (s.startsWith("\\\\?\\UNC\\")) s = "\\\\" + s.slice(8);
+  return s.replace(/\\\\/g, "/").toLowerCase();
+}
+
+/**
  * Tauri IPC transport. Falls back to a mock for browser-only Vite dev
  * when Tauri APIs are unavailable.
  */
@@ -9,20 +22,32 @@ export async function createTauriTransport(): Promise<HostTransport> {
   if (!isTauri()) return createMockTransport();
 
   const { listen } = await import("@tauri-apps/api/event");
-  // Pool 多路复用:host 输出带 workspace 标记 {workspace, line}。解包后按 workspace 分发。
-  // 未带标记的(旧格式)按 active 处理。
+  // Pool 多路复用:host 输出带 workspace 标记 {workspace, line}。
+  // 关键:只把 active workspace 的行喂给 hostClient,其余 host(预热/切走的)的事件丢弃。
+  // 否则预热 host 的 host.ready 会顶替 active host 的 hostInstanceId → hello 不匹配。
   const handlers = new Set<(line: string) => void>();
+  let activeWorkspace: string | null = null;
 
   const unlistenStdout = await listen<string>("pi-host-stdout", (event) => {
     let payload = event.payload;
+    let lineWorkspace: string | null = null;
     try {
       const parsed = JSON.parse(payload);
       if (parsed && typeof parsed === "object" && "line" in parsed && "workspace" in parsed) {
+        lineWorkspace = typeof parsed.workspace === "string" ? parsed.workspace : null;
         payload = parsed.line;
-        // workspace 标记可用于后续按 host 路由响应,这里先透传 line(hostClient 按 id 匹配)。
       }
     } catch {
       /* 非 JSON(如 fatal 合成),原样透传 */
+    }
+    // active 未设(启动初期)时全部放行(只有一个 host,不会冲突);
+// 一旦设了 active,只放行匹配的 host,过滤掉预热/切走 host 的事件。
+    if (
+      lineWorkspace !== null &&
+      activeWorkspace !== null &&
+      normalizeWorkspace(lineWorkspace) !== normalizeWorkspace(activeWorkspace)
+    ) {
+      return;
     }
     for (const h of handlers) h(payload);
   });
@@ -34,6 +59,9 @@ export async function createTauriTransport(): Promise<HostTransport> {
   return {
     send: async (line: string, workspace?: string) => {
       await invoke("pi_host_send", { line, workspace: workspace ?? null });
+    },
+    setActiveWorkspace: (ws) => {
+      activeWorkspace = ws;
     },
     onMessage: (handler) => {
       handlers.add(handler);

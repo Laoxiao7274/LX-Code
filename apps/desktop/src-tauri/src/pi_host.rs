@@ -1953,6 +1953,29 @@ impl PiHostPool {
         mgr.send_line(line).await
     }
 
+    /// 预热:为指定 workspace 创建 host manager 但**不**改变 active 指针。
+    /// 用于启动时提前把常用 workspace 的 host 起好,切换时秒切(无 spawn 等待、无 host.ready 竞态)。
+    /// 已在池里/达上限时不创建(不淘汰现有 host)。返回新建的 host 供调用方 start_unlocked。
+    pub async fn prewarm(
+        &mut self,
+        workspace: PathBuf,
+        settings: &DesktopSettingsStore,
+    ) -> Option<Arc<Mutex<PiHostManager>>> {
+        let key = canonicalize_path(workspace);
+        if self.hosts.contains_key(&key) {
+            return None;
+        }
+        if self.hosts.len() >= self.max_hosts {
+            return None;
+        }
+        let mgr = PiHostManager::new_for_workspace(self.app.clone(), settings, key.clone());
+        let arc = Arc::new(Mutex::new(mgr));
+        self.hosts.insert(key.clone(), arc.clone());
+        self.lru.retain(|p| p != &key);
+        self.lru.push_back(key);
+        Some(arc)
+    }
+
     /// 关闭所有 host(app 退出用)。
     pub async fn shutdown_all(&mut self) {
         let hosts = std::mem::take(&mut self.hosts);

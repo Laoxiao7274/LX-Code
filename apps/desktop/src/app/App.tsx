@@ -836,10 +836,18 @@ export function App() {
           });
         };
 
-        const requestRecovery = (reason: string) => {
+        const requestRecovery = (reason: string, targetHostId?: string | null) => {
           cancelAgentEvents();
           useAppStore.getState().markDesynchronized(reason);
-          scheduleRecovery(hostClient.getHostInstanceId(), reason);
+          // targetHostId=null → “bootstrap”:接受任意 host identity(Pool 切工作区用)。
+          // 不传(undefined)则用 hostClient 当前 id(STALE_REVISION 等同 host 恢复用)。
+          // 注意不能用 `??`:null ?? live === live(null 被当 nullish 吞掉),
+          // 会导致切回时 scheduleRecovery(旧 live id) 与新 host hello 不匹配
+          // → "Host generation changed during hello"。必须显式区分 undefined。
+          scheduleRecovery(
+            targetHostId !== undefined ? targetHostId : hostClient.getHostInstanceId(),
+            reason,
+          );
         };
         // 暴露给各 UI(store.requestRecovery):收到 STALE_REVISION 时重连而非弹错。
         useAppStore.getState().setRecoveryHandler(requestRecovery);
@@ -891,6 +899,15 @@ export function App() {
         });
         unsubTransportError = hostClient.onTransportError(repairTransport);
         hostClient.attach(transport);
+        // Pool 模式:启动时告知 transport 当前 active workspace(初始 = default/last),
+        // 这样预热的其他 workspace host 的事件会被过滤,不会顶替初始 host 的 identity。
+        // 用 Rust 返回的 canonical 路径最理想,但启动时还没切过,这里用 settings 原始路径,
+        // transport 侧归一化比较容忍 C:\ vs C:/ 和大小写差异。
+        {
+          const cfg = useAppStore.getState().desktopSettings;
+          const initialWs = cfg?.defaultWorkspace ?? cfg?.lastWorkspace ?? null;
+          hostClient.setActiveWorkspace(initialWs);
+        }
 
         // 兼底:若 host.ready 事件迟迟未到,主动发 hello 连接。首次启动 Host 要预加载
         // (品牌迁移 + codegraph 索引 + 扩展),通常几秒内发 host.ready 走事件驱动路径连上;

@@ -129,12 +129,32 @@ pub fn run() {
                 let settings = state.settings.lock().await;
                 let initial_ws = settings.settings.default_workspace.clone()
                     .or_else(|| settings.settings.last_workspace.clone());
+                let known_workspaces = settings.settings.known_workspaces.clone();
                 drop(settings);
+
+                // initial host 先起(用户等这个 ready),ready 后再 prewarm 其他 workspace。
+                // 之前 prewarm 与 initial 并发,3 个 host 进程同时 bootstrap(assertNodeModulesGraph
+                // ~500ms 各)+ import host-main(~1.5s 各)+ graph build,磁盘 IO/CPU 抢占让
+                // initial 变慢。串行:initial 独占 → 快 ready,prewarm 后台起。
                 if let Some(ws) = initial_ws {
                     let ws_path = ws.clone();
-                    let mut pool = state.host_pool.lock().await;
-                    let settings = state.settings.lock().await;
-                    if let Err(e) = pool.switch(ws_path.into(), &settings).await {
+                    let switch_result = {
+                        let mut pool = state.host_pool.lock().await;
+                        let settings = state.settings.lock().await;
+                        pool.switch(ws_path.into(), &settings).await
+                    };
+                    let start_err = match switch_result {
+                        Ok((_is_new, host)) => {
+                            crate::pi_host::start_unlocked(
+                                &host,
+                                crate::pi_host::StartKind::Fresh,
+                            )
+                            .await
+                            .err()
+                        }
+                        Err(e) => Some(e),
+                    };
+                    if let Some(e) = start_err {
                         eprintln!("[lxcode] failed to start initial host: {e}");
                         let _ = handle.emit(
                             "pi-host-stdout",
@@ -162,7 +182,71 @@ pub fn run() {
                             })
                             .to_string(),
                         );
+                    } else {
+                        eprintln!("[lxcode] initial host ready: {ws}");
                     }
+                    // initial ready 后再 prewarm 其他 workspace(后台,不抢 initial 的 CPU/IO)。
+                    // 用户原话“工作区有几个就提前开好”。顺序 spawn(不并发,避免抢 CPU),
+                    // 上限 MAX_HOSTS(含 initial),跳过不存在的目录与 initial workspace。
+                    let handle_pw = handle.clone();
+                    let initial_ws_pw = ws.clone();
+                    tauri::async_runtime::spawn(async move {
+                        let state = handle_pw.state::<AppState>();
+                        for other in known_workspaces {
+                            if other == initial_ws_pw {
+                                continue;
+                            }
+                            let path = std::path::PathBuf::from(&other);
+                            if !path.is_dir() {
+                                continue;
+                            }
+                            let prewarm = {
+                                let mut pool = state.host_pool.lock().await;
+                                let settings = state.settings.lock().await;
+                                pool.prewarm(path.clone(), &settings).await
+                            };
+                            if let Some(host) = prewarm {
+                                if let Err(e) = pi_host::start_unlocked(
+                                    &host,
+                                    pi_host::StartKind::Fresh,
+                                )
+                                .await
+                                {
+                                    eprintln!("[lxcode] prewarm host failed for {other}: {e}");
+                                } else {
+                                    eprintln!("[lxcode] prewarm host ready: {other}");
+                                }
+                            }
+                        }
+                    });
+                } else {
+                    let handle_pw = handle.clone();
+                    tauri::async_runtime::spawn(async move {
+                        let state = handle_pw.state::<AppState>();
+                        for other in known_workspaces {
+                            let path = std::path::PathBuf::from(&other);
+                            if !path.is_dir() {
+                                continue;
+                            }
+                            let prewarm = {
+                                let mut pool = state.host_pool.lock().await;
+                                let settings = state.settings.lock().await;
+                                pool.prewarm(path.clone(), &settings).await
+                            };
+                            if let Some(host) = prewarm {
+                                if let Err(e) = pi_host::start_unlocked(
+                                    &host,
+                                    pi_host::StartKind::Fresh,
+                                )
+                                .await
+                                {
+                                    eprintln!("[lxcode] prewarm host failed for {other}: {e}");
+                                } else {
+                                    eprintln!("[lxcode] prewarm host ready: {other}");
+                                }
+                            }
+                        }
+                    });
                 }
             });
 

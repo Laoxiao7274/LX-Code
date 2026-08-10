@@ -44,6 +44,39 @@ export function replaceKnownWorkspace(
 // Stable fallback: a fresh [] per render makes the zustand selector loop.
 const NO_WORKSPACES: string[] = [];
 
+// 模块级:已初始化(git+codegraph)的 workspace canonical 路径集合。
+// 与 host spawn 时机解耦:prewarm 会在启动时把 host 进池但不跑 initialize,
+// 真正的 initialize 在首次用户访问时触发。进程生命周期内有效(重启重置)。
+const initializedWorkspaces = new Set<string>();
+
+/**
+ * Pool 模式切换后,store.host / store.workspace 仍是旧 host(A)的 identity,
+ * 直到 recovery 完成 hello + beginHostEpoch + completeRehydrate 才更新为新 host(B)。
+ * 在此之前任何用 store.host.hostInstanceId 发出的请求都会带 A 的 id 却路由到 B
+ * → host B 判 STALE_REVISION "expectedHostInstanceId does not match"。
+ * 本函数等到 store 的 host/workspace 与 hostClient 的 live identity 一致且不再
+ * connecting/rehydrating,才放行后续请求(如 workspace.initialize)。
+ * recovery 失败(hostFatal 置位)或超时则放弃,调用方自行降级。
+ */
+async function waitForHostEpochSettled(cwd: string, timeoutMs = 60_000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const s = useAppStore.getState();
+    if (s.hostFatal) return false;
+    const liveHostId = hostClient.getHostInstanceId();
+    if (
+      !s.connecting &&
+      !s.rehydrating &&
+      s.host?.hostInstanceId === liveHostId &&
+      s.workspace?.canonicalCwd === cwd
+    ) {
+      return true;
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return false;
+}
+
 export function WorkspacePicker() {
   const t = useT();
   const host = useAppStore((s) => s.host);
@@ -133,21 +166,33 @@ export function WorkspacePicker() {
       // Pool 模式:切工作区 = 调 Rust 侧 pi_host_switch_workspace(spawn/切 active host),
       // 再触发 recovery 重新 hello/rehydrate 新 host(复用现有重连流程)。
       const { invoke } = await import("@tauri-apps/api/core");
-      const [is_new] = await invoke<[boolean, string]>("pi_host_switch_workspace", { cwd });
+      const [is_new, canonicalCwd] = await invoke<[boolean, string]>("pi_host_switch_workspace", { cwd });
       if (
         request !== requestRef.current ||
         !isCurrentRequestGeneration(useAppStore.getState().host, generation)
       ) {
         return;
       }
-      // 路由切换到新 workspace
-      hostClient.setActiveWorkspace(cwd);
-      // 触发 recovery:重新 hello 新 host + rehydrate。这会走 scheduleRecovery 流程,
-      // 拿到新 host 的 workspace/session 状态并更新 store。
-      useAppStore.getState().requestRecovery(`workspace switch to ${cwd}`);
-      // 首次切到该工作区:初始化 git + codegraph(后台,不阻断)
-      if (is_new) {
-        await initializeWorkspace(cwd);
+      // 路由切换到新 workspace(用 Rust 返回的 canonical 路径,与 host stdout 的
+      // workspace 标记同源,transport 过滤才能稳定匹配)。
+      hostClient.setActiveWorkspace(canonicalCwd);
+      // 触发 recovery:重新 hello 新 host + rehydrate。targetHostId=null 表示 “bootstrap”,
+      // 接受新 active host 的 identity(无论刚 spawn 的新进程还是池里已存活的旧进程),
+      // 避免用旧 hostClient.getHostInstanceId() 与新 host 的 hello 不匹配
+      // → "Host generation changed during hello" → recovery 彻底失败。
+      useAppStore.getState().requestRecovery(`workspace switch to ${cwd}`, null);
+      // 首次「用户访问」该工作区时初始化 git + codegraph(后台,不阻断)。
+      // 不能用 is_new 判:prewarm 会让 host 在启动时就进池,首次用户切换 is_new=false,
+      // 但 git/codegraph 还没跑。用模块级 Set 跟踪「已初始化」,与 spawn 时机解耦。
+      // 必须等 recovery 把 store 更新到新 host(B)/新 workspace 后再发 initialize,
+      // 否则 store.host 还是旧 host(A),workspace.initialize 带 A 的 expectedHostInstanceId
+      // 路由到新 host B → STALE_REVISION "expectedHostInstanceId does not match"。
+      if (!initializedWorkspaces.has(canonicalCwd)) {
+        const settled = await waitForHostEpochSettled(canonicalCwd);
+        if (settled) {
+          await initializeWorkspace(canonicalCwd);
+          initializedWorkspaces.add(canonicalCwd);
+        }
       }
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);

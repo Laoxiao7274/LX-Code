@@ -360,16 +360,37 @@ pub async fn pi_host_status(state: State<'_, AppState>) -> Result<bool, String> 
 
 /// Pool 模式:切换 active workspace。若该 workspace 的 host 不存在则 spawn。
 /// 返回 (是否首次spawn, canonical workspace path)。
+///
+/// 修复:原先只调 pool.switch(创建 manager)但从不 start_unlocked,host 进程根本没起,
+/// hello 必然撞到 "host not running" → 走 error/retry/repairTransport 才由 pi_host_restart
+/// 真正 spawn,每次首访都要绕一大圈(慢)。现在显式 spawn 并等 host.ready 再返回,
+/// 前端 hello 即时成功。复用已存活 host(is_new=false 且在跑)则秒切。
 #[tauri::command]
 pub async fn pi_host_switch_workspace(
     state: State<'_, AppState>,
     cwd: String,
 ) -> Result<(bool, String), String> {
-    let mut pool = state.host_pool.lock().await;
-    let settings = state.settings.lock().await;
-    let (is_new, _host) = pool.switch(std::path::PathBuf::from(cwd), &settings).await?;
-    drop(settings);
-    let active = pool.active_workspace().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
+    let (is_new, host) = {
+        let mut pool = state.host_pool.lock().await;
+        let settings = state.settings.lock().await;
+        pool.switch(std::path::PathBuf::from(cwd), &settings).await?
+        // settings + pool 在此 drop,避免持锁跨 start_unlocked(最长 180s)阻塞所有 pool 命令
+    };
+    // 首次切到该 workspace,或 pool 里该 host 已死亡(上次崩溃遗留):都需 spawn。
+    // is_new 时 child 必为 None,is_running() 必 false;复用且存活时跳过 → 秒切。
+    let needs_start = {
+        let mut mgr = host.lock().await;
+        !mgr.is_running()
+    };
+    if needs_start {
+        crate::pi_host::start_unlocked(&host, crate::pi_host::StartKind::Fresh).await?;
+    }
+    let active = {
+        let pool = state.host_pool.lock().await;
+        pool.active_workspace()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default()
+    };
     Ok((is_new, active))
 }
 

@@ -288,10 +288,10 @@ export class WorkspaceGraphFactory {
   }
 
   /** @internal — session-lifecycle module */
-  retainBusySession(
+  async retainBusySession(
     graph: WorkspaceGraph,
     previous: ActiveSessionState,
-  ): BackgroundSessionRuntime | null {
+  ): Promise<BackgroundSessionRuntime | null> {
     return this.sessionRuntimeCache.retainBusySession(graph, previous);
   }
 

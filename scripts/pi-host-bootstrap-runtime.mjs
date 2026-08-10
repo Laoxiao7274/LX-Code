@@ -85,13 +85,13 @@ function validateCache(cacheDir, expectedMarker, expectedGraph) {
     const entry = join(runtimeDir, "host-main.js");
     const nodeModulesDir = join(cacheDir, "node_modules");
     if (!existsSync(entry) || !existsSync(nodeModulesDir)) return null;
-    const releasePackage = readJson(join(runtimeDir, "package.json"), "cached Host package");
-    assertNodeModulesGraph(
-      nodeModulesDir,
-      releasePackage.dependencies,
-      expectedGraph,
-      "cached release node_modules",
-    );
+    // 跳过 assertNodeModulesGraph:READY.json 的三个 hash(nodeModulesZip/Links/Graph)
+    // 全匹配已证明打包产物未变,node_modules 从该 zip 解出,graph 不会变。
+    // 每次启动遍历几百个包(realpathSync+readFileSync+JSON.parse)要 ~500ms,
+    // 3 个 host 进程并发启动时磁盘 IO 抢占更甚。跳过后每个进程省 ~500ms。
+    // install 块里有一次 assertNodeModulesGraph 确保解 zip 正确(首次/更新才跑),
+    // 日常启动走这里(READY.json 匹配)直接信任。node_modules 若真损坏,host
+    // import 会失败报错,自然兜底。
     return entry;
   } catch {
     return null;
