@@ -14,6 +14,34 @@ export function createWorkspaceHandlers(
   return {
     "workspace.setCurrent": async (ctx) => {
       const params = ctx.params as { cwd: string };
+      // === 诊断:记录每次 setCurrent 的 expected vs actual identity ===
+      try {
+        const server0 = factory.getServer();
+        const id0 = server0?.identity;
+        const diag = {
+          ts: new Date().toISOString(),
+          requestId: ctx.id,
+          targetCwd: params.cwd,
+          expected: {
+            hostInstanceId: ctx.context.expectedHostInstanceId,
+            workspaceId: ctx.context.expectedWorkspaceId,
+            workspaceRevision: ctx.context.expectedWorkspaceRevision,
+          },
+          actual: id0 ? {
+            hostInstanceId: id0.hostInstanceId,
+            workspaceId: id0.workspaceId,
+            workspaceRevision: id0.workspaceRevision,
+          } : null,
+        };
+        const { appendFileSync } = await import("node:fs");
+        const { join: joinP } = await import("node:path");
+        const { homedir } = await import("node:os");
+        const logPath = joinP(homedir(), ".lxcode", "setCurrent-debug.log");
+        appendFileSync(logPath, JSON.stringify(diag) + "\n");
+      } catch {
+        /* 诊断日志失败不影业务 */
+      }
+      // === 诊断结束 ===
       // First setCurrent uses expectedWorkspaceId=null, revision 0
       const stale = factory.checkIdentity(ctx.context, { requireWorkspace: true });
       // Allow initial: expectedWorkspaceId null and revision 0 when no workspace yet
@@ -35,6 +63,12 @@ export function createWorkspaceHandlers(
           return { error: createHostError("STALE_REVISION", "Host instance mismatch") };
         }
       } else if (stale) {
+        try {
+          const { appendFileSync: ap } = await import("node:fs");
+          const { join: jp } = await import("node:path");
+          const { homedir: hm } = await import("node:os");
+          ap(jp(hm(), ".lxcode", "setCurrent-debug.log"), `MISMATCH RETURN: ${JSON.stringify(stale)}\n`);
+        } catch {}
         return { error: stale };
       }
 
