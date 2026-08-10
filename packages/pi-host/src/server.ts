@@ -450,6 +450,18 @@ export class PiHostServer {
             logger.error("Rejected invalid atomic rehydrate snapshot", {
               validation: validation.error.message,
             });
+            // 诊断:把校验失败详情写文件,便于定位(同步写,避免 async 上下文问题)
+            try {
+              const { appendFileSync: ap } = require("node:fs");
+              const { join: jp } = require("node:path");
+              const { homedir: hm } = require("node:os");
+              const diag = {
+                ts: new Date().toISOString(),
+                validationError: validation.error.message,
+                result: JSON.parse(JSON.stringify(result)),
+              };
+              ap(jp(hm(), ".lxcode", "rehydrate-debug.log"), JSON.stringify(diag, null, 2) + "\n");
+            } catch {}
             return createFailureResponse(
               identity,
               id,
