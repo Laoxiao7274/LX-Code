@@ -86,13 +86,18 @@ export function WorkspacePicker() {
 
   // 初始化项目:创建本地 git 仓库 + codegraph 建索引,完成后才能对话
   async function initializeWorkspace(cwd: string) {
-    if (!host) return;
+    // 必须从 store 动态取最新 host/workspace,不能用闭包变量(host/workspace 是组件 render 时的旧值)。
+    // switchTo 在 setCurrent 成功后才调本函数,此时 host identity 已是新工作区,但闭包变量还是旧的
+    // → workspace.initialize 带 stale expectedWorkspaceId 会触发 'Workspace id mismatch'。
     const store = useAppStore.getState();
+    const currentHost = store.host;
+    const currentWorkspace = store.workspace;
+    if (!currentHost) return;
     store.setWorkspaceInitializing(true, t("workspaceInitializing"));
     try {
       const res = await hostClient.request(
         "workspace.initialize",
-        workspaceContext(host, workspace),
+        workspaceContext(currentHost, currentWorkspace),
         null,
         120_000,
       );
