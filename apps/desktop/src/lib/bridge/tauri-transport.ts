@@ -9,10 +9,22 @@ export async function createTauriTransport(): Promise<HostTransport> {
   if (!isTauri()) return createMockTransport();
 
   const { listen } = await import("@tauri-apps/api/event");
+  // Pool 多路复用:host 输出带 workspace 标记 {workspace, line}。解包后按 workspace 分发。
+  // 未带标记的(旧格式)按 active 处理。
   const handlers = new Set<(line: string) => void>();
 
   const unlistenStdout = await listen<string>("pi-host-stdout", (event) => {
-    for (const h of handlers) h(event.payload);
+    let payload = event.payload;
+    try {
+      const parsed = JSON.parse(payload);
+      if (parsed && typeof parsed === "object" && "line" in parsed && "workspace" in parsed) {
+        payload = parsed.line;
+        // workspace 标记可用于后续按 host 路由响应,这里先透传 line(hostClient 按 id 匹配)。
+      }
+    } catch {
+      /* 非 JSON(如 fatal 合成),原样透传 */
+    }
+    for (const h of handlers) h(payload);
   });
 
   const unlistenStderr = await listen<string>("pi-host-stderr", (event) => {
@@ -20,8 +32,8 @@ export async function createTauriTransport(): Promise<HostTransport> {
   });
 
   return {
-    send: async (line: string) => {
-      await invoke("pi_host_send", { line });
+    send: async (line: string, workspace?: string) => {
+      await invoke("pi_host_send", { line, workspace: workspace ?? null });
     },
     onMessage: (handler) => {
       handlers.add(handler);

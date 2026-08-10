@@ -12,7 +12,7 @@ import {
 } from "@lxcode/protocol";
 
 export type HostTransport = {
-  send: (line: string) => void | Promise<void>;
+  send: (line: string, workspace?: string) => void | Promise<void>;
   onMessage: (handler: (line: string) => void) => () => void;
   /** Tear down transport-owned resources (e.g. native Tauri event listeners). */
   dispose?: () => void;
@@ -64,6 +64,12 @@ export class HostClient {
     this.transport = transport;
     this.detached = false;
     this.disposeTransport = transport.onMessage((line) => this.handleLine(line));
+  }
+
+  /** Pool 模式:当前 active workspace(路由发送用)。 */
+  private activeWorkspace: string | null = null;
+  setActiveWorkspace(ws: string | null): void {
+    this.activeWorkspace = ws;
   }
 
   detach(reason = "transport detached"): void {
@@ -226,7 +232,7 @@ export class HostClient {
         timer,
         method,
       });
-      void Promise.resolve(this.transport!.send(JSON.stringify(body) + "\n")).catch((err) => {
+      void Promise.resolve(this.transport!.send(JSON.stringify(body) + "\n", this.activeWorkspace ?? undefined)).catch((err) => {
         if (timer) clearTimeout(timer);
         this.pending.delete(id);
         const error =

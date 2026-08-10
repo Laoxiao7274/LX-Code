@@ -55,8 +55,9 @@ function resolveAgentDir(): string {
 }
 
 function resolveInitialCwd(): string | null {
-  const arg = process.argv.find((a) => a.startsWith("--initial-cwd="));
-  const value = arg?.slice("--initial-cwd=".length).trim();
+  // Pool 模式:host 绑定固定 workspace,以 --workspace=<cwd> 传入(兼容旧 --initial-cwd)。
+  const arg = process.argv.find((a) => a.startsWith("--workspace=") || a.startsWith("--initial-cwd="));
+  const value = arg?.slice(arg.indexOf("=") + 1).trim();
   return value ? value : null;
 }
 
@@ -304,13 +305,6 @@ async function main(): Promise<void> {
       error: message,
       stack: reason instanceof Error ? reason.stack : undefined,
     });
-    // 诊断:写崩溃日志到文件(stderr 抓不到)
-    try {
-      const { appendFileSync: ap } = require("node:fs");
-      const { join: jp } = require("node:path");
-      const { homedir: hm } = require("node:os");
-      ap(jp(hm(), ".lxcode", "host-crash.log"), `[unhandledRejection ${new Date().toISOString()}] ${message}\n${reason instanceof Error ? reason.stack : String(reason)}\n\n`);
-    } catch {}
     void server.requestFatalShutdown(
       createHostError("INTERNAL_ERROR", `Unhandled asynchronous failure: ${message}`),
       "unhandled promise rejection",
@@ -321,13 +315,6 @@ async function main(): Promise<void> {
       error: err instanceof Error ? err.message : String(err),
       stack: err instanceof Error ? err.stack : undefined,
     });
-    // 诊断:写崩溃日志
-    try {
-      const { appendFileSync: ap } = require("node:fs");
-      const { join: jp } = require("node:path");
-      const { homedir: hm } = require("node:os");
-      ap(jp(hm(), ".lxcode", "host-crash.log"), `[uncaughtException ${new Date().toISOString()}] ${err instanceof Error ? err.message : String(err)}\n${err instanceof Error ? err.stack : ""}\n\n`);
-    } catch {}
     process.exit(1);
   });
   process.once("SIGINT", () => {

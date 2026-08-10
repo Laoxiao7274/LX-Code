@@ -130,58 +130,28 @@ export function WorkspacePicker() {
     const generation = captureRequestGeneration(host);
     setPending(true);
     try {
-      const res = await hostClient.request(
-        "workspace.setCurrent",
-        workspaceContext(host, workspace),
-        { cwd },
-        60_000,
-      );
-
+      // Pool 模式:切工作区 = 调 Rust 侧 pi_host_switch_workspace(spawn/切 active host),
+      // 再触发 recovery 重新 hello/rehydrate 新 host(复用现有重连流程)。
+      const { invoke } = await import("@tauri-apps/api/core");
+      const [is_new] = await invoke<[boolean, string]>("pi_host_switch_workspace", { cwd });
       if (
         request !== requestRef.current ||
         !isCurrentRequestGeneration(useAppStore.getState().host, generation)
       ) {
         return;
       }
-      if (!res.ok) {
-        const detail = res.error?.details ? ` (占用: ${JSON.stringify(res.error.details)})` : "";
-        pushNotification(`${res.error?.message ?? t("notifSetWorkspaceFailed")}${detail}`, "error");
-        return;
+      // 路由切换到新 workspace
+      hostClient.setActiveWorkspace(cwd);
+      // 触发 recovery:重新 hello 新 host + rehydrate。这会走 scheduleRecovery 流程,
+      // 拿到新 host 的 workspace/session 状态并更新 store。
+      useAppStore.getState().requestRecovery(`workspace switch to ${cwd}`);
+      // 首次切到该工作区:初始化 git + codegraph(后台,不阻断)
+      if (is_new) {
+        await initializeWorkspace(cwd);
       }
-
-      const result = res.result;
-      // workspace.changed / session.snapshot events land before this response
-      // resolves; re-applying identical snapshots re-renders the chat and
-      // sidebar a second time. Apply only what the event stream has not.
-      const appliedWorkspace = useAppStore.getState().workspace;
-      if (
-        appliedWorkspace === null ||
-        appliedWorkspace.id !== result.workspace.id ||
-        appliedWorkspace.revision !== result.workspace.revision
-      ) {
-        setWorkspace(result.workspace);
-      }
-      const responseSession = result.session;
-      if (responseSession) {
-        const appliedSession = useAppStore.getState().session;
-        if (
-          appliedSession === null ||
-          appliedSession.sessionId !== responseSession.sessionId ||
-          appliedSession.revision !== responseSession.revision
-        ) {
-          setSession(responseSession);
-        }
-      }
-      useAppStore.getState().setHost({
-        ...host,
-        workspaceId: res.workspaceId,
-        workspaceRevision: res.workspaceRevision,
-        sessionId: res.sessionId,
-        sessionRevision: res.sessionRevision,
-        packageRevision: res.packageRevision,
-      });
-      // 初始化新项目:git 仓库 + codegraph 索引(完成后才能对话)
-      await initializeWorkspace(cwd);
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      pushNotification(`${t("notifSetWorkspaceFailed")}: ${detail}`, "error");
     } finally {
       if (request === requestRef.current) setPending(false);
     }
