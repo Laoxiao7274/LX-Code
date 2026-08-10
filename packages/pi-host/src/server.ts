@@ -218,6 +218,14 @@ export class PiHostServer {
   /** Graceful shutdown for transport loss / signals — mirrors system.shutdown cleanup. */
   async requestShutdown(reason: string, exitCode = 0): Promise<void> {
     if (this.shutdownRequestPromise) return this.shutdownRequestPromise;
+    // 诊断:记录每次 shutdown 触发原因 + 调用栈,定位“切工作区导致 host 退出”
+    try {
+      const { appendFileSync: ap } = require("node:fs");
+      const { join: jp } = require("node:path");
+      const { homedir: hm } = require("node:os");
+      const stack = new Error().stack;
+      ap(jp(hm(), ".lxcode", "host-shutdown.log"), `[${new Date().toISOString()}] requestShutdown reason="${reason}" exitCode=${exitCode}\n${stack}\n\n`);
+    } catch {}
     const requestId = `shutdown:${reason}`;
     this.shutdownRequestPromise = (async () => {
       let cleanupCompleted = false;
