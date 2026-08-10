@@ -35,7 +35,9 @@ import {
 } from "./session-lifecycle.js";
 
 export class WorkspaceGraphFactory {
-  /** @internal — session-lifecycle module */
+  /** @internal — session-lifecycle module
+   *  当前 active graph。语义已变:它是注册表的派生引用,由 activeCwd + graphs Map 决定。
+   *  不要直接赋值(会绕过注册表),用 setActiveGraph()。保留公开字段是为了不改动大量 factory.graph 读取点。 */
   graph: WorkspaceGraph | null = null;
   /** @internal — session-lifecycle module */
   server: PiHostServer | null = null;
@@ -45,6 +47,16 @@ export class WorkspaceGraphFactory {
   currentRunId: string | null = null;
   private readonly sessionRuntimeCache: SessionRuntimeCache;
   private readonly workspaceLifecycle: WorkspaceLifecycle;
+
+  /** graph 注册表:多个 workspace graph 常驻内存,切换=原子改 active 指针,无需 rebuild。
+   *  key=canonicalCwd(经 workspaceIdentityKey 归一化,win32 不区分大小写)。 */
+  private readonly graphs = new Map<string, WorkspaceGraph>();
+  /** 当前 active workspace 的 canonicalCwd,null 表示无 active workspace。 */
+  private activeCwd: string | null = null;
+  /** LRU 顺序:最近访问的 cwd 在末尾。超 MAX_WORKSPACE_GRAPHS 时淘汰最久未用。
+   *  内存安全:每个 idle session ~42MB RSS + extension/MCP 资源,不能无限常驻。 */
+  private readonly lruOrder: string[] = [];
+  private static readonly MAX_WORKSPACE_GRAPHS = 5;
 
   constructor(deps: GraphFactoryDeps) {
     this.deps = deps;
@@ -59,8 +71,16 @@ export class WorkspaceGraphFactory {
         deps: this.deps,
         getGraph: () => this.graph,
         setGraph: (graph) => {
-          this.graph = graph;
+          // setGraph 语义已变:不再直接赋值,而是走注册表(注册或切换 active)。
+          // 传 null=清空 active(用于失败回滚);传 graph=把它设为 active。
+          if (graph === null) {
+            this.clearActiveGraph();
+          } else {
+            this.setActiveGraph(graph);
+          }
         },
+        setGraphRaw: (graph) => this.setActiveGraphRaw(graph),
+        getRegisteredGraph: (cwd) => this.getRegisteredGraph(cwd),
         getServer: () => this.server,
         onModelHealthChanged: () => this.onModelHealthChanged?.(),
         getCommandContextActions: (session) => this.extensionCommandContextActions(session),
@@ -84,6 +104,121 @@ export class WorkspaceGraphFactory {
 
   getServer(): PiHostServer | null {
     return this.server;
+  }
+
+  /** 注册表 key 归一化(与 workspaceIdentityKey 一致,win32 不区分大小写)。 */
+  private graphKey(canonicalCwd: string): string {
+    return process.platform === "win32"
+      ? canonicalCwd.toLowerCase()
+      : canonicalCwd;
+  }
+
+  /** 把一个 graph 注册进表并设为 active(原子切换)。
+   *  - 若该 cwd 已有 graph:复用旧 graph(命中缓存),仅切换 active 指针。
+   *  - 否则:注册新 graph,切换 active,LRU 淘汰超限的最久未用 graph(dispose)。
+   *  这是“切换无感”的核心:切回已访问工作区=零 build。 */
+  private setActiveGraph(graph: WorkspaceGraph): void {
+    const key = this.graphKey(graph.canonicalCwd);
+    const existing = this.graphs.get(key);
+    if (existing && existing !== graph) {
+      // 同 cwd 已有常驻 graph:丢弃传入的重复 graph,复用常驻的(命中缓存)
+      try {
+        void this.workspaceLifecycle.disposeGraph(graph);
+      } catch {
+        /* ignore */
+      }
+      graph = existing;
+    } else if (!existing) {
+      this.graphs.set(key, graph);
+    }
+    this.activeCwd = graph.canonicalCwd;
+    this.graph = graph;
+    this.touchLru(key);
+    this.evictIfNeeded();
+  }
+
+  /** 清空 active(失败回滚用):active 指针置空,但保留已注册 graph 在表里(可后续重试)。 */
+  private clearActiveGraph(): void {
+    this.activeCwd = null;
+    this.graph = null;
+  }
+
+  /** 直接设 active 指针但不进注册表(失败 graph 专用:不污染注册表/LRU)。
+   *  @internal — workspace-lifecycle.commitWorkspaceFailure 用 */
+  setActiveGraphRaw(graph: WorkspaceGraph | null): void {
+    if (graph === null) {
+      this.clearActiveGraph();
+    } else {
+      this.activeCwd = graph.canonicalCwd;
+      this.graph = graph;
+    }
+  }
+
+  /** LRU:把 key 移到末尾(最近用)。 */
+  private touchLru(key: string): void {
+    const idx = this.lruOrder.indexOf(key);
+    if (idx >= 0) this.lruOrder.splice(idx, 1);
+    this.lruOrder.push(key);
+  }
+
+  /** LRU 淘汰:超 MAX_WORKSPACE_GRAPHS 时 dispose 并移除最久未用的 graph。
+   *  注意:不淘汰当前 active。 */
+  private evictIfNeeded(): void {
+    while (this.lruOrder.length > WorkspaceGraphFactory.MAX_WORKSPACE_GRAPHS) {
+      const oldestKey = this.lruOrder[0];
+      if (oldestKey === undefined) break;
+      if (oldestKey === this.graphKey(this.activeCwd ?? "")) {
+        // 跳过 active,从第二老开始
+        const nextIdx = 1;
+        if (nextIdx >= this.lruOrder.length) break;
+        const nextKey = this.lruOrder[nextIdx];
+        if (nextKey === undefined) break;
+        const evicted = this.graphs.get(nextKey);
+        this.graphs.delete(nextKey);
+        this.lruOrder.splice(nextIdx, 1);
+        if (evicted) {
+          try {
+            void this.workspaceLifecycle.disposeGraph(evicted);
+          } catch {
+            /* ignore */
+          }
+        }
+        continue;
+      }
+      const evicted = this.graphs.get(oldestKey);
+      this.graphs.delete(oldestKey);
+      this.lruOrder.shift();
+      if (evicted) {
+        try {
+          void this.workspaceLifecycle.disposeGraph(evicted);
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  }
+
+  /** 查注册表里是否已有该 cwd 的 graph(命中缓存=切回零 build)。 */
+  getRegisteredGraph(canonicalCwd: string): WorkspaceGraph | null {
+    return this.graphs.get(this.graphKey(canonicalCwd)) ?? null;
+  }
+
+  /** 从注册表移除并 dispose 一个 graph(文件操作如 archive/delete 后清理用)。 */
+  private removeRegisteredGraph(canonicalCwd: string): void {
+    const key = this.graphKey(canonicalCwd);
+    const g = this.graphs.get(key);
+    if (!g) return;
+    this.graphs.delete(key);
+    const idx = this.lruOrder.indexOf(key);
+    if (idx >= 0) this.lruOrder.splice(idx, 1);
+    if (this.activeCwd && this.graphKey(this.activeCwd) === key) {
+      this.clearActiveGraph();
+    }
+    try {
+      void this.workspaceLifecycle.disposeGraph(g);
+    } catch {
+      /* ignore */
+    }
   }
 
   getSessionOperationLock(session: AgentSession): AgentOperationLock {
@@ -197,19 +332,32 @@ export class WorkspaceGraphFactory {
     return this.workspaceLifecycle.disposeGraph(g);
   }
 
-  /** Dispose every idle Workspace graph retained by the lifecycle owner. */
+  /** Dispose every idle Workspace graph retained by the lifecycle owner.
+   *  语义改为:清空整个注册表(host 关闭/重置用)。 */
   async disposeRetainedGraphs(): Promise<void> {
-    return this.workspaceLifecycle.disposeRetainedGraphs();
+    const all = [...this.graphs.values()];
+    this.graphs.clear();
+    this.lruOrder.length = 0;
+    this.clearActiveGraph();
+    for (const g of all) {
+      try {
+        await this.workspaceLifecycle.disposeGraph(g);
+      } catch {
+        /* ignore */
+      }
+    }
   }
 
-  /** Dispose the idle Workspace graph that shares a Session storage namespace. */
+  /** Dispose the idle Workspace graph that shares a Session storage namespace.
+   *  语义改为:从注册表移除并 dispose 该 cwd 的 graph(archive/delete/restore 后清理)。 */
   async invalidateRetainedWorkspaceGraph(canonicalCwd: string): Promise<void> {
-    return this.workspaceLifecycle.invalidateRetainedWorkspaceGraph(canonicalCwd);
+    this.removeRegisteredGraph(canonicalCwd);
   }
 
-  /** Drop every idle runtime that may have captured old settings or resources. */
+  /** Drop every idle runtime that may have captured old settings or resources.
+   *  语义改为:清空注册表(provider/config 变更要重来)。 */
   async invalidateRetainedRuntimeCaches(): Promise<void> {
-    return this.workspaceLifecycle.invalidateRetainedRuntimeCaches();
+    await this.disposeRetainedGraphs();
   }
 
   /** @internal — session-lifecycle module */

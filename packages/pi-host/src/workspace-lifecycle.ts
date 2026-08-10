@@ -35,6 +35,9 @@ export type WorkspaceLifecycleContext = {
   deps: GraphFactoryDeps;
   getGraph: () => WorkspaceGraph | null;
   setGraph: (graph: WorkspaceGraph | null) => void;
+  /** 设 active 指针但不进注册表(失败 graph 专用)。 */
+  setGraphRaw: (graph: WorkspaceGraph | null) => void;
+  getRegisteredGraph: (canonicalCwd: string) => WorkspaceGraph | null;
   getServer: () => PiHostServer | null;
   onModelHealthChanged: () => void;
   getCommandContextActions?: (session: AgentSession) => ExtensionCommandContextActions;
@@ -57,9 +60,6 @@ function workspaceCanonicalPathsEqual(
 }
 
 export class WorkspaceLifecycle {
-  private static readonly MAX_RETAINED_GRAPHS = 3;
-  private readonly retainedGraphs = new Map<string, WorkspaceGraph>();
-
   constructor(
     private readonly context: WorkspaceLifecycleContext,
     private readonly sessionRuntimeCache: SessionRuntimeCache,
@@ -154,26 +154,6 @@ export class WorkspaceLifecycle {
     graph.servicesReady = false;
   }
 
-  async disposeRetainedGraphs(): Promise<void> {
-    const graphs = [...this.retainedGraphs.values()];
-    this.retainedGraphs.clear();
-    for (const graph of graphs) {
-      await this.disposeGraph(graph);
-    }
-  }
-
-  async invalidateRetainedWorkspaceGraph(canonicalCwd: string): Promise<void> {
-    const key = this.retainedGraphKey(canonicalCwd);
-    const graph = this.retainedGraphs.get(key);
-    if (!graph) return;
-    this.retainedGraphs.delete(key);
-    await this.disposeGraph(graph);
-  }
-
-  async invalidateRetainedRuntimeCaches(): Promise<void> {
-    await this.disposeRetainedGraphs();
-  }
-
   async setCurrent(
     cwd: string,
     requestId: string,
@@ -244,15 +224,84 @@ export class WorkspaceLifecycle {
       const candidateSessionRevision = invalidatedSessionRevision + 1;
       const candidatePackageRevision = server.identity.packageRevision + 1;
 
-      const reactivated = await this.tryReactivateRetainedGraph({
-        canonical,
-        previousGraph,
-        revision,
-        sessionRevision: candidateSessionRevision,
-        packageRevision: candidatePackageRevision,
-        signal: operation.signal,
-      });
-      if (reactivated) return reactivated;
+      // 命中注册表:切回已访问过的工作区,graph 仍常驻,零 build 原子切换。
+      // 这是“切换无感”的核心路径:不 rebuild services,不 createAgentSession。
+      const registered = this.context.getRegisteredGraph(canonical);
+      if (registered && registered.servicesReady) {
+        if (this.sessionRuntimeCache.hasBusySessions()) {
+          return {
+            error: createHostError(
+              "AGENT_BUSY",
+              "Agent is busy; stop it before switching workspace",
+              { retryable: true },
+            ),
+          };
+        }
+        previousIdentity = server.getIdentity();
+        // 切走时 suspend 过它的 providers,切回 resume
+        if (previousGraph && previousGraph !== registered) {
+          this.suspendGraphProviders(previousGraph);
+        }
+        this.resumeGraphProviders(registered);
+        this.context.setGraph(registered); // 原子切 active 指针 + LRU touch
+        // identity 从这次切换推进 revision(前端靠 revision 判断“切换发生了”)
+        server.identity.workspaceId = registered.workspaceId;
+        server.identity.workspaceRevision = revision;
+        server.identity.sessionId = registered.sessionSnapshot?.sessionId ?? null;
+        server.identity.sessionRevision = candidateSessionRevision;
+        server.identity.packageRevision = candidatePackageRevision;
+        registered.revision = revision;
+
+        let publishExtensionUi = () => {};
+        try {
+          publishExtensionUi = await activateOnce(registered);
+        } catch (err) {
+          // activate 失败:回滚到 previous
+          if (previousGraph) {
+            this.context.setGraph(previousGraph);
+            this.restoreIdentity(server, previousIdentity!);
+            this.suspendGraphProviders(registered);
+            this.resumeGraphProviders(previousGraph);
+            server.setPhase("ready");
+          }
+          return {
+            error: createHostError(
+              "WORKSPACE_SWITCH_FAILED",
+              err instanceof Error ? err.message : "Extension activate failed",
+              { retryable: operation.signal.aborted },
+            ),
+          };
+        }
+        if (previousGraph && previousGraph !== registered) {
+          // previous graph 留在注册表(下次切回零 build),只清它的 extension UI 绑定
+          try {
+            previousGraph.extensionUiCleanup?.();
+          } catch {
+            /* ignore */
+          }
+          previousGraph.extensionUiActivate = null;
+          previousGraph.extensionUiCleanup = null;
+          previousGraph.extensionUiUpdateIdentity = null;
+          previousGraph.extensionUiReplayState = null;
+        }
+        if (
+          previousIdentity!.sessionId &&
+          previousIdentity!.sessionId !== server.identity.sessionId
+        ) {
+          await this.context.deps.attachmentStore?.discardSessionDrafts(
+            previousIdentity!.sessionId,
+          );
+        }
+        server.setPhase("ready");
+        server.setLastError(undefined);
+        const workspace = this.buildWorkspaceSnapshot(registered);
+        this.publishWorkspaceSnapshots(server, registered, workspace);
+        publishExtensionUi();
+        return {
+          workspace,
+          ...(registered.sessionSnapshot ? { session: registered.sessionSnapshot } : {}),
+        };
+      }
 
       if (previousGraph) this.suspendGraphProviders(previousGraph);
       const built = await this.buildServices({
@@ -320,7 +369,19 @@ export class WorkspaceLifecycle {
         return { error };
       }
 
-      if (previousGraph) await this.retainGraph(previousGraph, operation.signal);
+      // previous graph 由注册表保留(setGraph 时已注册),不再需要 retainGraph/fingerprint。
+      // 仅清理它的 extension UI 绑定(切走时不活跃)。
+      if (previousGraph && previousGraph !== built.graph) {
+        try {
+          previousGraph.extensionUiCleanup?.();
+        } catch {
+          /* ignore */
+        }
+        previousGraph.extensionUiActivate = null;
+        previousGraph.extensionUiCleanup = null;
+        previousGraph.extensionUiUpdateIdentity = null;
+        previousGraph.extensionUiReplayState = null;
+      }
       if (previousIdentity!.sessionId && previousIdentity!.sessionId !== server.identity.sessionId) {
         await this.context.deps.attachmentStore?.discardSessionDrafts(previousIdentity!.sessionId);
       }
@@ -393,270 +454,6 @@ export class WorkspaceLifecycle {
     }
   }
 
-  private retainedGraphKey(canonicalCwd: string): string {
-    return workspaceIdentityKey(canonicalCwd, this.context.platform);
-  }
-
-  private async retainedGraphFingerprint(
-    graph: WorkspaceGraph,
-    signal?: AbortSignal,
-  ): Promise<string> {
-    const roots = new Set<string>([
-      join(graph.canonicalCwd, ".pi"),
-      join(this.context.deps.agentDir, "settings.json"),
-      join(this.context.deps.agentDir, "models.json"),
-      join(this.context.deps.agentDir, "models-store.json"),
-      join(this.context.deps.agentDir, "auth.json"),
-    ]);
-    for (const directory of ["packages", "npm", "git"]) {
-      roots.add(join(this.context.deps.agentDir, directory));
-    }
-    const markers: string[] = [];
-    if (graph.packageManager) {
-      try {
-        for (const item of graph.packageManager.listConfiguredPackages()) {
-          const installedPath =
-            item.installedPath ?? graph.packageManager.getInstalledPath(item.source, item.scope);
-          if (installedPath) roots.add(installedPath);
-        }
-      } catch {
-        markers.push("configured:error");
-      }
-    } else {
-      markers.push("packageManager:null");
-    }
-    return captureFilesystemFingerprint({ roots, markers, signal });
-  }
-
-  private async retainGraph(graph: WorkspaceGraph, signal?: AbortSignal): Promise<void> {
-    if (
-      !graph.servicesReady ||
-      !graph.agentSession ||
-      !graph.agentSession.isIdle ||
-      graph.backgroundSessions.size > 0
-    ) {
-      await this.disposeGraph(graph);
-      return;
-    }
-    graph.unsubscribeAgent?.();
-    graph.unsubscribeAgent = null;
-    graph.extensionUiActivate = null;
-    try {
-      graph.extensionUiCleanup?.();
-    } catch {
-      /* ignore */
-    }
-    graph.extensionUiCleanup = null;
-    graph.extensionUiUpdateIdentity = null;
-    graph.extensionUiReplayState = null;
-    // The switch path may already have parked this owner before building the
-    // incoming graph. Preserve that pre-merge snapshot when retention finishes.
-    this.suspendGraphProviders(graph);
-    try {
-      graph.retainedFingerprint = await this.retainedGraphFingerprint(graph, signal);
-    } catch (error) {
-      graph.retainedFingerprint = undefined;
-      if (this.context.getGraph() !== graph) await this.disposeGraph(graph);
-      throw error;
-    }
-
-    const key = this.retainedGraphKey(graph.canonicalCwd);
-    const existing = this.retainedGraphs.get(key);
-    this.retainedGraphs.delete(key);
-    if (existing && existing !== graph) await this.disposeGraph(existing);
-    this.retainedGraphs.set(key, graph);
-    while (this.retainedGraphs.size > WorkspaceLifecycle.MAX_RETAINED_GRAPHS) {
-      const oldestKey = this.retainedGraphs.keys().next().value;
-      if (oldestKey === undefined) break;
-      const evicted = this.retainedGraphs.get(oldestKey);
-      this.retainedGraphs.delete(oldestKey);
-      if (evicted) await this.disposeGraph(evicted);
-    }
-  }
-
-  private takeRetainedGraph(canonicalCwd: string): WorkspaceGraph | null {
-    const key = this.retainedGraphKey(canonicalCwd);
-    const graph = this.retainedGraphs.get(key) ?? null;
-    if (
-      graph &&
-      !workspaceCanonicalPathsEqual(graph.canonicalCwd, canonicalCwd, this.context.platform)
-    ) {
-      logger.warn("Retained Workspace identity mismatch", {
-        requestedCwd: canonicalCwd,
-        retainedCwd: graph.canonicalCwd,
-      });
-      return null;
-    }
-    this.retainedGraphs.delete(key);
-    return graph;
-  }
-
-  private async tryReactivateRetainedGraph(args: {
-    canonical: string;
-    previousGraph: WorkspaceGraph | null;
-    revision: number;
-    sessionRevision: number;
-    packageRevision: number;
-    signal?: AbortSignal;
-  }): Promise<{ workspace: WorkspaceSnapshot; session?: SessionSnapshot } | null> {
-    const server = this.context.getServer();
-    if (!server) return null;
-    const graph = this.takeRetainedGraph(args.canonical);
-    if (!graph) return null;
-
-    const retainedFingerprint = graph.retainedFingerprint;
-    graph.retainedFingerprint = undefined;
-    if (!retainedFingerprint) {
-      logger.info("Retained workspace changed on disk; rebuilding", {
-        cwd: args.canonical,
-      });
-      await this.disposeGraph(graph);
-      return null;
-    }
-
-    let currentFingerprint: string;
-    try {
-      currentFingerprint = await this.retainedGraphFingerprint(graph, args.signal);
-    } catch (err) {
-      await this.disposeGraph(graph);
-      throw err;
-    }
-    if (retainedFingerprint !== currentFingerprint) {
-      logger.info("Retained workspace changed on disk; rebuilding", {
-        cwd: args.canonical,
-      });
-      await this.disposeGraph(graph);
-      return null;
-    }
-    if (!graph.servicesReady || !graph.agentSession || !graph.sessionManager) {
-      await this.disposeGraph(graph);
-      return null;
-    }
-
-    const session = graph.agentSession;
-    const sessionManager = graph.sessionManager;
-    const sessionId =
-      graph.sessionSnapshot?.sessionId || sessionManager.getSessionId() || session.sessionId;
-    if (!sessionId) {
-      await this.disposeGraph(graph);
-      return null;
-    }
-
-    // The incoming owner must never re-register while the outgoing owner is
-    // still present: ModelRuntime merges same-id extension Provider configs.
-    if (args.previousGraph) this.suspendGraphProviders(args.previousGraph);
-    this.resumeGraphProviders(graph);
-    const candidateIdentity: HostIdentity = {
-      hostInstanceId: server.identity.hostInstanceId,
-      workspaceId: graph.workspaceId,
-      workspaceRevision: args.revision,
-      sessionId,
-      sessionRevision: args.sessionRevision,
-      packageRevision: args.packageRevision,
-    };
-
-    try {
-      // The graph is not active yet, so a session_start handler registering a
-      // provider would otherwise be attributed to the outgoing workspace.
-      const binding = graph.providerOwner
-        ? await this.context.deps.providerOwnership.runAsOwner(graph.providerOwner, () =>
-            bindForCandidate(
-              session,
-              graph.extensionsResult,
-              server,
-              candidateIdentity,
-              this.context.getCommandContextActions?.(session),
-            ),
-          )
-        : await bindForCandidate(
-            session,
-            graph.extensionsResult,
-            server,
-            candidateIdentity,
-            this.context.getCommandContextActions?.(session),
-          );
-      graph.extensionUiActivate = binding.activate;
-      graph.extensionUiCleanup = binding.cleanup;
-      graph.extensionUiUpdateIdentity = binding.updateIdentity;
-      graph.extensionUiReplayState = binding.replayState;
-      binding.updateIdentity(candidateIdentity);
-      graph.packageSnapshot = await buildPackageSnapshot({
-        revision: args.packageRevision,
-        workspaceId: graph.workspaceId,
-        scope: "all",
-        packageManager: graph.packageManager!,
-        settingsManager: graph.settingsManager!,
-        resourceLoader: graph.resourceLoader,
-        cwd: graph.canonicalCwd,
-        agentDir: this.context.deps.agentDir,
-        packageUpdateCheck: this.context.deps.packageUpdateCheck,
-        resourceIdMap: graph.resourceIdMap,
-        resourceReloadRequired: graph.resourceReloadRequired,
-      });
-      graph.sessionSnapshot = buildSessionSnapshot({
-        session,
-        sessionManager,
-        cwd: args.canonical,
-        sessionId,
-        revision: args.sessionRevision,
-        workspaceId: graph.workspaceId,
-        toolRevision: graph.toolRevision,
-      });
-      graph.unsubscribeAgent = session.subscribe((event) => {
-        this.sessionRuntimeCache.handleAgentEvent(graph, session, event);
-      });
-    } catch (err) {
-      logger.warn("retained graph preparation failed; rebuilding workspace", {
-        cwd: args.canonical,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await this.disposeGraph(graph);
-      args.signal?.throwIfAborted();
-      return null;
-    }
-
-    if (args.signal?.aborted) {
-      await this.disposeGraph(graph);
-      args.signal.throwIfAborted();
-    }
-
-    const previousIdentity = server.getIdentity();
-    graph.revision = args.revision;
-    this.context.setGraph(graph);
-    server.identity.workspaceId = graph.workspaceId;
-    server.identity.workspaceRevision = args.revision;
-    server.identity.sessionId = sessionId;
-    server.identity.sessionRevision = args.sessionRevision;
-    server.identity.packageRevision = args.packageRevision;
-
-    let publishExtensionUi = () => {};
-    try {
-      publishExtensionUi = await activateOnce(graph);
-    } catch (err) {
-      logger.warn("retained graph Extension activate failed; rebuilding workspace", {
-        cwd: args.canonical,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      this.context.setGraph(args.previousGraph);
-      this.restoreIdentity(server, previousIdentity);
-      await this.disposeGraph(graph);
-      return null;
-    }
-
-    if (args.previousGraph) await this.retainGraph(args.previousGraph, args.signal);
-    if (previousIdentity.sessionId && previousIdentity.sessionId !== server.identity.sessionId) {
-      await this.context.deps.attachmentStore?.discardSessionDrafts(previousIdentity.sessionId);
-    }
-    server.setPhase("ready");
-    server.setLastError(undefined);
-    const workspace = this.buildWorkspaceSnapshot(graph);
-    this.publishWorkspaceSnapshots(server, graph, workspace);
-    publishExtensionUi();
-    return {
-      workspace,
-      ...(graph.sessionSnapshot ? { session: graph.sessionSnapshot } : {}),
-    };
-  }
 
   private async commitWorkspaceFailure(args: {
     previousGraph: WorkspaceGraph | null;
@@ -670,7 +467,8 @@ export class WorkspaceLifecycle {
     signal?: AbortSignal;
   }): Promise<WorkspaceSnapshot> {
     const server = this.context.getServer()!;
-    if (args.previousGraph) await this.retainGraph(args.previousGraph, args.signal);
+    // previous graph 已在注册表里(setGraph 时注册),失败时不额外 retain。
+    // 失败 graph 不进注册表(用 setGraphRaw),避免污染 LRU/注册表。
     const failedGraph: WorkspaceGraph = {
       workspaceId: args.workspaceId,
       cwd: args.cwd,
@@ -696,7 +494,7 @@ export class WorkspaceLifecycle {
       backgroundSessions: new Map(),
       providerOwner: null,
     };
-    this.context.setGraph(failedGraph);
+    this.context.setGraphRaw(failedGraph);
     server.identity.workspaceId = args.workspaceId;
     server.identity.workspaceRevision = args.revision;
     server.identity.sessionId = null;

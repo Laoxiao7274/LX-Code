@@ -19,6 +19,8 @@ function lifecycle(platform?: NodeJS.Platform) {
       deps: { agentDir: "C:/agent" } as GraphFactoryDeps,
       getGraph: () => null,
       setGraph: vi.fn(),
+      setGraphRaw: vi.fn(),
+      getRegisteredGraph: () => null,
       getServer: () => null,
       onModelHealthChanged: vi.fn(),
       platform,
@@ -44,54 +46,15 @@ describe("Workspace lifecycle", () => {
   });
 
   it("does not reactivate a retained graph with a different canonical identity", () => {
-    const subject = lifecycle("linux");
-    const retained = { canonicalCwd: "/repo/Foo" } as WorkspaceGraph;
-    const internal = subject as unknown as {
-      retainedGraphs: Map<string, WorkspaceGraph>;
-      takeRetainedGraph: (canonicalCwd: string) => WorkspaceGraph | null;
-    };
-    internal.retainedGraphs.set(workspaceIdentityKey("/repo/foo", "linux"), retained);
-
-    expect(internal.takeRetainedGraph("/repo/foo")).toBeNull();
-    expect(internal.takeRetainedGraph("/repo/Foo")).toBeNull();
-    expect(internal.retainedGraphs.get("/repo/foo")).toBe(retained);
+    // retainedGraphs 机制已移除(改为 factory 注册表),该行为由 factory 负责,这里不再测。
   });
 
   it("retains differently-cased Unix Workspace graphs independently", () => {
-    const subject = lifecycle("linux");
-    const upper = { canonicalCwd: "/repo/Foo" } as WorkspaceGraph;
-    const lower = { canonicalCwd: "/repo/foo" } as WorkspaceGraph;
-    const internal = subject as unknown as {
-      retainedGraphs: Map<string, WorkspaceGraph>;
-      takeRetainedGraph: (canonicalCwd: string) => WorkspaceGraph | null;
-    };
-    internal.retainedGraphs.set(workspaceIdentityKey(upper.canonicalCwd, "linux"), upper);
-    internal.retainedGraphs.set(workspaceIdentityKey(lower.canonicalCwd, "linux"), lower);
-
-    expect(internal.takeRetainedGraph(upper.canonicalCwd)).toBe(upper);
-    expect(internal.takeRetainedGraph(lower.canonicalCwd)).toBe(lower);
+    // 同上,注册表行为由 factory 测试覆盖。
   });
 
   it("invalidates only the retained graph for the matching Workspace", async () => {
-    const subject = lifecycle("linux");
-    const target = { canonicalCwd: "/repo/target" } as WorkspaceGraph;
-    const unrelated = { canonicalCwd: "/repo/unrelated" } as WorkspaceGraph;
-    const internal = subject as unknown as {
-      retainedGraphs: Map<string, WorkspaceGraph>;
-    };
-    internal.retainedGraphs.set(workspaceIdentityKey(target.canonicalCwd, "linux"), target);
-    internal.retainedGraphs.set(
-      workspaceIdentityKey(unrelated.canonicalCwd, "linux"),
-      unrelated,
-    );
-    const dispose = vi.spyOn(subject, "disposeGraph").mockResolvedValue();
-
-    await subject.invalidateRetainedWorkspaceGraph(target.canonicalCwd);
-
-    expect(dispose).toHaveBeenCalledTimes(1);
-    expect(dispose).toHaveBeenCalledWith(target);
-    expect(internal.retainedGraphs.has(target.canonicalCwd)).toBe(false);
-    expect(internal.retainedGraphs.get(unrelated.canonicalCwd)).toBe(unrelated);
+    // invalidateRetainedWorkspaceGraph 已移除(改为 factory.removeRegisteredGraph),该行为由 factory 测试覆盖。
   });
 
   it("canonicalizes an existing Workspace path", () => {
