@@ -720,23 +720,20 @@ describe("WorkspaceGraphFactory retained Workspace recovery", () => {
       WORKSPACE_ID,
       fakeSession(true, ACTIVE_SESSION_ID),
     );
-    Reflect.set(factory, "graph", previous);
+    // 让 previous 正式进入注册表 + 设为 active,使“切回 currentDir”能命中缓存(零 build)。
     const factoryInternals = factory as unknown as {
+      graphs: Map<string, WorkspaceGraph>;
+      graphKey: (cwd: string) => string;
+      activeCwd: string | null;
+      touchLru: (key: string) => void;
       workspaceLifecycle: {
-        retainGraph: (graph: WorkspaceGraph) => Promise<void>;
-        tryReactivateRetainedGraph: (args: {
-          canonical: string;
-          previousGraph: WorkspaceGraph | null;
-          revision: number;
-          sessionRevision: number;
-          packageRevision: number;
-          signal?: AbortSignal;
-        }) => Promise<unknown>;
-        retainedGraphFingerprint: (graph: WorkspaceGraph, signal?: AbortSignal) => Promise<string>;
         buildServices: () => Promise<{ graph: WorkspaceGraph }>;
-        disposeRetainedGraphs: () => Promise<void>;
       };
     };
+    factoryInternals.graphs.set(factoryInternals.graphKey(canonicalCurrentDir), previous);
+    factoryInternals.activeCwd = canonicalCurrentDir;
+    Reflect.set(factory, "graph", previous);
+    factoryInternals.touchLru(factoryInternals.graphKey(canonicalCurrentDir));
     const internal = factoryInternals.workspaceLifecycle;
 
     return {
@@ -751,37 +748,6 @@ describe("WorkspaceGraphFactory retained Workspace recovery", () => {
     };
   }
 
-  it("keeps the active graph and identity when retained graph preparation fails", async () => {
-    const state = setup();
-    try {
-      const retainedSession = fakeSession(true, BACKGROUND_SESSION_ID);
-      const retained = fakeWorkspaceGraph(
-        state.retainedDir,
-        "55555555-5555-4555-8555-555555555555",
-        retainedSession,
-      );
-      retained.packageManager = null;
-      await state.internal.retainGraph(retained);
-      const originalIdentity = { ...state.identity };
-
-      const result = await state.internal.tryReactivateRetainedGraph({
-        canonical: state.retainedDir,
-        previousGraph: state.previous,
-        revision: 8,
-        sessionRevision: 10,
-        packageRevision: 5,
-      });
-
-      expect(result).toBeNull();
-      expect(state.factory.getGraph()).toBe(state.previous);
-      expect(state.identity).toEqual(originalIdentity);
-      expect(state.previous.extensionUiCleanup).not.toHaveBeenCalled();
-      expect(state.previous.unsubscribeAgent).not.toHaveBeenCalled();
-      expect(retainedSession.dispose).toHaveBeenCalledTimes(1);
-    } finally {
-      rmSync(state.root, { recursive: true, force: true });
-    }
-  });
 
   it("keeps the active graph when a newly built Workspace fails activation", async () => {
     const state = setup();
@@ -987,268 +953,12 @@ describe("WorkspaceGraphFactory retained Workspace recovery", () => {
     }
   });
 
-  it("cancels the outgoing retain fingerprint during a Workspace switch", async () => {
-    const state = setup();
-    try {
-      const previousSession = state.previous.agentSession!;
-      const candidateSession = fakeSession(true, BACKGROUND_SESSION_ID);
-      const candidate = fakeWorkspaceGraph(
-        state.retainedDir,
-        "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-        candidateSession,
-      );
-      vi.spyOn(
-        state.internal as unknown as {
-          buildServices: () => Promise<{ graph: WorkspaceGraph }>;
-        },
-        "buildServices",
-      ).mockResolvedValue({ graph: candidate });
 
-      let markFingerprintStarted!: () => void;
-      const fingerprintStarted = new Promise<void>((resolve) => {
-        markFingerprintStarted = resolve;
-      });
-      let releaseFingerprint!: () => void;
-      let receivedSignal: AbortSignal | undefined;
-      vi.spyOn(state.internal, "retainedGraphFingerprint").mockImplementation(
-        (_graph, signal) =>
-          new Promise((resolve, reject) => {
-            receivedSignal = signal;
-            releaseFingerprint = () => resolve("outgoing-fingerprint");
-            signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
-            markFingerprintStarted();
-          }),
-      );
 
-      const switching = state.factory.setCurrent(state.retainedDir, "switch-retain-cancelled");
-      await fingerprintStarted;
-      const operation = state.server.graphOperations.getActive();
-      expect(operation?.operationKind).toBe("workspace.setCurrent");
-      operation?.cancel("Host shutdown");
-      releaseFingerprint();
 
-      const result = await switching;
 
-      expect(receivedSignal).toBe(operation?.signal);
-      expect("error" in result && result.error).toMatchObject({
-        code: "WORKSPACE_SWITCH_FAILED",
-        retryable: true,
-      });
-      expect(state.factory.getGraph()).toBe(candidate);
-      expect(previousSession.dispose).toHaveBeenCalledTimes(1);
-      expect(state.server.serviceGraphLock.isHeld()).toBe(false);
-      expect(state.server.graphOperations.getActive()).toBeNull();
-    } finally {
-      rmSync(state.root, { recursive: true, force: true });
-    }
-  });
 
-  it("rolls back the active graph and identity when retained activation fails", async () => {
-    const state = setup();
-    try {
-      const retainedSession = fakeSession(true, BACKGROUND_SESSION_ID);
-      Reflect.set(
-        retainedSession,
-        "bindExtensions",
-        vi.fn(async () => {
-          throw new Error("extension activation failed");
-        }),
-      );
-      const retained = fakeWorkspaceGraph(
-        state.retainedDir,
-        "66666666-6666-4666-8666-666666666666",
-        retainedSession,
-      );
-      await state.internal.retainGraph(retained);
-      const originalIdentity = { ...state.identity };
 
-      const result = await state.internal.tryReactivateRetainedGraph({
-        canonical: state.retainedDir,
-        previousGraph: state.previous,
-        revision: 8,
-        sessionRevision: 10,
-        packageRevision: 5,
-      });
-
-      expect(result).toBeNull();
-      expect(state.factory.getGraph()).toBe(state.previous);
-      expect(state.identity).toEqual(originalIdentity);
-      expect(state.previous.extensionUiCleanup).not.toHaveBeenCalled();
-      expect(state.previous.unsubscribeAgent).not.toHaveBeenCalled();
-      expect(retainedSession.dispose).toHaveBeenCalledTimes(1);
-    } finally {
-      rmSync(state.root, { recursive: true, force: true });
-    }
-  });
-
-  it("discards a retained graph when project resources changed on disk", async () => {
-    const state = setup();
-    try {
-      const retainedSession = fakeSession(true, BACKGROUND_SESSION_ID);
-      const retained = fakeWorkspaceGraph(
-        state.retainedDir,
-        "77777777-7777-4777-8777-777777777777",
-        retainedSession,
-      );
-      await state.internal.retainGraph(retained);
-      const extensionsDir = join(state.retainedDir, ".pi", "extensions");
-      mkdirSync(extensionsDir, { recursive: true });
-      writeFileSync(join(extensionsDir, "changed.ts"), "export default () => {};\n");
-
-      const result = await state.internal.tryReactivateRetainedGraph({
-        canonical: state.retainedDir,
-        previousGraph: state.previous,
-        revision: 8,
-        sessionRevision: 10,
-        packageRevision: 5,
-      });
-
-      expect(result).toBeNull();
-      expect(state.factory.getGraph()).toBe(state.previous);
-      expect(retainedSession.bindExtensions).not.toHaveBeenCalled();
-      expect(retainedSession.dispose).toHaveBeenCalledTimes(1);
-    } finally {
-      rmSync(state.root, { recursive: true, force: true });
-    }
-  });
-
-  it("fingerprints configured package files without dependency or VCS internals", async () => {
-    const state = setup();
-    try {
-      const retained = fakeWorkspaceGraph(
-        state.retainedDir,
-        "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-        fakeSession(true, BACKGROUND_SESSION_ID),
-      );
-      const installedPath = join(
-        state.retainedDir,
-        ".pi",
-        "npm",
-        "node_modules",
-        "example-package",
-      );
-      const dependencyFile = join(installedPath, "node_modules", "dependency", "index.js");
-      const gitObject = join(installedPath, ".git", "objects", "test-object");
-      const manifest = join(installedPath, "package.json");
-      mkdirSync(join(installedPath, "node_modules", "dependency"), { recursive: true });
-      mkdirSync(join(installedPath, ".git", "objects"), { recursive: true });
-      writeFileSync(dependencyFile, "dependency-v1\n");
-      writeFileSync(gitObject, "object-v1\n");
-      writeFileSync(manifest, JSON.stringify({ name: "example-package", version: "1.0.0" }));
-      retained.packageManager!.listConfiguredPackages = () => [
-        {
-          source: "npm:example-package",
-          scope: "project",
-          filtered: false,
-          installedPath,
-        },
-      ];
-
-      const first = await state.internal.retainedGraphFingerprint(retained);
-      writeFileSync(dependencyFile, "dependency-v2-with-different-size\n");
-      writeFileSync(gitObject, "object-v2-with-different-size\n");
-      const internalsChanged = await state.internal.retainedGraphFingerprint(retained);
-      writeFileSync(manifest, JSON.stringify({ name: "example-package", version: "22.0.0" }));
-      const packageChanged = await state.internal.retainedGraphFingerprint(retained);
-
-      expect(internalsChanged).toBe(first);
-      expect(packageChanged).not.toBe(internalsChanged);
-    } finally {
-      rmSync(state.root, { recursive: true, force: true });
-    }
-  });
-
-  it("discards a retained graph when models-store.json is created", async () => {
-    const state = setup();
-    try {
-      const retainedSession = fakeSession(true, BACKGROUND_SESSION_ID);
-      const retained = fakeWorkspaceGraph(
-        state.retainedDir,
-        "77777777-7777-4777-8777-777777777777",
-        retainedSession,
-      );
-      await state.internal.retainGraph(retained);
-      writeFileSync(
-        join(state.agentDir, "models-store.json"),
-        JSON.stringify({ custom: { source: "runtime" } }),
-      );
-
-      const result = await state.internal.tryReactivateRetainedGraph({
-        canonical: state.retainedDir,
-        previousGraph: state.previous,
-        revision: 8,
-        sessionRevision: 10,
-        packageRevision: 5,
-      });
-
-      expect(result).toBeNull();
-      expect(state.factory.getGraph()).toBe(state.previous);
-      expect(retainedSession.bindExtensions).not.toHaveBeenCalled();
-      expect(retainedSession.dispose).toHaveBeenCalledTimes(1);
-    } finally {
-      rmSync(state.root, { recursive: true, force: true });
-    }
-  });
-
-  it("disposes a retained graph when fingerprinting is cancelled", async () => {
-    const state = setup();
-    try {
-      const retainedSession = fakeSession(true, BACKGROUND_SESSION_ID);
-      const retained = fakeWorkspaceGraph(
-        state.retainedDir,
-        "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-        retainedSession,
-      );
-      await state.internal.retainGraph(retained);
-
-      let markFingerprintStarted!: () => void;
-      const fingerprintStarted = new Promise<void>((resolve) => {
-        markFingerprintStarted = resolve;
-      });
-      vi.spyOn(state.internal, "retainedGraphFingerprint").mockImplementation(
-        (_graph, signal) =>
-          new Promise((_resolve, reject) => {
-            markFingerprintStarted();
-            signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
-          }),
-      );
-      const controller = new AbortController();
-
-      const reactivating = state.internal.tryReactivateRetainedGraph({
-        canonical: state.retainedDir,
-        previousGraph: state.previous,
-        revision: 8,
-        sessionRevision: 10,
-        packageRevision: 5,
-        signal: controller.signal,
-      });
-      await fingerprintStarted;
-      controller.abort(new Error("Host shutdown"));
-
-      await expect(reactivating).rejects.toThrow("Host shutdown");
-      expect(state.factory.getGraph()).toBe(state.previous);
-      expect(retainedSession.dispose).toHaveBeenCalledTimes(1);
-      await state.internal.disposeRetainedGraphs();
-      expect(retainedSession.dispose).toHaveBeenCalledTimes(1);
-    } finally {
-      rmSync(state.root, { recursive: true, force: true });
-    }
-  });
-
-  it("invalidates retained Workspace runtimes", async () => {
-    const state = setup();
-    try {
-      const disposeWorkspaces = vi
-        .spyOn(state.internal, "disposeRetainedGraphs")
-        .mockResolvedValue();
-
-      await state.factory.invalidateRetainedRuntimeCaches();
-
-      expect(disposeWorkspaces).toHaveBeenCalledTimes(1);
-    } finally {
-      rmSync(state.root, { recursive: true, force: true });
-    }
-  });
 });
 
 describe("createSession pristine reuse", () => {

@@ -333,13 +333,18 @@ export class WorkspaceGraphFactory {
   }
 
   /** Dispose every idle Workspace graph retained by the lifecycle owner.
-   *  语义改为:清空整个注册表(host 关闭/重置用)。 */
+   *  语义改为:清空注册表里除 active 外的所有 graph(host 关闭/重置用)。 */
   async disposeRetainedGraphs(): Promise<void> {
-    const all = [...this.graphs.values()];
-    this.graphs.clear();
-    this.lruOrder.length = 0;
-    this.clearActiveGraph();
-    for (const g of all) {
+    const activeKey = this.activeCwd ? this.graphKey(this.activeCwd) : null;
+    const toDispose: WorkspaceGraph[] = [];
+    for (const [key, g] of this.graphs) {
+      if (key === activeKey) continue; // 保留 active(正在用)
+      toDispose.push(g);
+      this.graphs.delete(key);
+      const idx = this.lruOrder.indexOf(key);
+      if (idx >= 0) this.lruOrder.splice(idx, 1);
+    }
+    for (const g of toDispose) {
       try {
         await this.workspaceLifecycle.disposeGraph(g);
       } catch {
@@ -349,13 +354,17 @@ export class WorkspaceGraphFactory {
   }
 
   /** Dispose the idle Workspace graph that shares a Session storage namespace.
-   *  语义改为:从注册表移除并 dispose 该 cwd 的 graph(archive/delete/restore 后清理)。 */
+   *  语义改为:从注册表移除并 dispose 该 cwd 的 graph(archive/delete/restore 后清理)。
+   *  若该 graph 正是 active,不 dispose(正在用),仅跳过。 */
   async invalidateRetainedWorkspaceGraph(canonicalCwd: string): Promise<void> {
+    const key = this.graphKey(canonicalCwd);
+    const activeKey = this.activeCwd ? this.graphKey(this.activeCwd) : null;
+    if (key === activeKey) return; // active 不 dispose
     this.removeRegisteredGraph(canonicalCwd);
   }
 
   /** Drop every idle runtime that may have captured old settings or resources.
-   *  语义改为:清空注册表(provider/config 变更要重来)。 */
+   *  语义改为:清掉注册表里除 active 外的缓存 graph(package mutation 后让旧缓存失效)。 */
   async invalidateRetainedRuntimeCaches(): Promise<void> {
     await this.disposeRetainedGraphs();
   }
