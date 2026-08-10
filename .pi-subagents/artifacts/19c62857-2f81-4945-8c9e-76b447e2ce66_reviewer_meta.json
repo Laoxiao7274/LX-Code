@@ -1,0 +1,109 @@
+{
+  "runId": "19c62857-2f81-4945-8c9e-76b447e2ce66",
+  "agent": "reviewer",
+  "task": "审查 LXCode 的 auto-git 内置扩展（最近两个 commit 441d94a + 11d0117 的改动）。\n\n审查范围（只读，不要改任何文件）：\n1. `packages/pi-host/src/extensions/auto-git/auto-git.ts` — git 操作核心\n2. `packages/pi-host/src/extensions/auto-git/extension.ts` — pi 扩展工厂（事件监听）\n3. `packages/pi-host/src/extensions/index.ts` — 注册到 BUILTIN_EXTENSIONS\n4. `packages/pi-host/src/extensions/load-builtin.ts` — 加载逻辑\n\n功能背景：每个项目保证有本地 git 仓库，AI 每次改动（agent_settled）自动 git add -A + commit 到隔离分支 lxcode/auto，commit message 用 conventional commits 格式（按文件推断 type），与 master/远程历史隔离。\n\n请重点审查：\n1. **并发安全**：auto commit 用 git add -A（提交全部工作区变更，含用户手动改动）。多会话并发、AI 与用户同时操作 git、agent_settled 与 ChangesPanel 手动 commit 会不会冲突/竞态？\n2. **分支切换安全性**：session_start 切到 lxcode/auto，工作区脏（用户有未提交改动）时切换失败兜底逻辑是否可靠？切分支会不会丢失/污染用户改动？\n3. **工具事件收集**：tool_call 事件收集 edit/write 文件路径的逻辑（extractFilePath）是否健壮？ctx.cwd 是否可靠？会话间状态泄漏（sessionFilesByCwd Map）？\n4. **git 命令健壮性**：spawn git 的超时/错误处理、--no-pager、optionalLocks 缺失（host 的 git-service 用了 optionalLocks 避免锁冲突，auto-git 没用）、stderr 吞掉、git init 在非空目录的行为、.gitignore 补 node_modules 是否会覆盖/破坏用户意图\n5. **commit message 质量**：inferType 的 type 推断是否合理？多类型文件混在一起只取第一个文件类型是否误导？\n6. **资源泄漏**：sessionFilesByCwd Map 的清理（session_shutdown 清理，但异常崩溃会泄漏？）、watchTimer 无（OK）\n7. **可配置性/可观测性**：开关只有设置页一个 toggle，但 commit 粒度、分支名、是否 init、是否包含用户改动都不可配；失败完全静默（console 都没打），用户/调试完全无感知\n8. **与现有 git-service 的关系**：LXCode 已有完整的 git-service.ts（host 核心），auto-git 重复造一套 spawn git，是否应复用？为什么没复用？\n9. **agent_settled 触发可靠性**：agent_settled 是否一定触发（异常/中断/被 abort 时）？如果 AI 会话中途取消，auto commit 还会跑吗？\n10. **首次 commit 把所有未跟踪文件纳入**：用户项目可能有很多本不该提交的（eval/、logs/、构建产物），首次 auto commit 全部提交，是否合理？是否需要更保守的 .gitignore 或只提交 AI 改的文件？\n\n输出格式：按严重程度分组（阻断/重要/建议），每个问题给出文件:行号、问题描述、复现条件、建议修复方向。不要改代码，只给审查报告。\n\n## Acceptance Contract\nAcceptance level: checked\nCompletion is not accepted from prose alone. End with a structured acceptance report.\n\nCriteria:\n- criterion-1: Return concrete findings with file paths and severity when applicable\n\nRequired evidence: changed-files, tests-added, commands-run, residual-risks, no-staged-files\n\nFinish with a fenced JSON block tagged `acceptance-report` in this shape:\nUse empty arrays when no items apply; array fields contain strings unless object entries are shown.\n`criteriaSatisfied[].status` must be exactly one of: satisfied, not-satisfied, not-applicable.\n`commandsRun[].result` must be exactly one of: passed, failed, not-run.\n`manualNotes` and `notes` are optional strings; an empty string means no note and does not satisfy `manual-notes` evidence.\n```acceptance-report\n{\n  \"criteriaSatisfied\": [\n    {\n      \"id\": \"criterion-1\",\n      \"status\": \"satisfied\",\n      \"evidence\": \"specific proof\"\n    }\n  ],\n  \"changedFiles\": [\n    \"src/file.ts\"\n  ],\n  \"testsAddedOrUpdated\": [\n    \"test/file.test.ts\"\n  ],\n  \"commandsRun\": [\n    {\n      \"command\": \"command\",\n      \"result\": \"passed\",\n      \"summary\": \"short result\"\n    }\n  ],\n  \"validationOutput\": [\n    \"validation output or concise summary\"\n  ],\n  \"residualRisks\": [\n    \"none\"\n  ],\n  \"noStagedFiles\": true,\n  \"diffSummary\": \"short description of the diff\",\n  \"reviewFindings\": [\n    \"blocker: file.ts:12 - issue found, or no blockers\"\n  ],\n  \"manualNotes\": \"anything else the parent should know\"\n}\n```",
+  "exitCode": 2,
+  "model": "mytai/MYT:high",
+  "attemptedModels": [
+    "mytai/MYT:high"
+  ],
+  "modelAttempts": [
+    {
+      "model": "mytai/MYT:high",
+      "success": false,
+      "exitCode": 2,
+      "error": "bash failed (exit 2): ls: cannot access 'packages/': No such file or directory\n\n\nCommand exited with code 2",
+      "usage": {
+        "input": 141,
+        "output": 724,
+        "cacheRead": 26176,
+        "cacheWrite": 6464,
+        "cost": 0,
+        "turns": 5
+      }
+    }
+  ],
+  "error": "bash failed (exit 2): ls: cannot access 'packages/': No such file or directory\n\n\nCommand exited with code 2",
+  "acceptance": {
+    "status": "rejected",
+    "evidenceStatus": "rejected",
+    "explicit": true,
+    "effectiveAcceptance": {
+      "level": "checked",
+      "explicit": true,
+      "inferredReason": [
+        "read-only/reviewer-style agent"
+      ],
+      "criteria": [
+        {
+          "id": "criterion-1",
+          "must": "Return concrete findings with file paths and severity when applicable",
+          "evidence": [
+            "changed-files",
+            "tests-added",
+            "commands-run",
+            "residual-risks",
+            "no-staged-files"
+          ],
+          "severity": "required"
+        }
+      ],
+      "evidence": [
+        "changed-files",
+        "tests-added",
+        "commands-run",
+        "residual-risks",
+        "no-staged-files"
+      ],
+      "verify": [],
+      "stopRules": []
+    },
+    "inferredReason": [
+      "read-only/reviewer-style agent"
+    ],
+    "criteria": [
+      {
+        "id": "criterion-1",
+        "must": "Return concrete findings with file paths and severity when applicable",
+        "evidence": [
+          "changed-files",
+          "tests-added",
+          "commands-run",
+          "residual-risks",
+          "no-staged-files"
+        ],
+        "severity": "required"
+      }
+    ],
+    "runtimeChecks": [
+      {
+        "id": "attestation",
+        "status": "failed",
+        "message": "Structured acceptance report not found."
+      }
+    ],
+    "verifyRuns": [],
+    "childReportParseError": "Structured acceptance report not found."
+  },
+  "launchContractDigest": "b6e4603755f8cf2ce3e888dd438725fce54d2d88b58b166af375eabde0bff48e",
+  "launchResolvedExtensions": {
+    "version": 1,
+    "source": "launch-resolved",
+    "disableAmbientExtensions": false,
+    "runtime": [
+      "sha256:c0e2d03550399971"
+    ],
+    "configured": [],
+    "effective": [
+      "sha256:c0e2d03550399971"
+    ],
+    "omitted": {
+      "runtime": 0,
+      "configured": 0,
+      "effective": 0
+    }
+  },
+  "transcriptPath": "C:\\Users\\xzy\\Desktop\\my\\lx-code\\.pi-subagents\\artifacts\\19c62857-2f81-4945-8c9e-76b447e2ce66_reviewer_transcript.jsonl",
+  "skills": [],
+  "timestamp": 1786076864897
+}
