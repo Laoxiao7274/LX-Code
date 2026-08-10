@@ -40,3 +40,6 @@ artifacts/
 /_cdp*
 /_verify*
 /codegraph.json
+
+# 第三方参考项目,只读不跟踪
+reference/
