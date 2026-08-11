@@ -53,6 +53,10 @@ const CHANNELS = ["stable", "beta"];
 const manifestPath = (ch) => join(DATA_DIR, `${ch}.json`);
 
 const PORT = Number(process.env.PORT || 8080);
+// 管理账号登录(页面用)
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
+// CLI 发布 token(scripts/publish-release.mjs 用,与登录密码分开)
 const PUBLISH_TOKEN = process.env.PUBLISH_TOKEN || "";
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "";
 const SITE_TITLE = process.env.SITE_TITLE || "LXCode 更新服务";
@@ -126,15 +130,16 @@ function parseCookies(req) {
   return out;
 }
 
-/** 鉴权:Bearer token(CLI)或 cookie session(管理页面)。 */
+/** 鉴权:Bearer token(CLI 发布)或 cookie session(管理页面账号密码登录)。 */
 function checkAuth(req) {
-  if (!PUBLISH_TOKEN) return { ok: false, reason: "server has no PUBLISH_TOKEN" };
-  // Bearer token(CLI 脚本)
-  const auth = req.headers.authorization || "";
-  if (auth.startsWith("Bearer ") && auth.slice(7) === PUBLISH_TOKEN) {
-    return { ok: true, via: "bearer" };
+  // Bearer token(CLI 脚本 publish-release.mjs)——与登录密码独立
+  if (PUBLISH_TOKEN) {
+    const auth = req.headers.authorization || "";
+    if (auth.startsWith("Bearer ") && auth.slice(7) === PUBLISH_TOKEN) {
+      return { ok: true, via: "bearer" };
+    }
   }
-  // cookie session(管理页面)
+  // cookie session(管理页面账号密码登录)
   const sid = parseCookies(req).lxcode_admin;
   if (sid && sessions.has(sid)) {
     const s = sessions.get(sid);
@@ -253,20 +258,20 @@ async function handler(req, res) {
 
   // ===== 登录/登出 =====
   if (path === "/api/login" && req.method === "POST") {
-    if (!PUBLISH_TOKEN) return sendJson(res, 503, { error: "server has no PUBLISH_TOKEN" });
+    if (!ADMIN_PASSWORD) return sendJson(res, 503, { error: "server has no ADMIN_PASSWORD" });
     let body;
     try {
       body = JSON.parse((await readBody(req)).toString("utf8"));
     } catch {
       return sendJson(res, 400, { error: "invalid JSON" });
     }
-    if (body.token === PUBLISH_TOKEN) {
+    if (body.username === ADMIN_USERNAME && body.password === ADMIN_PASSWORD) {
       const sid = randomUUID();
       sessions.set(sid, { created: Date.now() });
       res.setHeader("set-cookie", `lxcode_admin=${sid}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_TTL_MS / 1000}`);
       return sendJson(res, 200, { ok: true });
     }
-    return sendJson(res, 401, { error: "token 错误" });
+    return sendJson(res, 401, { error: "账号或密码错误" });
   }
 
   if (path === "/api/logout" && req.method === "POST") {
@@ -478,6 +483,7 @@ async function handler(req, res) {
 const server = createServer(handler);
 server.listen(PORT, () => {
   console.log(`[lxcode-update-server] listening on http://localhost:${PORT}`);
-  console.log(`  PUBLISH_TOKEN: ${PUBLISH_TOKEN ? "set" : "(empty — uploads disabled)"}`);
+  console.log(`  ADMIN: ${ADMIN_USERNAME} / ${ADMIN_PASSWORD ? "set" : "(empty — login disabled)"}`);
+  console.log(`  PUBLISH_TOKEN: ${PUBLISH_TOKEN ? "set" : "(empty — CLI uploads disabled)"}`);
   console.log(`  PUBLIC_BASE_URL: ${PUBLIC_BASE_URL || "(inferred from Host)"}`);
 });

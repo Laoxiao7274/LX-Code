@@ -120,7 +120,8 @@ export function AdminApp() {
 }
 
 function Login({ onOk }: { onOk: () => void }) {
-  const [token, setToken] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
@@ -129,10 +130,10 @@ function Login({ onOk }: { onOk: () => void }) {
         onSubmit={async (e) => {
           e.preventDefault();
           try {
-            await apiClient.login(token.trim());
+            await apiClient.login(username.trim(), password);
             onOk();
           } catch {
-            setErr("token 错误");
+            setErr("账号或密码错误");
           }
         }}
       >
@@ -140,20 +141,35 @@ function Login({ onOk }: { onOk: () => void }) {
           <LxMark className="h-7 w-7" />
           <div>
             <h1 className="text-lg font-semibold text-slate-900">LXCode 管理后台</h1>
-            <p className="text-xs text-slate-400">输入管理 token 登录</p>
+            <p className="text-xs text-slate-400">输入账号密码登录</p>
           </div>
         </div>
-        <input
-          type="password"
-          value={token}
-          autoFocus
-          onChange={(e) => setToken(e.target.value)}
-          placeholder="PUBLISH_TOKEN"
-          className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-        />
+        <div className="space-y-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500">账号</label>
+            <input
+              type="text"
+              value={username}
+              autoFocus
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="admin"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500">密码</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            />
+          </div>
+        </div>
         <button
           type="submit"
-          className="mt-4 w-full rounded-lg bg-brand-600 py-2.5 text-sm font-medium text-white transition hover:bg-brand-700"
+          className="mt-5 w-full rounded-lg bg-brand-600 py-2.5 text-sm font-medium text-white transition hover:bg-brand-700"
         >
           登录
         </button>

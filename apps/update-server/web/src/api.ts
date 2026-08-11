@@ -38,11 +38,11 @@ export const apiClient = {
 
   // admin
   checkAuth: () => api<{ authed: boolean }>("/api/admin/auth"),
-  login: (token: string) =>
+  login: (username: string, password: string) =>
     api<{ ok: boolean }>("/api/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ token }),
+      body: JSON.stringify({ username, password }),
     }),
   logout: () => api<{ ok: boolean }>("/api/logout", { method: "POST" }),
   adminVersions: () => api<{ versions: VersionInfo[] }>("/api/admin/versions"),
