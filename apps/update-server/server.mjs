@@ -220,20 +220,42 @@ async function handler(req, res) {
     return sendJson(res, 200, { versions: listVersions() });
   }
 
-  if (path.startsWith("/releases/") && req.method === "GET") {
+  // 产物下载:支持 HEAD 探测 + Range 断点续传(大文件下载中断可续,避免不完整致 NSIS 校验失败)
+  if (path.startsWith("/releases/") && (req.method === "GET" || req.method === "HEAD")) {
     const rel = safeSegs(...path.slice("/releases/".length).split("/"));
     const abs = join(RELEASES_DIR, rel);
     if (!abs.startsWith(RELEASES_DIR) || !existsSync(abs) || statSync(abs).isDirectory()) {
       return sendText(res, 404, "not found");
     }
     const stat = statSync(abs);
-    res.writeHead(200, {
+    const total = stat.size;
+    // Range: bytes=start-end
+    const range = req.headers.range;
+    let start = 0;
+    let end = total - 1;
+    let isRange = false;
+    if (range && /bytes=(\d+)-(\d*)/i.test(range)) {
+      const m = range.match(/bytes=(\d+)-(\d*)/i);
+      start = Number(m[1]);
+      end = m[2] ? Number(m[2]) : total - 1;
+      if (start > end || end >= total) {
+ res.writeHead(416, { "content-range": `bytes */${total}` });
+        return res.end();
+      }
+      isRange = true;
+    }
+    const length = end - start + 1;
+    const headers = {
       "content-type": "application/octet-stream",
-      "content-length": stat.size,
+      "content-length": String(length),
       "content-disposition": `attachment; filename="${basename(abs)}"`,
       "cache-control": "public, max-age=3600",
-    });
-    createReadStream(abs).pipe(res);
+      "accept-ranges": "bytes",
+    };
+    if (isRange) headers["content-range"] = `bytes ${start}-${end}/${total}`;
+    res.writeHead(isRange ? 206 : 200, headers);
+    if (req.method === "HEAD") return res.end();
+    createReadStream(abs, { start, end }).pipe(res);
     return;
   }
 
