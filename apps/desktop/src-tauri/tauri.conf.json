@@ -56,9 +56,10 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY0MTJENkU2OTFCQ0NCNzgKUldSNHk3eVI1dFlTWkd2YWJFNlFRQzFhNEFnN3dzS0lydjBhdjMrdDhFVy8zZWtRdmE1Mzh3ZTEK",
       "endpoints": [
-        "https://updates.lxcode.dev/latest.json",
+        "http://123.57.129.111:8081/stable.json",
         "https://github.com/Laoxiao7274/LX-Code/releases/latest/download/latest.json"
-      ]
+      ],
+      "dangerousInsecureTransportProtocol": true
     }
   }
 }

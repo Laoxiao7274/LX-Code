@@ -1,14 +1,15 @@
 /**
- * App self-update over the Tauri updater plugin.
+ * App self-update.
  *
- * Channel 支持:桌面端自己 fetch channel 对应清单(stable.json/beta.json)比对版本,
- * 展示更新日志给用户;确认更新时用 Tauri plugin 的 check()+downloadAndInstall()
- * 实际下载安装(plugin 按编译期 endpoints 拉,会取版本更高的清单,实际下载的版本
- * 与展示版本一致——因为同 channel 的 json 即 plugin endpoints 之一)。
+ * Channel 支持:
+ * - stable:Tauri updater plugin 自动下载安装(plugin endpoints 指向 stable.json)
+ * - beta:自己 fetch beta.json 比对版本 + 提示,install 打开下载页手动装
+ *   (Tauri plugin 的 endpoints 编译期固定,无法运行时切到 beta.json,故 beta 不走 plugin 自动下载)
  *
- * All plugin imports stay dynamic so the browser mock never loads Tauri
- * internals. A check returns null when no update is available (or when
- * running outside Tauri); installing downloads the package and relaunches.
+ * 安全:无论 channel,plugin 下载的 setup.exe 都经 minisign 公钥验证(不可禁)。
+ * HTTP 端点靠 tauri.conf.json 的 dangerousInsecureTransportProtocol 放行,签名兜底内容完整性。
+ *
+ * All plugin imports stay dynamic so the browser mock never loads Tauri internals.
  */
 
 export type UpdateChannel = "stable" | "beta";
@@ -17,49 +18,58 @@ export type AppUpdate = {
   version: string;
   /** 更新日志(来自 manifest notes) */
   body?: string;
+  /** beta 频道为手动下载(打开浏览器),stable 为自动下载安装并重启。 */
+  manual?: boolean;
   /** Downloads, installs and relaunches the app. Resolves only on failure paths. */
-  install: (onProgress?: (progress: AppUpdateInstallProgress) => void) => void;
+  install: (onProgress?: (progress: AppUpdateInstallProgress) => void) => Promise<void>;
 };
 
 export type AppUpdateInstallProgress =
-  | {
-      phase: "downloading";
-      downloadedBytes: number;
-      totalBytes: number | null;
-    }
+  | { phase: "downloading"; downloadedBytes: number; totalBytes: number | null }
   | { phase: "installing" };
 
 let inFlightCheck: Promise<AppUpdate | null> | null = null;
 
-/** 更新服务器基址(含 https)。编译期 endpoints 的主源,运行时 channel 检查也用它。 */
-const UPDATE_SERVER =
-  "https://updates.lxcode.dev" /* TODO: 换成实际域名 */;
+/** 更新服务器基址(与 tauri.conf.json endpoints 主源一致)。 */
+const UPDATE_SERVER = "http://123.57.129.111:8081";
 
-/** 拉指定 channel 的清单,返回版本号 + notes(只检查,不下载)。 */
-async function fetchChannelManifest(channel: UpdateChannel): Promise<{
+type ChannelManifest = {
   version: string;
   pub_date?: string;
   notes?: string;
-} | null> {
+  platforms?: Record<string, { signature: string; url: string }>;
+};
+
+async function fetchChannelManifest(channel: UpdateChannel): Promise<ChannelManifest | null> {
   try {
     const res = await fetch(`${UPDATE_SERVER}/${channel}.json`, { cache: "no-store" });
     if (!res.ok) return null;
-    const m = (await res.json()) as { version?: string; pub_date?: string; notes?: string };
-    return m.version ? { version: m.version, pub_date: m.pub_date, notes: m.notes } : null;
+    const m = (await res.json()) as ChannelManifest;
+    return m.version ? m : null;
   } catch {
     return null;
   }
 }
 
-/** 比较语义化版本:a < b 返回 -1,等返回 0,a > b 返回 1(支持 -beta 后缀)。 */
+/** 比较语义化版本:a < b 返回 -1,等返回 0,a > b 返回 1(支持 -beta 后缀,预发布 < 正式)。 */
 function compareVersions(a: string, b: string): number {
   const pa = a.split(/[.-]/);
   const pb = b.split(/[.-]/);
   for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const na = Number(pa[i]) || 0;
-    const nb = Number(pb[i]) || 0;
-    if (na < nb) return -1;
-    if (na > nb) return 1;
+    const na = Number(pa[i]);
+    const nb = Number(pb[i]);
+    if (!Number.isNaN(na) && !Number.isNaN(nb)) {
+      if (na < nb) return -1;
+      if (na > nb) return 1;
+      continue;
+    }
+    // 非数字段(如 "beta"):有 < 无(0.2.1-beta < 0.2.1)
+    const sa = pa[i] ?? "";
+    const sb = pb[i] ?? "";
+    if (sa === sb) continue;
+    if (!sa) return 1;
+    if (!sb) return -1;
+    return sa < sb ? -1 : 1;
   }
   return 0;
 }
@@ -67,11 +77,30 @@ function compareVersions(a: string, b: string): number {
 async function runCheck(channel: UpdateChannel = "stable"): Promise<AppUpdate | null> {
   const { isTauri } = await import("@tauri-apps/api/core");
   if (!isTauri()) return null;
+
   const manifest = await fetchChannelManifest(channel);
   if (!manifest) return null;
   const { getVersion } = await import("@tauri-apps/api/app");
   const current = await getVersion();
   if (compareVersions(manifest.version, current) <= 0) return null;
+
+  if (channel === "beta") {
+    // beta:plugin 无法运行时切 endpoint,手动下载——打开下载页
+    const url = manifest.platforms?.["windows-x86_64"]?.url;
+    return {
+      version: manifest.version,
+      body: manifest.notes,
+      manual: true,
+      install: async () => {
+        if (url) {
+          const { open } = await import("@tauri-apps/plugin-shell");
+          await open(url);
+        }
+      },
+    };
+  }
+
+  // stable:plugin 自动下载安装(plugin endpoints 指向 stable.json)
   const { check } = await import("@tauri-apps/plugin-updater");
   const update = await check();
   if (!update) return null;
@@ -101,7 +130,6 @@ async function runCheck(channel: UpdateChannel = "stable"): Promise<AppUpdate | 
   };
 }
 
-// install 签名是回调式,上面 install 写法错了。重写 runCheck 的 install。
 /** Checks the release feed; concurrent callers share one in-flight request. */
 export function checkForAppUpdate(channel: UpdateChannel = "stable"): Promise<AppUpdate | null> {
   if (!inFlightCheck) {

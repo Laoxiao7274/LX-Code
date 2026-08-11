@@ -77,6 +77,18 @@ export function HostSettings() {
   }
 
   async function installUpdate(update: AppUpdate) {
+    // beta 频道 manual:只打开下载页,不进入下载/安装状态
+    if (update.manual) {
+      try {
+        await update.install();
+      } catch (err) {
+        pushNotification(
+          err instanceof Error ? err.message : t("notifUpdateInstallFailed"),
+          "error",
+        );
+      }
+      return;
+    }
     setUpdatePhase({
       state: "downloading",
       update,
@@ -256,7 +268,9 @@ export function HostSettings() {
                       ? t("hostUpdateInstalling")
                       : updatePhase.state === "downloading"
                         ? t("hostUpdateDownloading")
-                        : t("hostUpdateInstall")}
+                        : updatePhase.update.manual
+                          ? "前往下载"
+                          : t("hostUpdateInstall")}
                   </button>
                 ) : (
                   <button
