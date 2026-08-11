@@ -86,6 +86,13 @@ pub struct DesktopSettings {
     pub shortcut_overrides: BTreeMap<String, Option<String>>,
     #[serde(skip_serializing_if = "BTreeMap::is_empty", default = "BTreeMap::new")]
     pub use_cases: BTreeMap<String, String>,
+    /// 更新通道:"stable" 或 "beta"。默认 stable。客户端检查更新按此拉对应清单。
+    #[serde(default = "default_update_channel")]
+    pub update_channel: String,
+}
+
+fn default_update_channel() -> String {
+    "stable".to_string()
 }
 
 impl Default for DesktopSettings {
@@ -105,6 +112,7 @@ impl Default for DesktopSettings {
             known_workspaces: Vec::new(),
             shortcut_overrides: BTreeMap::new(),
             use_cases: BTreeMap::new(),
+            update_channel: "stable".to_string(),
         }
     }
 }

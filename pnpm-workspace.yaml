@@ -1,6 +1,7 @@
 packages:
   - "apps/*"
   - "packages/*"
+  - "apps/update-server/web"
 
 patchedDependencies:
   "@earendil-works/pi-coding-agent@0.82.1": "patches/@earendil-works__pi-coding-agent@0.82.1.patch"

@@ -64,7 +64,8 @@ export function HostSettings() {
   async function checkForUpdates() {
     setUpdatePhase({ state: "checking" });
     try {
-      const update = await checkForAppUpdate();
+      const channel = useAppStore.getState().desktopSettings?.updateChannel ?? "stable";
+      const update = await checkForAppUpdate(channel);
       setUpdatePhase(update ? { state: "available", update } : { state: "upToDate" });
     } catch (err) {
       setUpdatePhase({ state: "idle" });
@@ -213,6 +214,34 @@ export function HostSettings() {
                 <span className="text-muted">LXCode</span>
                 <span className="font-mono">{appVersion ?? "—"}</span>
               </div>
+              {/* 更新通道选择 */}
+              <div className="mt-1 flex items-center justify-between">
+                <span className="text-muted">更新通道</span>
+                <div className="flex gap-1.5">
+                  {(["stable", "beta"] as const).map((ch) => {
+                    const active = (useAppStore.getState().desktopSettings?.updateChannel ?? "stable") === ch;
+                    return (
+                      <button
+                        key={ch}
+                        type="button"
+                        className={`rounded-md border px-2.5 py-1 text-xs transition ${
+                          active
+                            ? ch === "beta"
+                              ? "border-amber-500/40 bg-amber-500/10 text-amber-500"
+                              : "border-accent/40 bg-accent/10 text-accent"
+                            : "border-border text-muted hover:bg-surface-overlay"
+                        }`}
+                        onClick={() => {
+                          void persistDesktopSettings({ updateChannel: ch }).catch(() => {});
+                          setUpdatePhase({ state: "idle" });
+                        }}
+                      >
+                        {ch === "stable" ? "稳定版" : "测试版"}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 {updatePhase.state === "available" ||
                 updatePhase.state === "downloading" ||
@@ -252,6 +281,12 @@ export function HostSettings() {
                   </span>
                 )}
               </div>
+              {/* 更新日志 */}
+              {updatePhase.state === "available" && updatePhase.update.body && (
+                <div className="mt-2 max-h-40 overflow-auto rounded-md border border-border bg-surface-overlay/30 p-3 text-xs text-muted">
+                  <pre className="whitespace-pre-wrap font-sans leading-relaxed">{updatePhase.update.body}</pre>
+                </div>
+              )}
               {updateStatusText && (
                 <div className="mt-3">
                   <div className="mb-1.5 flex items-center justify-between gap-3 text-xs text-muted">

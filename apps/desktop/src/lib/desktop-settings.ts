@@ -40,6 +40,7 @@ const DESKTOP_SETTINGS_KEYS = new Set([
   "knownWorkspaces",
   "shortcutOverrides",
   "useCases",
+  "updateChannel",
 ]);
 const EXTENSION_DECISION_PRESENTATIONS = ["legacy-modal", "auto", "inline-first"] as const;
 const NULLABLE_PATH_KEYS = [

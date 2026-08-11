@@ -899,6 +899,8 @@ export type DesktopSettings = {
   useCases?: Record<string, string>;
   /** Built-in extension enable/disable overrides: extension id -> enabled (false = disabled). Omitted = enabled. */
   builtinExtensions?: Record<string, boolean>;
+  /** 更新通道:"stable" | "beta"。默认 stable。 */
+  updateChannel?: "stable" | "beta";
 };
 
 export type DesktopSettingsPatch = Partial<DesktopSettings>;

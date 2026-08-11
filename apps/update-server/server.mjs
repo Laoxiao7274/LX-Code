@@ -48,8 +48,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = __dirname;
 const RELEASES_DIR = join(ROOT, "releases");
 const DATA_DIR = join(ROOT, "data");
-const LATEST_JSON = join(DATA_DIR, "latest.json");
-const ADMIN_HTML = join(ROOT, "admin.html");
+// channel 清单:stable.json(正式)、beta.json(测试);latest.json 兼容=stable
+const CHANNELS = ["stable", "beta"];
+const manifestPath = (ch) => join(DATA_DIR, `${ch}.json`);
 
 const PORT = Number(process.env.PORT || 8080);
 const PUBLISH_TOKEN = process.env.PUBLISH_TOKEN || "";
@@ -96,6 +97,24 @@ function sendText(res, status, text) {
 function sendHtml(res, status, html) {
   res.writeHead(status, { "content-type": "text/html; charset=utf-8" });
   res.end(html);
+}
+
+/** 按扩展名设 content-type,流式返回静态文件(前端 dist)。 */
+function serveStatic(res, abs) {
+  const ext = abs.slice(abs.lastIndexOf(".") + 1).toLowerCase();
+  const types = {
+    html: "text/html; charset=utf-8",
+    js: "text/javascript; charset=utf-8",
+    css: "text/css; charset=utf-8",
+    png: "image/png", jpg: "image/jpeg", svg: "image/svg+xml",
+    ico: "image/x-icon", json: "application/json; charset=utf-8",
+    woff2: "font/woff2", woff: "font/woff", map: "application/json",
+  };
+  res.writeHead(200, {
+    "content-type": types[ext] || "application/octet-stream",
+    "cache-control": ext === "html" ? "no-cache" : "public, max-age=3600",
+  });
+  createReadStream(abs).pipe(res);
 }
 
 function parseCookies(req) {
@@ -147,6 +166,7 @@ function listVersions() {
       version: name,
       label: meta.label || "",
       notes: meta.notes || "",
+      channel: meta.channel || "stable",
       createdAt: meta.createdAt || statSync(dir).mtimeMs,
       files,
     });
@@ -184,8 +204,10 @@ async function handler(req, res) {
     return sendJson(res, 200, { ok: true, service: "lxcode-update-server", versions: listVersions().length });
   }
 
-  if (path === "/latest.json" && req.method === "GET") {
-    const manifest = readJsonSafe(LATEST_JSON, { version: "0.0.0", pub_date: null, platforms: {} });
+  // GET /stable.json | /beta.json | /latest.json(=stable,兼容)— Tauri updater 端点
+  if (req.method === "GET" && /^(?:\/stable|\/beta|\/latest)\.json$/.test(path)) {
+    const ch = path === "/latest.json" ? "stable" : path.slice(1, -5);
+    const manifest = readJsonSafe(manifestPath(ch), { version: "0.0.0", pub_date: null, platforms: {} });
     return sendJson(res, 200, manifest);
   }
 
@@ -210,8 +232,23 @@ async function handler(req, res) {
     return;
   }
 
-  if (path === "/" && req.method === "GET") {
-    return sendHtml(res, 200, renderHome());
+  // 静态前端(web/dist,SPA):首页、admin 等都由 React 接管。
+  // dev 时前端跑在 5173 代理 API,生产由这里 serve dist。
+  if (req.method === "GET" && !path.startsWith("/api") && !path.startsWith("/releases") && !/\.(?:stable|beta|latest)\.json$/.test(path)) {
+    const WEB_DIST = join(ROOT, "web", "dist");
+    if (!existsSync(WEB_DIST)) {
+      return sendText(res, 503, "前端未构建:在 apps/update-server/web 跑 `pnpm build`");
+    }
+    // 精确匹配静态文件
+    const rel = safeSegs(...path.split("/").filter(Boolean));
+    const abs = join(WEB_DIST, rel);
+    if (abs.startsWith(WEB_DIST) && existsSync(abs) && statSync(abs).isFile()) {
+      return serveStatic(res, abs);
+    }
+    // SPA fallback → index.html(前端路由 #/admin 等)
+    const index = join(WEB_DIST, "index.html");
+    if (existsSync(index)) return serveStatic(res, index);
+    return sendText(res, 404, "index.html missing");
   }
 
   // ===== 登录/登出 =====
@@ -252,14 +289,6 @@ async function handler(req, res) {
     // /api/upload 和 /api/manifest 保留给 CLI(Bearer),admin 用 /api/admin/upload + /api/admin/publish
   }
 
-  // GET /admin → 管理页面 HTML
-  if (path === "/admin" && req.method === "GET") {
-    if (!existsSync(ADMIN_HTML)) return sendText(res, 404, "admin.html missing");
-    res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-    createReadStream(ADMIN_HTML).pipe(res);
-    return;
-  }
-
   // GET /api/admin/versions
   if (path === "/api/admin/versions" && req.method === "GET") {
     if (!checkAuth(req).ok) return sendJson(res, 401, { error: "not authenticated" });
@@ -288,6 +317,7 @@ async function handler(req, res) {
       version,
       label: String(body.label ?? existing.label ?? ""),
       notes: String(body.notes ?? existing.notes ?? ""),
+      channel: body.channel === "beta" || existing.channel === "beta" ? "beta" : "stable",
       createdAt: existing.createdAt || Date.now(),
     };
     writeFileSync(join(verDir, "meta.json"), JSON.stringify(meta, null, 2));
@@ -305,14 +335,21 @@ async function handler(req, res) {
       return sendJson(res, 404, { error: "version not found" });
     }
     rmSync(verDir, { recursive: true, force: true });
-    // 从 latest.json 移除指向该版本的条目
-    const manifest = readJsonSafe(LATEST_JSON, null);
-    if (manifest?.platforms) {
-      const prefix = `/releases/${encodeURIComponent(tag)}/`;
-      for (const [k, v] of Object.entries(manifest.platforms)) {
-        if (typeof v.url === "string" && v.url.includes(prefix)) delete manifest.platforms[k];
+    // 从两个 channel 清单 + latest.json 移除指向该版本的条目
+    for (const ch of ["stable", "beta", "latest"]) {
+      const mPath = manifestPath(ch);
+      const manifest = readJsonSafe(mPath, null);
+      if (manifest?.platforms) {
+        const prefix = `/releases/${encodeURIComponent(tag)}/`;
+        let changed = false;
+        for (const [k, v] of Object.entries(manifest.platforms)) {
+          if (typeof v.url === "string" && v.url.includes(prefix)) {
+            delete manifest.platforms[k];
+            changed = true;
+          }
+        }
+        if (changed) writeFileSync(mPath, JSON.stringify(manifest, null, 2));
       }
-      writeFileSync(LATEST_JSON, JSON.stringify(manifest, null, 2));
     }
     return sendJson(res, 200, { ok: true });
   }
@@ -343,9 +380,13 @@ async function handler(req, res) {
   }
 
   // GET /api/admin/manifest
+  // GET /api/admin/manifest — 返回两个 channel 的清单
   if (path === "/api/admin/manifest" && req.method === "GET") {
     if (!checkAuth(req).ok) return sendJson(res, 401, { error: "not authenticated" });
-    return sendJson(res, 200, readJsonSafe(LATEST_JSON, { version: "0.0.0", platforms: {} }));
+    return sendJson(res, 200, {
+      stable: readJsonSafe(manifestPath("stable"), { version: "0.0.0", platforms: {} }),
+      beta: readJsonSafe(manifestPath("beta"), { version: "0.0.0", platforms: {} }),
+    });
   }
 
   // POST /api/admin/publish { version, platform? } — 发布某版本为最新
@@ -371,17 +412,23 @@ async function handler(req, res) {
     }
     const signature = readFileSync(join(verDir, sig), "utf8").trim();
     if (!signature) return sendJson(res, 400, { error: "signature file is empty" });
-    const manifest = readJsonSafe(LATEST_JSON, { platforms: {} });
+    // channel 从版本 meta 读,默认 stable;客户端按 channel 拉对应清单
+    const meta = readJsonSafe(join(verDir, "meta.json"), {});
+    const channel = meta.channel === "beta" ? "beta" : "stable";
+    const mPath = manifestPath(channel);
+    const manifest = readJsonSafe(mPath, { platforms: {} });
     manifest.version = version;
     manifest.pub_date = new Date().toISOString();
-    manifest.notes = readJsonSafe(join(verDir, "meta.json"), {}).notes || manifest.notes || undefined;
+    manifest.notes = meta.notes || manifest.notes || undefined;
     manifest.platforms = manifest.platforms || {};
     manifest.platforms[platform] = {
       signature,
       url: `${publicBase(req)}/releases/${encodeURIComponent(tag)}/${encodeURIComponent(setup)}`,
     };
-    writeFileSync(LATEST_JSON, JSON.stringify(manifest, null, 2));
-    return sendJson(res, 200, { ok: true, version, platform, manifest });
+    writeFileSync(mPath, JSON.stringify(manifest, null, 2));
+    // stable 额外同步到 latest.json(老客户端兼容)
+    if (channel === "stable") writeFileSync(manifestPath("latest"), JSON.stringify(manifest, null, 2));
+    return sendJson(res, 200, { ok: true, version, channel, platform, manifest });
   }
 
   // ===== CLI 发布端点(Bearer token,publish-release.mjs 用)=====
@@ -428,75 +475,6 @@ async function handler(req, res) {
 
   return sendText(res, 404, "not found");
 }
-
-// ---- 首页 HTML ----
-function renderHome() {
-  const versions = listVersions();
-  const latest = readJsonSafe(LATEST_JSON, null);
-  const base = PUBLIC_BASE_URL ? PUBLIC_BASE_URL.replace(/\/+$/, "") : "";
-  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  const fmtNotes = (n) =>
-    esc(n).replace(/\r?\n/g, "<br>").replace(/`([^`]+)`/g, "<code>$1</code>");
-
-  const versionRows = versions.length
-    ? versions
-        .map((v) => {
-          const filesHtml = v.files
-            .map((f) => {
-              const url = `${base}/releases/${encodeURIComponent(v.version)}/${encodeURIComponent(f)}`;
-              let size = "";
-              try {
-                size = (statSync(join(RELEASES_DIR, v.version, f)).size / 1024 / 1024).toFixed(1) + " MB";
-              } catch {}
-              return `<a href="${esc(url)}">${esc(f)}</a> <span class="size">${esc(size)}</span>`;
-            })
-            .join("<br>");
-          const isLatest = latest?.version && `v${latest.version}` === v.version;
-          return `<tr>
-            <td class="ver">${esc(v.version)}${isLatest ? ' <span class="badge">最新</span>' : ""}${v.label ? `<span class="label">${esc(v.label)}</span>` : ""}</td>
-            <td class="date">${esc(new Date(v.createdAt).toISOString().slice(0, 19).replace("T", " "))}</td>
-            <td class="files">${filesHtml}</td>
-          </tr>${v.notes ? `<tr class="notes-row"><td colspan="3"><div class="notes">${fmtNotes(v.notes)}</div></td></tr>` : ""}`;
-        })
-        .join("")
-    : `<tr><td colspan="3" class="empty">还没有发布任何版本</td></tr>`;
-
-  const latestBadge = latest?.version
-    ? `<div class="latest">当前最新:<strong>v${esc(latest.version)}</strong>${
-        latest.pub_date ? ` <span class="date">(${esc(String(latest.pub_date).slice(0, 19))})</span>` : ""
-      }</div>`
-    : `<div class="latest muted">尚未配置 latest.json</div>`;
-
-  return `<!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(SITE_TITLE)}</title>
-<style>
-*{box-sizing:border-box}body{margin:0;font-family:-apple-system,"Segoe UI","Microsoft YaHei",system-ui,sans-serif;background:#0d1117;color:#c9d1d9;line-height:1.6}
-.wrap{max-width:960px;margin:0 auto;padding:48px 24px}
-h1{font-size:28px;margin:0 0 8px;font-weight:600}h1 .mark{color:#58a6ff}
-.sub{color:#8b949e;margin-bottom:24px}
-.latest{padding:12px 16px;background:#161b22;border:1px solid #30363d;border-radius:8px;margin-bottom:32px}.latest strong{color:#58a6ff}.latest.muted{color:#8b949e}
-table{width:100%;border-collapse:collapse;background:#161b22;border:1px solid #30363d;border-radius:8px;overflow:hidden}
-th,td{padding:12px 16px;text-align:left;border-bottom:1px solid #21262d;vertical-align:top}
-th{background:#0d1117;color:#8b949e;font-weight:500;font-size:13px;text-transform:uppercase;letter-spacing:.05em}
-tr:last-child td{border-bottom:none}.notes-row td{padding:0 16px 12px}.notes{background:#0d1117;border-left:3px solid #30363d;padding:10px 14px;border-radius:4px;font-size:13px;color:#8b949e;white-space:pre-wrap}
-.ver{color:#58a6ff;font-weight:600;white-space:nowrap}.badge{display:inline-block;background:#238636;color:#fff;font-size:11px;padding:1px 8px;border-radius:10px;font-weight:600;vertical-align:middle}
-.label{display:inline-block;background:#1f6feb33;color:#58a6ff;font-size:11px;padding:1px 8px;border-radius:4px;margin-left:6px}
-.date{color:#8b949e;font-size:13px;font-family:ui-monospace,SFMono-Regular,monospace}
-.files a{color:#58a6ff;text-decoration:none;font-family:ui-monospace,SFMono-Regular,monospace;font-size:13px}.files a:hover{text-decoration:underline}
-.size{color:#6e7681;font-size:12px;margin-left:8px}
-.empty{color:#8b949e;text-align:center;padding:32px}
-.foot{margin-top:32px;color:#6e7681;font-size:12px}code{background:#21262d;padding:2px 6px;border-radius:4px;font-size:12px}
-.admin-link{float:right;color:#484f58;font-size:13px;text-decoration:none}.admin-link:hover{color:#8b949e}
-</style></head><body><div class="wrap">
-<a class="admin-link" href="/admin">管理</a>
-<h1><span class="mark">LX</span>Code 更新服务</h1>
-<div class="sub">LXCode 桌面端自动更新与安装包分发</div>
-${latestBadge}
-<table><thead><tr><th>版本</th><th>发布时间</th><th>下载</th></tr></thead><tbody>${versionRows}</tbody></table>
-<div class="foot">更新清单:<code>/latest.json</code> · 健康检查:<code>/api/health</code> · 版本 API:<code>/api/versions</code></div>
-</div></body></html>`;
-}
-
 const server = createServer(handler);
 server.listen(PORT, () => {
   console.log(`[lxcode-update-server] listening on http://localhost:${PORT}`);
